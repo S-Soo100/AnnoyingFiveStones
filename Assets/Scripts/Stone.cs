@@ -14,6 +14,7 @@ public class Stone : MonoBehaviour
     [SerializeField] private State currentState = State.OnBoard;
 
     private Rigidbody rb;
+    private Collider col;
     private int stoneIndex;
 
     public State CurrentState => currentState;
@@ -23,6 +24,7 @@ public class Stone : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        col = GetComponent<Collider>();
         // 2.5D: Z축 이동/회전 고정
         rb.constraints = RigidbodyConstraints.FreezePositionZ
                        | RigidbodyConstraints.FreezeRotationX
@@ -46,20 +48,23 @@ public class Stone : MonoBehaviour
                 rb.useGravity = false;
                 rb.linearDamping = 3f;
                 rb.angularDamping = 5f; // 회전 억제 → 굴러가지 않음
+                if (col != null) col.enabled = true; // 보드 위에서만 충돌 활성
                 break;
             case State.InHand:
                 rb.isKinematic = true;
                 rb.useGravity = false;
+                if (col != null) col.enabled = false; // 손에 든 돌은 충돌 비활성
                 break;
             case State.InAir:
-                // 하늘로 던진 돌만 중력 적용
                 rb.isKinematic = false;
                 rb.useGravity = true;
-                rb.linearDamping = 0.2f; // 공기저항 낮게
+                rb.linearDamping = 0.2f;
+                if (col != null) col.enabled = false; // 공중 돌도 충돌 비활성
                 break;
             case State.Caught:
                 rb.isKinematic = true;
                 rb.useGravity = false;
+                if (col != null) col.enabled = false; // 받은 돌도 충돌 비활성
                 break;
         }
     }

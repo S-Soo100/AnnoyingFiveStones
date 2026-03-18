@@ -784,8 +784,8 @@ Transform:
   m_GameObject: {fileID: 606740708}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 5, z: 1}
-  m_LocalScale: {x: 24, y: 10, z: 1}
+  m_LocalPosition: {x: 0, y: -1.5, z: 0.02}
+  m_LocalScale: {x: 24, y: 30, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -1183,12 +1183,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HandController
   pickupRadius: 0.6
-  boardMin: {x: -3.5, y: -7.5}
-  boardMax: {x: 3.5, y: -0.5}
+  boardMin: {x: -3.5, y: -8.5}
+  boardMax: {x: 3.5, y: -2.6}
   throwPeakY: 4.5
   throwUpDuration: 1
   throwDownDuration: 1.5
   catchAreaY: 1
+  stage5CatchRadius: 1.8
+  stage5SpreadRange: 3.2
+  stage5MinSpacing: 0.8
+  stage5MissThreshold: 1.5
 --- !u!212 &1137297479
 SpriteRenderer:
   serializedVersion: 2
@@ -1470,7 +1474,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.02, g: 0.02, b: 0.02, a: 1}
+  m_BackGroundColor: {r: 0.68, g: 0.85, b: 0.95, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -1982,6 +1986,10 @@ MonoBehaviour:
   currentStage: 1
   currentPhase: 0
   baseHangTime: 5
+  stageIntroDuration: 1.2
+  stage5IntroDuration: 2
+  clearDuration: 1.5
+  failDuration: 1.5
 --- !u!4 &1608197134
 Transform:
   m_ObjectHideFlags: 0
@@ -2172,8 +2180,8 @@ Transform:
   m_GameObject: {fileID: 1979915420}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -5, z: -0.05}
-  m_LocalScale: {x: 8, y: 8, z: 1}
+  m_LocalPosition: {x: 0, y: -5.8, z: -0.05}
+  m_LocalScale: {x: 8, y: 6.4, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}

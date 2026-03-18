@@ -307,10 +307,11 @@ public class HandController : MonoBehaviour
     {
         if (!isCatchMode) return;
 
-        // 받기 모드: 커서 X좌표만 따라감 (Y는 고정)
+        // 받기 모드: 커서 X/Y 모두 따라감 (보드 상단 아래로는 제한)
         Vector2 screenPos = pointerAction.ReadValue<Vector2>();
         Vector3 worldPos = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
-        transform.position = new Vector3(worldPos.x, catchAreaY, -0.5f);
+        float clampedY = Mathf.Max(worldPos.y, boardMax.y);
+        transform.position = new Vector3(worldPos.x, clampedY, -0.5f);
 
         if (spriteRenderer != null)
             spriteRenderer.enabled = true;
