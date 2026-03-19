@@ -23,6 +23,10 @@ public class GaugeUI : MonoBehaviour
         if (scatterSystem == null) return;
         if (!scatterSystem.IsGaugeActive) return;
 
+        var korFont = KoreanFont.Get();
+        if (korFont != null)
+            GUI.skin.font = korFont;
+
         float value = scatterSystem.CurrentGaugeValue;
 
         // 화면 좌측 15% 위치, 세로로 크게

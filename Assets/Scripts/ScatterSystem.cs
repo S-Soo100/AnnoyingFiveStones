@@ -69,6 +69,8 @@ public class ScatterSystem : MonoBehaviour
             currentGaugeValue -= gaugeSpeed * Time.deltaTime;
             if (currentGaugeValue <= 0f) { currentGaugeValue = 0f; gaugeGoingUp = true; }
         }
+
+        AudioManager.Instance?.PlayGaugeTick();
     }
 
     private bool waitingForPress;
@@ -118,6 +120,7 @@ public class ScatterSystem : MonoBehaviour
         if (!isGaugeActive) return;
 
         isGaugeActive = false;
+        AudioManager.Instance?.PlayGaugeConfirm();
         float power = Mathf.Lerp(minScatterForce, maxScatterForce, currentGaugeValue);
         TestLogger.Instance?.LogScatter(power, currentGaugeValue);
         Debug.Log($"[ScatterSystem] Scatter power: {power:F2} (gauge: {currentGaugeValue:F2})");
@@ -148,6 +151,7 @@ public class ScatterSystem : MonoBehaviour
 
             Vector3 force = new Vector3(spreadX, spreadY, 0f);
             stone.Rb.AddForce(force, ForceMode.Impulse);
+            AudioManager.Instance?.PlayScatterHit(i);
         }
 
         // 안착 판정: 모든 돌의 속도가 threshold 이하가 될 때까지 대기
@@ -196,6 +200,7 @@ public class ScatterSystem : MonoBehaviour
 
         if (anyOutOfBounds)
         {
+            AudioManager.Instance?.PlayOutOfBounds();
             TestLogger.Instance?.LogFailure("scatter_out_of_bounds");
             GameManager.Instance.SetFailReason("돌이 밖으로 나갔다!");
             GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);

@@ -140,11 +140,13 @@ public class HandController : MonoBehaviour
             throwStone.SetState(Stone.State.InHand);
             throwStone.transform.SetParent(transform);
             throwStone.transform.localPosition = Vector3.zero;
+            AudioManager.Instance?.PlayStonePickThrow();
             TestLogger.Instance?.LogStoneState(throwStone.StoneIndex, "picked_as_throw", throwStone.transform.position);
             GameManager.Instance.SetPhase(GameManager.GamePhase.Throw);
         }
         else if (stonesInRange.Count >= 2)
         {
+            AudioManager.Instance?.PlayPickExcess();
             TestLogger.Instance?.LogFailure("pick_throw_excess");
             GameManager.Instance.SetFailReason("돌을 너무 많이 집었다!");
             GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
@@ -168,11 +170,13 @@ public class HandController : MonoBehaviour
             stone.SetState(Stone.State.InHand);
             stone.transform.SetParent(transform);
             stone.transform.localPosition = Vector3.up * 0.3f * pickedStones.Count;
+            AudioManager.Instance?.PlayStonePick(pickedStones.Count);
 
             TestLogger.Instance?.LogStoneState(stone.StoneIndex, "auto_picked", stone.transform.position);
 
             if (pickedStones.Count > required)
             {
+                AudioManager.Instance?.PlayPickExcess();
                 TestLogger.Instance?.LogFailure($"pick_excess_{pickedStones.Count}_of_{required}");
                 GameManager.Instance.SetFailReason("돌을 너무 많이 집었다!");
                 GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
@@ -250,6 +254,7 @@ public class HandController : MonoBehaviour
         float startX = stone.transform.position.x;
         float startY = stone.transform.position.y;
 
+        AudioManager.Instance?.PlayThrowUp();
         TestLogger.Instance?.LogStoneState(stone.StoneIndex, "thrown_up", stone.transform.position);
         Debug.Log($"[Hand] Threw stone {stone.StoneIndex} from y={startY:F1} to peak y={throwPeakY}");
 
@@ -268,9 +273,15 @@ public class HandController : MonoBehaviour
             yield return null;
         }
 
+        // 최고점 사운드
+        AudioManager.Instance?.PlayThrowPeak();
+
         // Catch 판정 시작
         var catchSystem = FindFirstObjectByType<CatchSystem>();
         catchSystem?.BeginCatch(stone);
+
+        // 낙하 사운드
+        AudioManager.Instance?.PlayThrowDown();
 
         // === 내려오기 (EaseIn — 가속 낙하) ===
         elapsed = 0f;
@@ -292,6 +303,7 @@ public class HandController : MonoBehaviour
         }
 
         // 못 받음 → 실패
+        AudioManager.Instance?.PlayCatchFail();
         if (catchSystem != null) catchSystem.StopCatch();
         isCatchMode = false;
         stone.transform.position = new Vector3(startX, startY, 0f);
@@ -475,6 +487,7 @@ public class HandController : MonoBehaviour
         stage5ClickPending = false;
 
         // === [1차 던지기] — 5개 동시에 하늘로 ===
+        AudioManager.Instance?.PlayStage5Toss();
         yield return DoStage5Toss(allStones, stoneCount);
         if (gm.CurrentPhase == GameManager.GamePhase.Failed) yield break;
 
@@ -512,6 +525,7 @@ public class HandController : MonoBehaviour
         yield return new WaitForSeconds(0.5f);
 
         // === [2차 던지기] — 손등 자세 그대로 쳐올리기 ===
+        AudioManager.Instance?.PlayStage5Toss();
         yield return DoStage5Toss(allStones, stoneCount);
         if (gm.CurrentPhase == GameManager.GamePhase.Failed) yield break;
 
@@ -644,6 +658,7 @@ public class HandController : MonoBehaviour
                     {
                         caught[i] = true;
                         caughtCount++;
+                        AudioManager.Instance?.PlayStage5CatchStone(caughtCount);
                         stones[i].SetState(Stone.State.Caught);
                         stones[i].Rb.isKinematic = true;
                         // 받은 돌은 손에 살짝 붙임 (시각적)

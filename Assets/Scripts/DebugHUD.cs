@@ -30,6 +30,11 @@ public class DebugHUD : MonoBehaviour
 
         GUI.color = Color.white;
 
+        // 한글 폰트 적용 (크로스 플랫폼)
+        var korFont = KoreanFont.Get();
+        if (korFont != null)
+            GUI.skin.font = korFont;
+
         // viewport 밖 영역(좌우 검은 여백)을 매 프레임 검은색으로 덮어쓰기
         // — 오버레이 잔상 방지
         ClearViewportMargins();

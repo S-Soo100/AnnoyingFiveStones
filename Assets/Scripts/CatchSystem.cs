@@ -67,6 +67,7 @@ public class CatchSystem : MonoBehaviour
     private void OnCatchSuccess()
     {
         isCatchPhase = false;
+        AudioManager.Instance?.PlayCatchSuccess();
         TestLogger.Instance?.LogCatch(true, 0f);
 
         // 던진 돌 = 캐치 완료, 손에 복귀

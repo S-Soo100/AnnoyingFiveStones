@@ -159,6 +159,12 @@ public class GameManager : MonoBehaviour
         transitionType = "stage_intro";
         transitionStartTime = Time.time;
 
+        // 사운드: 단계 인트로
+        if (stage == 5)
+            AudioManager.Instance?.PlayStage5Intro();
+        else
+            AudioManager.Instance?.PlayStageIntro();
+
         float duration = stage == 5 ? stage5IntroDuration : stageIntroDuration;
         yield return new WaitForSeconds(duration);
 
@@ -235,6 +241,8 @@ public class GameManager : MonoBehaviour
         transitionType = "fail";
         transitionStartTime = Time.time;
 
+        AudioManager.Instance?.PlayFail();
+
         yield return new WaitForSeconds(failDuration);
 
         isTransitioning = false;
@@ -287,6 +295,8 @@ public class GameManager : MonoBehaviour
         transitionType = "clear";
         transitionStartTime = Time.time;
 
+        AudioManager.Instance?.PlayStageClear();
+
         yield return new WaitForSeconds(clearDuration);
 
         isTransitioning = false;
@@ -302,6 +312,8 @@ public class GameManager : MonoBehaviour
         isAllClear = true;
         transitionType = "all_clear";
         transitionStartTime = Time.time;
+
+        AudioManager.Instance?.PlayAllClear();
 
         // ALL CLEAR는 무한 대기 — 탭으로 재시작 (DebugHUD 또는 Update에서 처리)
         yield return null;

@@ -1943,6 +1943,7 @@ GameObject:
   - component: {fileID: 1608197133}
   - component: {fileID: 1608197132}
   - component: {fileID: 1608197135}
+  - component: {fileID: 1608197136}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -2019,6 +2020,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CatchSystem
   catchRadius: 1
   isCatchPhase: 0
+--- !u!114 &1608197136
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1608197131}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79789cee4786d446d8f32d0609c8fc34, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioManager
+  sfxVolume: 0.7
+  jingleVolume: 0.5
 --- !u!1 &1971346428
 GameObject:
   m_ObjectHideFlags: 0
