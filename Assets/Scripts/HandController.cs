@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 /// <summary>
 /// 손 컨트롤러: 커서 추종 + 자동 줍기 판정
 /// 기획서: 팔(검은 사각형) + 손바닥(노란 원). 커서를 따라다니며 범위 안 돌 자동 줍기.
-/// 줍기 완료 시 손이 하늘 영역으로 자동 이동 → 받기 모드.
+/// 줍기 완료 시 제자리에서 받기 모드 전환 → 플레이어가 직접 이동.
 /// </summary>
 public class HandController : MonoBehaviour
 {
@@ -40,10 +40,14 @@ public class HandController : MonoBehaviour
     [SerializeField] private float stage5CatchRadius = 1.8f;    // 5개 동시 캐치 반경
     [SerializeField] private float stage5SpreadRange = 2.5f;     // 돌 퍼짐 범위
     [SerializeField] private float stage5MinSpacing = 0.8f;      // 돌 최소 간격
-    [SerializeField] private float stage5MissThreshold = 1.5f;   // 이 아래로 지나가면 실패
+    [SerializeField] private float stage5MissThreshold = 3.5f;   // catchAreaY - 이 값 아래로 지나가면 실패 (보드 근처까지 허용)
 
     private bool stage5ClickPending;
+    private bool stage5CatchActive;                            // 슬라이드 인 완료 후 true — LateUpdate Y 고정 + X 추종 트리거
     private Coroutine stage5Coroutine;
+
+    [Header("Stage 5 Height Settings")]
+    [SerializeField] private float stage5HeightStep = 1.5f;   // 돌 간 높이 간격
 
     public List<Stone> PickedStones => pickedStones;
     public Stone ThrowStone => throwStone;
@@ -185,38 +189,13 @@ public class HandController : MonoBehaviour
 
             if (pickedStones.Count == required)
             {
-                // 기획서: 딱 맞게 주움 → 손이 하늘로 자동 이동 → 받기 모드
-                StartCoroutine(MoveHandToSky());
+                // v3: 제자리에서 받기 모드 전환 (자동 상승 제거)
+                isCatchMode = true;
+                SetHandMode(true);
+                Debug.Log("[Hand] Pick complete — catch mode ON (stay in place)");
                 return;
             }
         }
-    }
-
-    /// <summary>
-    /// 기획서: "줍기 완료 시 자동으로 손이 하늘 영역(받기 영역)으로 이동"
-    /// </summary>
-    private IEnumerator MoveHandToSky()
-    {
-        isCatchMode = true;
-        SetHandMode(true); // 손바닥 모양으로 전환
-        Vector3 start = transform.position;
-        Vector3 target = new Vector3(0f, catchAreaY, -0.5f);
-
-        // 손이 하늘로 부드럽게 이동 (0.3초)
-        float elapsed = 0f;
-        while (elapsed < 0.3f)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / 0.3f);
-            transform.position = Vector3.Lerp(start, target, t);
-            yield return null;
-        }
-        transform.position = target;
-
-        Debug.Log("[Hand] Moved to sky for catching!");
-
-        // Catch 모드에서는 커서로 좌우 이동
-        // GameManager에서 Catch phase 설정하지 않음 — DoThrow에서 BeginCatch 호출
     }
 
     // === 던지기 ===
@@ -224,6 +203,7 @@ public class HandController : MonoBehaviour
     private void OnClick(InputAction.CallbackContext ctx)
     {
         if (GameManager.Instance == null) return;
+        if (GameManager.Instance.IsPaused) return; // [P4]
         if (GameManager.Instance.IsTransitioning) return;
         var phase = GameManager.Instance.CurrentPhase;
 
@@ -318,12 +298,25 @@ public class HandController : MonoBehaviour
     private void LateUpdate()
     {
         if (!isCatchMode) return;
+        if (GameManager.Instance != null && GameManager.Instance.IsPaused) return; // [P4]
 
-        // 받기 모드: 커서 X/Y 모두 따라감 (보드 상단 아래로는 제한)
-        Vector2 screenPos = pointerAction.ReadValue<Vector2>();
-        Vector3 worldPos = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
-        float clampedY = Mathf.Max(worldPos.y, boardMax.y);
-        transform.position = new Vector3(worldPos.x, clampedY, -0.5f);
+        // 5단 받기: stage5CatchActive일 때 Y=catchAreaY 고정, X만 커서 추종
+        if (stage5CatchActive)
+        {
+            Vector2 screenPos = pointerAction.ReadValue<Vector2>();
+            Vector3 worldPos = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
+            transform.position = new Vector3(worldPos.x, catchAreaY, -0.5f);
+
+            if (spriteRenderer != null)
+                spriteRenderer.enabled = true;
+            return;
+        }
+
+        // 1~4단 받기: X/Y 모두 커서 추종, Y 하한 = boardMin.y
+        Vector2 screenPos2 = pointerAction.ReadValue<Vector2>();
+        Vector3 worldPos2 = mainCamera.ScreenToWorldPoint(new Vector3(screenPos2.x, screenPos2.y, 10f));
+        float clampedY = Mathf.Max(worldPos2.y, boardMin.y);
+        transform.position = new Vector3(worldPos2.x, clampedY, -0.5f);
 
         if (spriteRenderer != null)
             spriteRenderer.enabled = true;
@@ -356,6 +349,8 @@ public class HandController : MonoBehaviour
         spriteRenderer.color = catching
             ? new Color(1f, 0.85f, 0.6f, 0.7f)   // 캐치: 살색 불투명
             : new Color(1f, 0.92f, 0.3f, 0.35f);  // 보드: 노란 반투명
+        // v3: 받기 모드 시 손가락이 왼쪽을 향하도록 +90도 회전
+        transform.localEulerAngles = catching ? new Vector3(0, 0, 90f) : Vector3.zero;
     }
 
     /// <summary>보드용: 작은 반투명 원 (줍기 범위 표시)</summary>
@@ -493,7 +488,8 @@ public class HandController : MonoBehaviour
 
         // === [손등 받기] ===
         SetHandMode_BackHand();
-        isCatchMode = true;
+        isCatchMode = false;              // 슬라이드 인 중 LateUpdate 차단
+        stage5CatchActive = false;        // 명시적 초기화
         gm.SetPhase(GameManager.GamePhase.Stage5Catch);
 
         bool success = false;
@@ -531,7 +527,8 @@ public class HandController : MonoBehaviour
 
         // === [손바닥 받기] ===
         SetHandMode(true); // 기존 손바닥 스프라이트
-        isCatchMode = true;
+        isCatchMode = false;              // 슬라이드 인 중 LateUpdate 차단
+        stage5CatchActive = false;
         gm.SetPhase(GameManager.GamePhase.Stage5Catch);
 
         success = false;
@@ -577,7 +574,7 @@ public class HandController : MonoBehaviour
 
         for (int i = 0; i < count; i++)
         {
-            peakOffset[i] = Random.Range(-0.5f, 0.5f);
+            peakOffset[i] = i * stage5HeightStep + Random.Range(-0.3f, 0.3f);
             stones[i].transform.SetParent(null);
             stones[i].Rb.isKinematic = true;
             stones[i].Rb.useGravity = false;
@@ -618,10 +615,37 @@ public class HandController : MonoBehaviour
     /// </summary>
     private IEnumerator DoStage5Catch(Stone[] stones, int count, System.Action<bool> onResult)
     {
+        // === 슬라이드 인 (0.3초) ===
+        // isCatchMode=false 상태 (호출 전 설정), LateUpdate 무동작
+        stage5CatchActive = false;
+
+        float slideStartX = 8f;       // 화면 오른쪽 밖 (boardMax.x=4 + 여유)
+        float slideEndX = 0f;          // 화면 중앙
+        float slideDuration = 0.3f;
+
+        transform.position = new Vector3(slideStartX, catchAreaY, -0.5f);
+        if (spriteRenderer != null) spriteRenderer.enabled = true;
+
+        float slideElapsed = 0f;
+        while (slideElapsed < slideDuration)
+        {
+            slideElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(slideElapsed / slideDuration);
+            float eased = t * (2f - t);  // EaseOut 감속 도착
+            float x = Mathf.Lerp(slideStartX, slideEndX, eased);
+            transform.position = new Vector3(x, catchAreaY, -0.5f);
+            yield return null;
+        }
+        transform.position = new Vector3(slideEndX, catchAreaY, -0.5f);
+
+        // 슬라이드 인 완료 — 이제부터 LateUpdate가 X축 조작 처리
+        isCatchMode = true;
+        stage5CatchActive = true;
+
+        // === 독립 낙하 시간 계산 ===
         bool[] caught = new bool[count];
         int caughtCount = 0;
 
-        // 각 돌의 현재 위치 (peak에서 시작)
         float[] stoneStartY = new float[count];
         float[] stoneX = new float[count];
         for (int i = 0; i < count; i++)
@@ -630,27 +654,50 @@ public class HandController : MonoBehaviour
             stoneX[i] = stones[i].transform.position.x;
         }
 
+        float baseFallDuration = throwDownDuration * 1.2f;
+
+        // 최고점/최저점 계산 (독립 낙하 시간 정규화용)
+        float maxStartY = stoneStartY[0];
+        float minStartY = stoneStartY[0];
+        for (int i = 1; i < count; i++)
+        {
+            if (stoneStartY[i] > maxStartY) maxStartY = stoneStartY[i];
+            if (stoneStartY[i] < minStartY) minStartY = stoneStartY[i];
+        }
+
+        float[] stoneElapsed = new float[count];
+        float[] downDuration = new float[count];
+        float maxDownDuration = 0f;
+
+        for (int i = 0; i < count; i++)
+        {
+            float normalizedH = (maxStartY > minStartY)
+                ? (stoneStartY[i] - minStartY) / (maxStartY - minStartY)
+                : 0f;
+            downDuration[i] = baseFallDuration + normalizedH * baseFallDuration;
+            if (downDuration[i] > maxDownDuration) maxDownDuration = downDuration[i];
+            Debug.Log($"[Stage5] Stone {stones[i].StoneIndex}: startY={stoneStartY[i]:F1}, normalizedH={normalizedH:F2}, downDuration={downDuration[i]:F2}s");
+        }
+
         float landY = catchAreaY - stage5MissThreshold; // 이 아래로 가면 놓침
 
-        // 내려오기 (EaseIn — 가속 낙하)
-        float elapsed = 0f;
-        float downDuration = throwDownDuration * 1.2f; // 5개라 약간 더 여유
-
-        while (elapsed < downDuration)
+        // === 독립 낙하 루프 (EaseIn — 가속) ===
+        float globalElapsed = 0f;
+        while (globalElapsed < maxDownDuration)
         {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / downDuration);
-            float eased = t * t; // EaseIn (가속)
+            globalElapsed += Time.deltaTime;
 
             for (int i = 0; i < count; i++)
             {
                 if (caught[i]) continue;
 
-                // 낙하 위치 계산
+                stoneElapsed[i] += Time.deltaTime;
+                float t = Mathf.Clamp01(stoneElapsed[i] / downDuration[i]);
+                float eased = t * t;  // EaseIn 가속 낙하
                 float y = Mathf.Lerp(stoneStartY[i], landY - 1f, eased);
                 stones[i].transform.position = new Vector3(stoneX[i], y, 0f);
 
-                // 캐치 판정: 손 근처에 왔을 때
+                // 캐치 판정: catchAreaY 범위에 들어왔을 때 X 거리 체크
                 if (y <= catchAreaY + 0.5f && y >= catchAreaY - 0.8f)
                 {
                     float distX = Mathf.Abs(stoneX[i] - transform.position.x);
@@ -661,9 +708,7 @@ public class HandController : MonoBehaviour
                         AudioManager.Instance?.PlayStage5CatchStone(caughtCount);
                         stones[i].SetState(Stone.State.Caught);
                         stones[i].Rb.isKinematic = true;
-                        // 받은 돌은 손에 살짝 붙임 (시각적)
-                        stones[i].transform.position = new Vector3(
-                            stoneX[i], catchAreaY, 0f);
+                        stones[i].transform.position = new Vector3(stoneX[i], catchAreaY, 0f);
                         Debug.Log($"[Stage5] Caught stone {stones[i].StoneIndex}! ({caughtCount}/{count})");
                     }
                 }
@@ -673,6 +718,8 @@ public class HandController : MonoBehaviour
                 {
                     Debug.Log($"[Stage5] MISSED stone {stones[i].StoneIndex}!");
                     TestLogger.Instance?.LogFailure($"stage5_miss_stone_{stones[i].StoneIndex}");
+                    stage5CatchActive = false;
+                    isCatchMode = false;
                     onResult?.Invoke(false);
                     GameManager.Instance.SetFailReason("돌을 놓쳤다!");
                     GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
@@ -683,6 +730,8 @@ public class HandController : MonoBehaviour
             // 모두 잡으면 조기 종료
             if (caughtCount >= count)
             {
+                stage5CatchActive = false;
+                isCatchMode = false;
                 onResult?.Invoke(true);
                 yield break;
             }
@@ -690,7 +739,9 @@ public class HandController : MonoBehaviour
             yield return null;
         }
 
-        // 시간 초과 — 다 못 잡으면 실패
+        // 시간 초과
+        stage5CatchActive = false;
+        isCatchMode = false;
         if (caughtCount < count)
         {
             Debug.Log($"[Stage5] Time up! Only caught {caughtCount}/{count}");
@@ -754,6 +805,8 @@ public class HandController : MonoBehaviour
         if (spriteRenderer == null) return;
         spriteRenderer.sprite = backHandSprite;
         spriteRenderer.color = new Color(0.95f, 0.8f, 0.55f, 0.7f);
+        // v3: 손등도 동일 방향 (손가락 왼쪽)
+        transform.localEulerAngles = new Vector3(0, 0, 90f);
     }
 
     /// <summary>
@@ -876,6 +929,7 @@ public class HandController : MonoBehaviour
             stage5Coroutine = null;
         }
         stage5ClickPending = false;
+        stage5CatchActive = false;
 
         isCatchMode = false;
         SetHandMode(false);

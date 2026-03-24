@@ -32,6 +32,15 @@ public class ScatterSystem : MonoBehaviour
     public float CurrentGaugeValue => currentGaugeValue;
     public bool IsGaugeActive => isGaugeActive;
 
+    /// <summary>스테이지 전환 시 게이지 상태 강제 리셋</summary>
+    public void ResetGauge()
+    {
+        isGaugeActive = false;
+        waitingForPress = false;
+        currentGaugeValue = 0f;
+        GaugeBarUI.Instance?.Hide();
+    }
+
     private void Awake()
     {
         pressAction = new InputAction("Press", InputActionType.Button);
@@ -70,6 +79,7 @@ public class ScatterSystem : MonoBehaviour
             if (currentGaugeValue <= 0f) { currentGaugeValue = 0f; gaugeGoingUp = true; }
         }
 
+        GaugeBarUI.Instance?.SetValue(currentGaugeValue);
         AudioManager.Instance?.PlayGaugeTick();
     }
 
@@ -92,12 +102,14 @@ public class ScatterSystem : MonoBehaviour
         currentGaugeValue = 0f;
         gaugeGoingUp = true;
 
+        GaugeBarUI.Instance?.Show();
         Debug.Log("[ScatterSystem] Ready. Long-press to start gauge.");
     }
 
     private void OnPressStarted(InputAction.CallbackContext ctx)
     {
         if (GameManager.Instance == null) return;
+        if (GameManager.Instance.IsPaused) return; // [P4]
         if (GameManager.Instance.IsTransitioning) return;
         if (GameManager.Instance.CurrentPhase != GameManager.GamePhase.Scatter) return;
 
@@ -115,11 +127,13 @@ public class ScatterSystem : MonoBehaviour
     private void OnPressReleased(InputAction.CallbackContext ctx)
     {
         if (GameManager.Instance == null) return;
+        if (GameManager.Instance.IsPaused) return; // [P4]
         if (GameManager.Instance.IsTransitioning) return;
         if (GameManager.Instance.CurrentPhase != GameManager.GamePhase.Scatter) return;
         if (!isGaugeActive) return;
 
         isGaugeActive = false;
+        GaugeBarUI.Instance?.Hide();
         AudioManager.Instance?.PlayGaugeConfirm();
         float power = Mathf.Lerp(minScatterForce, maxScatterForce, currentGaugeValue);
         TestLogger.Instance?.LogScatter(power, currentGaugeValue);
@@ -202,7 +216,7 @@ public class ScatterSystem : MonoBehaviour
         {
             AudioManager.Instance?.PlayOutOfBounds();
             TestLogger.Instance?.LogFailure("scatter_out_of_bounds");
-            GameManager.Instance.SetFailReason("돌이 밖으로 나갔다!");
+            GameManager.Instance.SetFailReason("낙!");
             GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
         }
         else

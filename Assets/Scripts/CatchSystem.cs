@@ -66,6 +66,34 @@ public class CatchSystem : MonoBehaviour
 
     private void OnCatchSuccess()
     {
+        // === B1+B2: 미달 검증 (v3) ===
+        int picked = handController.PickedStones.Count;
+        int required = GameManager.Instance.RequiredPickCount;
+
+        // 보드에 남은 돌 수 (picked stones는 이미 InHand이므로 OnBoard 카운트에 포함 안 됨)
+        int remainingOnBoard = 0;
+        foreach (var stone in GameManager.Instance.Stones)
+        {
+            if (stone.CurrentState == Stone.State.OnBoard)
+                remainingOnBoard++;
+        }
+
+        // 실제 필요 수량 = min(required, 줍기 시점의 보드 돌 수)
+        int stonesAvailableAtPickTime = remainingOnBoard + picked;
+        int actualRequired = Mathf.Min(required, stonesAvailableAtPickTime);
+
+        if (picked < actualRequired)
+        {
+            StopCatch();
+            AudioManager.Instance?.PlayCatchFail();
+            Debug.Log($"[CatchSystem] UNDERPICK FAIL: picked={picked}, required={actualRequired} (req={required}, boardRemain={remainingOnBoard})");
+            TestLogger.Instance?.LogFailure($"underpick_{picked}_of_{actualRequired}");
+            GameManager.Instance.SetFailReason("돌을 덜 주웠다!");
+            GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+            return;
+        }
+        // === 미달 검증 끝 ===
+
         isCatchPhase = false;
         AudioManager.Instance?.PlayCatchSuccess();
         TestLogger.Instance?.LogCatch(true, 0f);
@@ -81,17 +109,10 @@ public class CatchSystem : MonoBehaviour
         {
             stone.transform.SetParent(null);
             stone.SetState(Stone.State.Caught);
-            stone.gameObject.SetActive(false); // 화면에서 제거
+            stone.gameObject.SetActive(false);
         }
 
-        // 보드에 남은 돌 확인
-        int remainingOnBoard = 0;
-        foreach (var stone in GameManager.Instance.Stones)
-        {
-            if (stone.CurrentState == Stone.State.OnBoard)
-                remainingOnBoard++;
-        }
-
+        // remainingOnBoard는 위에서 이미 계산됨
         Debug.Log($"[CatchSystem] Remaining on board: {remainingOnBoard}");
 
         if (remainingOnBoard == 0)

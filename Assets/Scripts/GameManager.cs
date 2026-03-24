@@ -30,6 +30,7 @@ public class GameManager : MonoBehaviour
     private ScatterSystem scatterSystem;
     private HandController handController;
     private CatchSystem catchSystem;
+    private GameSession session;
 
     [Header("Settings")]
     [SerializeField] private float baseHangTime = 5f; // 기본 체공 시간
@@ -43,12 +44,10 @@ public class GameManager : MonoBehaviour
     private int stage5Step; // 0 = 1차(손등받기), 1 = 2차(손바닥받기)
     private bool isTransitioning;
     private bool isAllClear;
+    private bool isPaused;                // [P4]
     private string lastFailReason = "";
     private Coroutine transitionCoroutine;
-
-    // 연출 타이밍 (DebugHUD에서 읽음)
-    private float transitionStartTime;
-    private string transitionType = ""; // "stage_intro", "clear", "fail", "all_clear"
+    private InputAction escAction;        // [P4]
 
     public int CurrentStage => currentStage;
     public GamePhase CurrentPhase => currentPhase;
@@ -57,9 +56,8 @@ public class GameManager : MonoBehaviour
     public int Stage5Step => stage5Step;
     public bool IsTransitioning => isTransitioning;
     public bool IsAllClear => isAllClear;
+    public bool IsPaused => isPaused;     // [P4]
     public string LastFailReason => lastFailReason;
-    public float TransitionStartTime => transitionStartTime;
-    public string TransitionType => transitionType;
 
     /// <summary>
     /// 현재 단계에서 한 번에 주워야 할 돌 수
@@ -123,7 +121,32 @@ public class GameManager : MonoBehaviour
             stones[i].Initialize(i);
         }
 
+        // [P1] GameSession 자동 생성/참조
+        if (GameSession.Instance == null)
+            new GameObject("GameSession").AddComponent<GameSession>();
+        session = GameSession.Instance;
+
+        // [P1] SidePanelUI 자동 생성/참조
+        if (SidePanelUI.Instance == null)
+            new GameObject("SidePanelUI").AddComponent<SidePanelUI>();
+
+        // [P4] 창모드 설정
+        Screen.SetResolution(1280, 720, false);
+
+        // [P4] PauseMenuUI 자동 생성
+        if (PauseMenuUI.Instance == null)
+            new GameObject("PauseMenuUI").AddComponent<PauseMenuUI>();
+
         StartStage(1);
+    }
+
+    private void Update()
+    {
+        // [P1] 경과 시간 갱신: 전환 중이 아닐 때만
+        if (session != null && !isTransitioning && !isAllClear)
+        {
+            session.ElapsedTime += Time.deltaTime;
+        }
     }
 
     public void SetFailReason(string reason)
@@ -143,6 +166,14 @@ public class GameManager : MonoBehaviour
         currentStage = stage;
         isAllClear = false;
 
+        // [P1] 세션 단계 갱신 + 사이드 패널 반영
+        if (session != null)
+            session.CurrentStageInLoop = stage;
+        SidePanelUI.Instance?.Refresh();
+
+        // 게이지 강제 리셋 (스킵 등으로 Scatter 중간에 전환 시)
+        scatterSystem.ResetGauge();
+
         // 모든 돌 활성화 + 초기 상태 복원
         ResetAllStones();
 
@@ -156,8 +187,6 @@ public class GameManager : MonoBehaviour
     private IEnumerator DoStageIntro(int stage)
     {
         isTransitioning = true;
-        transitionType = "stage_intro";
-        transitionStartTime = Time.time;
 
         // 사운드: 단계 인트로
         if (stage == 5)
@@ -165,11 +194,14 @@ public class GameManager : MonoBehaviour
         else
             AudioManager.Instance?.PlayStageIntro();
 
+        // UI 연출 시작
+        GameUI.Instance?.ShowStageIntro(stage);
+        GameUI.Instance?.UpdateProgressDots(stage);
+
         float duration = stage == 5 ? stage5IntroDuration : stageIntroDuration;
         yield return new WaitForSeconds(duration);
 
         isTransitioning = false;
-        transitionType = "";
         transitionCoroutine = null;
 
         // 실제 게임 시작
@@ -204,6 +236,9 @@ public class GameManager : MonoBehaviour
         TestLogger.Instance?.LogPhaseChange(prevPhase.ToString(), phase.ToString());
         Debug.Log($"[GameManager] Phase changed to: {phase}");
 
+        // UI 가이드 텍스트 푸시
+        PushGuideText(phase);
+
         switch (phase)
         {
             case GamePhase.Scatter:
@@ -228,9 +263,38 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    private void PushGuideText(GamePhase phase)
+    {
+        if (GameUI.Instance == null) return;
+
+        string guide = phase switch
+        {
+            GamePhase.Scatter => "[ 꾹 눌러서 게이지 조절, 놓으면 뿌리기 ]",
+            GamePhase.PickThrowStone => "[ 커서를 돌 위로 이동 ]",
+            GamePhase.Throw => "[ 클릭하여 던지기 ]",
+            GamePhase.PickStones => $"[ 돌 {RequiredPickCount}개를 주우세요 ]",
+            GamePhase.Catch => "[ 커서를 움직여 돌을 받으세요! ]",
+            GamePhase.Stage5Throw => "[ 클릭하여 5개 모두 던지기! ]",
+            GamePhase.Stage5Catch => stage5Step == 0
+                ? "[ 손등으로 5개 모두 받기! ]"
+                : "[ 뒤집어서 손바닥으로 받기! ]",
+            _ => null
+        };
+
+        if (guide != null)
+            GameUI.Instance.UpdateGuideText(guide);
+        else
+            GameUI.Instance.HideGuideText();
+    }
+
     private void OnFailed()
     {
         Debug.Log("[GameManager] FAILED! Resetting to Stage 1.");
+
+        // [P1] 세션: 해당 루프 1단으로 리셋 (나이/루프 유지)
+        session?.OnFail();
+        SidePanelUI.Instance?.Refresh();
+
         ResetAllStones();
         transitionCoroutine = StartCoroutine(DoFailTransition());
     }
@@ -238,15 +302,13 @@ public class GameManager : MonoBehaviour
     private IEnumerator DoFailTransition()
     {
         isTransitioning = true;
-        transitionType = "fail";
-        transitionStartTime = Time.time;
 
         AudioManager.Instance?.PlayFail();
+        GameUI.Instance?.ShowFail(lastFailReason);
 
         yield return new WaitForSeconds(failDuration);
 
         isTransitioning = false;
-        transitionType = "";
         transitionCoroutine = null;
 
         StartStage(1);
@@ -278,13 +340,27 @@ public class GameManager : MonoBehaviour
     {
         TestLogger.Instance?.CompleteStageAttempt();
 
+        // [P1] 세션 상태 갱신 (나이++, 5단이면 루프++)
+        session?.OnStageComplete(currentStage);
+        SidePanelUI.Instance?.Refresh();
+
         int nextStage = currentStage + 1;
         if (nextStage > 5)
         {
-            Debug.Log("[GameManager] ALL STAGES CLEARED!");
-            transitionCoroutine = StartCoroutine(DoAllClearTransition());
+            // [P1] 50살(10루프 5단) 완료 시 게임 클리어
+            if (session != null && session.IsGameClear)
+            {
+                Debug.Log("[GameManager] GAME CLEAR! Age 50 reached!");
+                transitionCoroutine = StartCoroutine(DoAllClearTransition());
+                return;
+            }
+
+            // [P1] 5단 클리어 + 아직 50살 미만 → 다음 루프 1단 시작
+            Debug.Log($"[GameManager] Loop {session?.CurrentLoop} started! (Age={session?.CurrentAge})");
+            transitionCoroutine = StartCoroutine(DoClearTransition(1));
             return;
         }
+
         Debug.Log($"[GameManager] Stage {currentStage} complete! Moving to stage {nextStage}.");
         transitionCoroutine = StartCoroutine(DoClearTransition(nextStage));
     }
@@ -292,15 +368,13 @@ public class GameManager : MonoBehaviour
     private IEnumerator DoClearTransition(int nextStage)
     {
         isTransitioning = true;
-        transitionType = "clear";
-        transitionStartTime = Time.time;
 
         AudioManager.Instance?.PlayStageClear();
+        GameUI.Instance?.ShowClear();
 
         yield return new WaitForSeconds(clearDuration);
 
         isTransitioning = false;
-        transitionType = "";
         transitionCoroutine = null;
 
         StartStage(nextStage);
@@ -310,12 +384,11 @@ public class GameManager : MonoBehaviour
     {
         isTransitioning = true;
         isAllClear = true;
-        transitionType = "all_clear";
-        transitionStartTime = Time.time;
 
         AudioManager.Instance?.PlayAllClear();
+        GameUI.Instance?.ShowAllClear();
 
-        // ALL CLEAR는 무한 대기 — 탭으로 재시작 (DebugHUD 또는 Update에서 처리)
+        // ALL CLEAR는 무한 대기 — 탭으로 재시작 (OnAllClearClick에서 처리)
         yield return null;
         // isTransitioning은 true로 유지
     }
@@ -329,26 +402,60 @@ public class GameManager : MonoBehaviour
         allClearClickAction.AddBinding("<Touchscreen>/primaryTouch/press");
         allClearClickAction.performed += OnAllClearClick;
         allClearClickAction.Enable();
+
+        // [P4] ESC 입력
+        escAction = new InputAction("Escape", InputActionType.Button);
+        escAction.AddBinding("<Keyboard>/escape");
+        escAction.performed += OnEscPressed;
+        escAction.Enable();
     }
 
     private void OnDisable()
     {
         allClearClickAction.performed -= OnAllClearClick;
         allClearClickAction.Disable();
+
+        // [P4]
+        if (escAction != null)
+        {
+            escAction.performed -= OnEscPressed;
+            escAction.Disable();
+        }
+    }
+
+    // [P4] ESC 콜백
+    private void OnEscPressed(InputAction.CallbackContext ctx)
+    {
+        // ALL CLEAR 화면에서는 ESC 무시
+        if (isAllClear) return;
+
+        PauseMenuUI.Instance?.Toggle();
+    }
+
+    // [P4] 외부에서 isPaused 설정 (PauseMenuUI 전용)
+    public void SetPaused(bool paused)
+    {
+        isPaused = paused;
     }
 
     private void OnAllClearClick(InputAction.CallbackContext ctx)
     {
         if (!isAllClear) return;
+        if (isPaused) return; // [P4] 일시정지 중 클릭 무시
 
         isAllClear = false;
         isTransitioning = false;
-        transitionType = "";
+        GameUI.Instance?.HideOverlay();
         if (transitionCoroutine != null)
         {
             StopCoroutine(transitionCoroutine);
             transitionCoroutine = null;
         }
+
+        // [P1] 세션 전체 초기화
+        session?.ResetAll();
+        SidePanelUI.Instance?.Refresh();
+
         StartStage(1);
     }
 }
