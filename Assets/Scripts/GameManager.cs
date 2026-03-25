@@ -137,7 +137,21 @@ public class GameManager : MonoBehaviour
         if (PauseMenuUI.Instance == null)
             new GameObject("PauseMenuUI").AddComponent<PauseMenuUI>();
 
-        StartStage(1);
+        // [Online] Supabase / NameInputUI / GraveyardUI 자동 생성
+        if (SupabaseManager.Instance == null)
+            new GameObject("SupabaseManager").AddComponent<SupabaseManager>();
+        if (NameInputUI.Instance == null)
+            new GameObject("NameInputUI").AddComponent<NameInputUI>();
+        if (GraveyardUI.Instance == null)
+            new GameObject("GraveyardUI").AddComponent<GraveyardUI>();
+
+        // [Online] 이름 입력 → StartStage(1)
+        NameInputUI.Instance.Show((playerName, isTestPlay) =>
+        {
+            session.PlayerName = playerName;
+            session.IsTestPlay = isTestPlay;
+            StartStage(1);
+        });
     }
 
     private void Update()
@@ -388,7 +402,26 @@ public class GameManager : MonoBehaviour
         AudioManager.Instance?.PlayAllClear();
         GameUI.Instance?.ShowAllClear();
 
-        // ALL CLEAR는 무한 대기 — 탭으로 재시작 (OnAllClearClick에서 처리)
+        // [Online] 기록 업로드 (비동기 — 실패해도 게임 진행 무관)
+        float clearTime = session != null ? session.ElapsedTime : 0f;
+        string playerName = session != null ? session.PlayerName : "Player";
+        if (session != null && !session.IsTestPlay)
+        {
+            SupabaseManager.Instance?.PostRecord(playerName, clearTime, success =>
+            {
+                if (!success)
+                    Debug.LogWarning("[GameManager] PostRecord failed — continuing without record upload.");
+            });
+        }
+
+        // 놀림 메시지 5초 표시 후 묘지 파노라마로 전환
+        yield return new WaitForSeconds(5f);
+
+        // 놀림 메시지 숨기고 묘지 파노라마 시작
+        bool isTestPlay = session != null && session.IsTestPlay;
+        GameUI.Instance?.HideOverlay();
+        GraveyardUI.Instance?.Show(clearTime, playerName, isTestPlay);
+
         yield return null;
         // isTransitioning은 true로 유지
     }
@@ -429,6 +462,9 @@ public class GameManager : MonoBehaviour
         // ALL CLEAR 화면에서는 ESC 무시
         if (isAllClear) return;
 
+        // [Online] 이름 입력 중에는 ESC 무시
+        if (NameInputUI.Instance != null && NameInputUI.Instance.IsOpen) return;
+
         PauseMenuUI.Instance?.Toggle();
     }
 
@@ -443,6 +479,14 @@ public class GameManager : MonoBehaviour
         if (!isAllClear) return;
         if (isPaused) return; // [P4] 일시정지 중 클릭 무시
 
+        // GraveyardUI가 활성 상태면 자체 처리
+        if (GraveyardUI.Instance != null && GraveyardUI.Instance.IsShowing) return;
+
+        RestartGame();
+    }
+
+    public void RestartGame()
+    {
         isAllClear = false;
         isTransitioning = false;
         GameUI.Instance?.HideOverlay();
@@ -452,10 +496,21 @@ public class GameManager : MonoBehaviour
             transitionCoroutine = null;
         }
 
+        GraveyardUI.Instance?.Hide();
+
         // [P1] 세션 전체 초기화
         session?.ResetAll();
         SidePanelUI.Instance?.Refresh();
 
-        StartStage(1);
+        // [Online] 이름 재입력 → StartStage(1)
+        NameInputUI.Instance?.Show((playerName, isTestPlay) =>
+        {
+            if (session != null)
+            {
+                session.PlayerName = playerName;
+                session.IsTestPlay = isTestPlay;
+            }
+            StartStage(1);
+        });
     }
 }

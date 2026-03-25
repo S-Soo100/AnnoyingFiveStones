@@ -10,6 +10,7 @@ public class GameSession : MonoBehaviour
 
     [Header("Player Info")]
     public string PlayerName = "Player";
+    public bool IsTestPlay = false;
 
     [Header("Game State")]
     [SerializeField] private int currentAge = 0;
@@ -102,6 +103,7 @@ public class GameSession : MonoBehaviour
     public void ResetAll()
     {
         PlayerName = "Player";
+        IsTestPlay = false;
         currentAge = 0;
         currentLoop = 1;
         currentStageInLoop = 1;

@@ -23,6 +23,7 @@ Thumbs.db
 
 # Build outputs
 annoyingFiveStones-Proto*/
+afs_proto_*/
 
 # Agent backups
 .claude/agents.backup.*/

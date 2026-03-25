@@ -486,7 +486,13 @@ public class GameUI : MonoBehaviour
             "50살까지 공기놀이만 하셨군요.\n후회는 없으신가요?",
             "어르신, 편히 쉬세요.\n공깃돌은 다음 생에서 또 만나요.",
         };
-        overlaySubText.text = quips[Random.Range(0, quips.Length)] + "\n\n<size=70%>탭하여 다시 시작</size>";
+        // [Online] 클리어 시간 표시
+        float clearTime = GameSession.Instance != null ? GameSession.Instance.ElapsedTime : 0f;
+        int mins = (int)(clearTime / 60);
+        int secs = (int)(clearTime % 60);
+        string timeStr = $"{mins:00}:{secs:00}";
+
+        overlaySubText.text = quips[Random.Range(0, quips.Length)] + $"\n\n<size=80%>기록: {timeStr}</size>\n<size=70%>탭하여 다시 시작</size>";
         overlaySubText.enableAutoSizing = false;
         overlaySubText.fontSize = 36;
         overlaySubText.textWrappingMode = TextWrappingModes.Normal;
