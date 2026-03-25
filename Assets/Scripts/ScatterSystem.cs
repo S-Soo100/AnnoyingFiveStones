@@ -10,8 +10,8 @@ public class ScatterSystem : MonoBehaviour
 {
     [Header("Gauge Settings")]
     [SerializeField] private float gaugeSpeed = 2f;
-    [SerializeField] private float minScatterForce = 0.5f;
-    [SerializeField] private float maxScatterForce = 2.5f;
+    [SerializeField] private float minScatterForce = 0.3f;
+    [SerializeField] private float maxScatterForce = 5f;
 
     [Header("Scatter Settings")]
     [SerializeField] private float dropHeight = 1.5f;       // 보드 중앙 위로 이 높이에서 떨어뜨림
@@ -19,7 +19,7 @@ public class ScatterSystem : MonoBehaviour
     [SerializeField] private float settleTimeout = 4f;       // 최대 안착 대기 시간
 
     [Header("Board (auto-resolved)")]
-    [SerializeField] private Vector2 boardSize = new Vector2(8f, 8f);
+    [SerializeField] private Vector2 boardSize = new Vector2(8f, 6.4f);
 
     [Header("State")]
     [SerializeField] private float currentGaugeValue;

@@ -2012,12 +2012,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ScatterSystem
   gaugeSpeed: 2
-  minScatterForce: 1
+  minScatterForce: 0.3
   maxScatterForce: 5
   dropHeight: 1.5
   settleSpeedThreshold: 0.1
   settleTimeout: 4
-  boardSize: {x: 7, y: 7}
+  boardSize: {x: 8, y: 6.4}
   currentGaugeValue: 0
   isGaugeActive: 0
 --- !u!114 &1608197133

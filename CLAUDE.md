@@ -40,6 +40,46 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 
 도구 실행 시 작업 디렉토리 주의 — `.env`가 `/Users/baek/ideaBank/tools/`에 있으므로 절대경로 사용.
 
+## CAOF (Claude Agent Orchestration Framework)
+
+이 프로젝트는 CAOF를 따른다. 원본: `/Users/baek/ideaBank/frameworks/claude-agent-orchestration.md`
+
+### 역할 매핑
+- **Designer**: game-designer (범용, 엔진 무관)
+- **Implementer**: unity-unity-game-coder (Unity C# 전용)
+
+### 사용자 안내 규칙
+게임 관련 작업 요청 시, 메인 Claude는 **트랙 판단 결과를 먼저 알려준다**:
+```
+📋 CAOF 트랙: [Trivial / Standard / Critical]
+이유: [1줄 근거]
+→ [어떤 에이전트가 어떤 순서로 작동하는지]
+```
+사용자가 "CAOF 끄기"라고 하면 해당 세션에서 비활성화.
+
+### 트랙 분류 기준
+
+| 트랙 | 기준 | 파이프라인 |
+|------|------|-----------|
+| **Trivial** | 단일 파일, 기존 동작 변경 없음, 되돌리기 <5분 | Implementer 직행 |
+| **Standard** | 2~3 파일 또는 기존 동작 변경, 되돌리기 <1시간 | Designer 분석 → Implementer |
+| **Critical** | 4+ 파일, 새 시스템, 외부 의존성 | 풀 GATE (리서치→설계→승인→구현→검수) |
+
+### 라우팅 트리
+```
+요청 수신
+├─ 버그/에러 → game-designer 원인 분석 → unity-unity-game-coder 수정
+├─ 새 시스템/기능 → Critical 트랙 (풀 GATE)
+├─ 기존 기능 수정 → Standard 트랙 (Designer → Implementer)
+├─ 오타/상수/로그 추가 → Trivial (unity-unity-game-coder 직행)
+└─ 단순 질문 → 메인 Claude 직접
+```
+
+### 실패 에스컬레이션
+```
+1회 실패 → 재시도 / 2회 실패 → Designer 재분석 / 3회 실패 → 즉시 중단 + 보고
+```
+
 ## 핵심 원칙
 
 ### 1. 사용자 아이디어를 맹목적으로 신뢰하지 않기
@@ -121,8 +161,8 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 - 사용자 **"승인"** 후에만 구현 시작
 
 **GATE 4 — 구현** (산출물: 수정된 코드)
-- **반드시 game-coder 에이전트로 구현** — 직접 코딩 금지
-- game-coder에게 GATE 1 리서치 결과를 컨텍스트로 전달
+- **반드시 unity-game-coder 에이전트로 구현** — 직접 코딩 금지
+- unity-game-coder에게 GATE 1 리서치 결과를 컨텍스트로 전달
 - 구현 중 "모르는 동작"이 나오면 즉시 중단 → GATE 1로 돌아가 추가 리서치
 
 **GATE 5 — 검수** (산출물: 검수 보고서)
@@ -134,16 +174,16 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 - 사용자에게 테스트 요청
 - 버그 발견 시 아래 **버그 수정 파이프라인** 강제 적용:
 
-> **버그 수정 파이프라인 (game-coder에 직접 넘기기 금지)**
+> **버그 수정 파이프라인 (unity-game-coder에 직접 넘기기 금지)**
 > 1. **game-designer에게 먼저 전달** — 버그 증상 + 스크린샷/로그를 game-designer에게 넘겨서:
 >    - 근본 원인 분석 (증상이 아닌 원인)
 >    - 수정 방향 도출 (어떤 파일의 어떤 부분을 왜 변경해야 하는지)
 >    - 영향 범위 확인 (수정이 다른 기능에 미치는 영향)
-> 2. **game-designer 산출물을 game-coder에게 전달** — 원인 분석 + 수정 방향을 컨텍스트로 포함하여 구현 요청
-> 3. game-coder는 **수정 방향대로만 구현** — 독자 판단으로 범위를 넓히지 않음
+> 2. **game-designer 산출물을 unity-game-coder에게 전달** — 원인 분석 + 수정 방향을 컨텍스트로 포함하여 구현 요청
+> 3. unity-game-coder는 **수정 방향대로만 구현** — 독자 판단으로 범위를 넓히지 않음
 >
-> **이유:** game-coder는 "시키는 대로 코딩"하는 역할. 원인 분석까지 맡기면 증상만 패치하게 됨.
-> P0에서 game-coder에 직접 버그를 넘겨 반복 실패한 경험에서 도출된 규칙.
+> **이유:** unity-game-coder는 "시키는 대로 코딩"하는 역할. 원인 분석까지 맡기면 증상만 패치하게 됨.
+> P0에서 unity-game-coder에 직접 버그를 넘겨 반복 실패한 경험에서 도출된 규칙.
 
 #### 3회 반복 실패 규칙
 > **동일한 문제에 대해 3회 이상 수정을 시도해야 한다면, 문제를 제대로 분석/이해하지 못한 것이다.**
@@ -152,7 +192,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 > 2. **실패 원인 구조 분석** — 왜 3번이나 틀렸는지 근본 원인을 사용자에게 보고
 > 3. **접근 방식 전환** — 다음 중 하나 이상 수행:
 >    - GATE 1로 돌아가 WebSearch 추가 리서치
->    - 다른 에이전트(game-coder, game-designer)에게 위임
+>    - 다른 에이전트(unity-game-coder, game-designer)에게 위임
 >    - 완전히 다른 기술적 접근 방식 제안 (사용자 합의 후 진행)
 >    - 최소 재현 테스트 코드 작성으로 가설 검증
 > 4. 사용자에게 **"이전 접근이 실패한 이유 + 새 접근의 근거"** 를 설명하고 승인받은 후 재시도
@@ -163,7 +203,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 2. Explore agent로 기존 기획 문서 수집 (병렬)
 3. 리서치 완료 후 `design-report.sh`로 보고서 생성
 4. **game-designer가 구현 계획서 작성** → 사용자 "승인" 대기
-5. 승인 후 game-coder 구현 → `/검수 code`로 교차 모델 코드 리뷰
+5. 승인 후 unity-game-coder 구현 → `/검수 code`로 교차 모델 코드 리뷰
 6. `consistency-check.sh`로 정합성 검증
 7. 구현 현황 문서(`/Users/baek/ideaBank/game-dev/specs/five-stones/구현현황-phase0.md`) 업데이트
 
