@@ -20,3 +20,10 @@ Thumbs.db
 
 # Test Reports (generated at runtime)
 /TestReports/
+
+# Build outputs
+annoyingFiveStones-Proto*/
+
+# Agent backups
+.claude/agents.backup.*/
+.claude/commands.backup.*/
