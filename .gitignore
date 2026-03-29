@@ -28,3 +28,6 @@ afs_proto_*/
 # Agent backups
 .claude/agents.backup.*/
 .claude/commands.backup.*/
+
+# Mac build output
+mac_cfs.app/
