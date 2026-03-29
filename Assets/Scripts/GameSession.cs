@@ -18,6 +18,7 @@ public class GameSession : MonoBehaviour
     [SerializeField] private int currentStageInLoop = 1;
     [SerializeField] private float elapsedTime = 0f;
     [SerializeField] private bool isRecordMode = false;
+    [SerializeField] private int regressionCount = 0;
 
     // 공개 프로퍼티
     public int CurrentAge
@@ -50,6 +51,8 @@ public class GameSession : MonoBehaviour
         set => isRecordMode = value;
     }
 
+    public int RegressionCount => regressionCount;
+
     /// <summary>50살 도달 시 게임 클리어</summary>
     public bool IsGameClear => currentAge >= 50;
 
@@ -75,7 +78,7 @@ public class GameSession : MonoBehaviour
     /// </summary>
     public void OnStageComplete(int completedStage)
     {
-        currentAge++;
+        if (completedStage == 5) currentAge += 5;
         currentStageInLoop = completedStage;
 
         // IsGameClear (age >= 50) 이면 루프/단계 변경 없음 (게임 종료)
@@ -93,8 +96,9 @@ public class GameSession : MonoBehaviour
     /// </summary>
     public void OnFail()
     {
+        regressionCount++;
         currentStageInLoop = 1;
-        Debug.Log($"[GameSession] Failed. Age={currentAge}, Loop={currentLoop} (unchanged). Reset to stage 1.");
+        Debug.Log($"[GameSession] Failed. Age={currentAge}, Loop={currentLoop} (unchanged). Reset to stage 1. Regression={regressionCount}");
     }
 
     /// <summary>
@@ -109,6 +113,7 @@ public class GameSession : MonoBehaviour
         currentStageInLoop = 1;
         elapsedTime = 0f;
         isRecordMode = false;
+        regressionCount = 0;
         Debug.Log("[GameSession] ResetAll called.");
     }
 }

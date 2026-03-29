@@ -45,7 +45,7 @@ public class DebugHUD : MonoBehaviour
         float x = 10;
         float y = Screen.height - fontSize * 3 - 10;
         float lineH = fontSize + 2;
-        int lines = (catchSystem != null && catchSystem.IsCatchPhase) ? 3 : 2;
+        int lines = (catchSystem != null && catchSystem.IsCatchPhase) ? 4 : 3;
 
         // 검은 반투명 배경
         var whiteTex = Texture2D.whiteTexture;
@@ -57,6 +57,8 @@ public class DebugHUD : MonoBehaviour
         GUI.Label(new Rect(x, y, 300, lineH), $"Stage: {gm.CurrentStage}", infoStyle);
         y += lineH;
         GUI.Label(new Rect(x, y, 300, lineH), $"Phase: {gm.CurrentPhase}", infoStyle);
+        y += lineH;
+        GUI.Label(new Rect(x, y, 300, lineH), $"Regression: {GameSession.Instance?.RegressionCount ?? 0}", infoStyle);
         y += lineH;
 
         if (catchSystem != null && catchSystem.IsCatchPhase)
@@ -126,7 +128,7 @@ public class DebugHUD : MonoBehaviour
         var session = GameSession.Instance;
         if (session == null) return;
 
-        float panelW = 220f, panelH = 310f;
+        float panelW = 220f, panelH = 340f;
         float panelX = Screen.width - panelW - 10f;
         float panelY = 78f;
 
@@ -150,6 +152,9 @@ public class DebugHUD : MonoBehaviour
         // ── 상태 표시 ──
         GUI.Label(new Rect(x, y, btnW, lineH),
             $"나이: {session.CurrentAge}  루프: {session.CurrentLoop}  단계: {session.CurrentStageInLoop}", labelStyle);
+        y += lineH;
+        GUI.Label(new Rect(x, y, btnW, lineH),
+            $"회귀: {session.RegressionCount}번", labelStyle);
         y += lineH;
 
         // ── 나이 조작 ──

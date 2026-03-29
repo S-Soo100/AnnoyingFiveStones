@@ -78,7 +78,7 @@ public class NameInputUI : MonoBehaviour
         // 라벨: "이름을 입력하세요"
         var labelGo = CreateUIObject("Label", panelGo.transform);
         var labelText = labelGo.AddComponent<TextMeshProUGUI>();
-        labelText.text = "이름을 입력하세요";
+        labelText.text = "묘비에 새길 이름을 남기세요";
         labelText.fontSize = 20;
         labelText.color = Color.white;
         labelText.alignment = TextAlignmentOptions.Center;

@@ -305,7 +305,7 @@ public class HandController : MonoBehaviour
         {
             Vector2 screenPos = pointerAction.ReadValue<Vector2>();
             Vector3 worldPos = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
-            transform.position = new Vector3(worldPos.x, catchAreaY, -0.5f);
+            transform.position = new Vector3(worldPos.x, worldPos.y, -0.5f);
 
             if (spriteRenderer != null)
                 spriteRenderer.enabled = true;

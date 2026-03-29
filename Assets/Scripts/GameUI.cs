@@ -327,6 +327,55 @@ public class GameUI : MonoBehaviour
         overlayCoroutine = StartCoroutine(DoAllClear());
     }
 
+    /// <summary>회귀 연출: Fade Out → "인생을 다시 시작합니다" → Fade In</summary>
+    public void ShowRegressionTransition()
+    {
+        HideGuideText();
+        StopOverlay();
+        overlayCoroutine = StartCoroutine(DoRegressionTransition());
+    }
+
+    private IEnumerator DoRegressionTransition()
+    {
+        // 1. Fade Out (0.5초) — 검은 배경 알파 0→1
+        overlayMainText.text = "";
+        overlaySubText.text = "";
+        overlayGroup.alpha = 1f;
+
+        float elapsed = 0f;
+        while (elapsed < 0.5f)
+        {
+            elapsed += Time.deltaTime;
+            float a = Mathf.Clamp01(elapsed / 0.5f);
+            overlayBg.color = new Color(0, 0, 0, a);
+            yield return null;
+        }
+        overlayBg.color = new Color(0, 0, 0, 1f);
+
+        // 2. 중앙 텍스트 표시 (1.5초 유지)
+        overlayMainText.text = "인생을 다시 시작합니다";
+        overlayMainText.color = new Color(1f, 1f, 1f, 0.9f);
+        overlayMainText.fontSize = 70;
+        yield return new WaitForSeconds(1.5f);
+
+        // 3. 텍스트 숨기기
+        overlayMainText.text = "";
+
+        // 4. Fade In (0.5초) — 검은 배경 알파 1→0
+        elapsed = 0f;
+        while (elapsed < 0.5f)
+        {
+            elapsed += Time.deltaTime;
+            float a = 1f - Mathf.Clamp01(elapsed / 0.5f);
+            overlayBg.color = new Color(0, 0, 0, a);
+            yield return null;
+        }
+
+        overlayGroup.alpha = 0f;
+        overlayBg.color = new Color(0, 0, 0, 0);
+        overlayCoroutine = null;
+    }
+
     /// <summary>오버레이 즉시 숨김 (ALL CLEAR 탭 재시작 시)</summary>
     public void HideOverlay()
     {

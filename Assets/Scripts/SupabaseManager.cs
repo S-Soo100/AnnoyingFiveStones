@@ -42,9 +42,9 @@ public class SupabaseManager : MonoBehaviour
     /// 기록 업로드. 성공/실패를 onComplete(bool)로 통보.
     /// 실패 시 Debug.LogWarning만 — 게임 진행 차단 없음.
     /// </summary>
-    public void PostRecord(string playerName, float clearTimeSeconds, Action<bool> onComplete)
+    public void PostRecord(string playerName, float clearTimeSeconds, int regressionCount, Action<bool> onComplete)
     {
-        StartCoroutine(CoPostRecord(playerName, clearTimeSeconds, onComplete));
+        StartCoroutine(CoPostRecord(playerName, clearTimeSeconds, regressionCount, onComplete));
     }
 
     /// <summary>
@@ -77,9 +77,9 @@ public class SupabaseManager : MonoBehaviour
     // 코루틴 구현
     // ------------------------------------------------------------------
 
-    private IEnumerator CoPostRecord(string playerName, float clearTimeSeconds, Action<bool> onComplete)
+    private IEnumerator CoPostRecord(string playerName, float clearTimeSeconds, int regressionCount, Action<bool> onComplete)
     {
-        string json = $"{{\"player_name\":\"{EscapeJson(playerName)}\",\"clear_time_seconds\":{clearTimeSeconds}}}";
+        string json = $"{{\"player_name\":\"{EscapeJson(playerName)}\",\"clear_time_seconds\":{clearTimeSeconds},\"regression_count\":{regressionCount}}}";
         byte[] body = System.Text.Encoding.UTF8.GetBytes(json);
 
         using var req = new UnityWebRequest(baseEndpoint, "POST");
@@ -107,7 +107,7 @@ public class SupabaseManager : MonoBehaviour
 
     private IEnumerator CoGetTopRecords(int limit, Action<List<RecordEntry>> onComplete)
     {
-        string url = $"{baseEndpoint}?select=player_name,clear_time_seconds,created_at&order=clear_time_seconds.asc&limit={limit}";
+        string url = $"{baseEndpoint}?select=player_name,clear_time_seconds,regression_count,created_at&order=regression_count.asc,clear_time_seconds.asc&limit={limit}";
 
         using var req = UnityWebRequest.Get(url);
         req.timeout = 10;
@@ -150,7 +150,7 @@ public class SupabaseManager : MonoBehaviour
 
     private IEnumerator CoGetAllRecords(Action<List<RecordEntry>> onComplete)
     {
-        string url = $"{baseEndpoint}?select=player_name,clear_time_seconds,created_at&order=created_at.asc&limit=1000";
+        string url = $"{baseEndpoint}?select=player_name,clear_time_seconds,regression_count,created_at&order=regression_count.asc,clear_time_seconds.asc&limit=1000";
 
         using var req = UnityWebRequest.Get(url);
         req.timeout = 15;
@@ -272,6 +272,7 @@ public class RecordEntry
 {
     public string player_name;
     public float clear_time_seconds;
+    public int regression_count;
     public string created_at;
 }
 

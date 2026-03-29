@@ -145,13 +145,10 @@ public class GameManager : MonoBehaviour
         if (GraveyardUI.Instance == null)
             new GameObject("GraveyardUI").AddComponent<GraveyardUI>();
 
-        // [Online] 이름 입력 → StartStage(1)
-        NameInputUI.Instance.Show((playerName, isTestPlay) =>
-        {
-            session.PlayerName = playerName;
-            session.IsTestPlay = isTestPlay;
-            StartStage(1);
-        });
+        // 이름 입력은 엔딩 후로 이동 — 바로 게임 시작
+        session.PlayerName = "Player";
+        session.IsTestPlay = false;
+        StartStage(1);
     }
 
     private void Update()
@@ -303,6 +300,7 @@ public class GameManager : MonoBehaviour
 
     private void OnFailed()
     {
+        if (isAllClear) return; // ALL CLEAR 이후 실패 무시
         Debug.Log("[GameManager] FAILED! Resetting to Stage 1.");
 
         // [P1] 세션: 해당 루프 1단으로 리셋 (나이/루프 유지)
@@ -321,6 +319,10 @@ public class GameManager : MonoBehaviour
         GameUI.Instance?.ShowFail(lastFailReason);
 
         yield return new WaitForSeconds(failDuration);
+
+        // 회귀 연출: Fade Out → "인생을 다시 시작합니다" → Fade In
+        GameUI.Instance?.ShowRegressionTransition();
+        yield return new WaitForSeconds(2.5f); // 0.5 fade out + 1.5 text + 0.5 fade in
 
         isTransitioning = false;
         transitionCoroutine = null;
@@ -399,28 +401,42 @@ public class GameManager : MonoBehaviour
         isTransitioning = true;
         isAllClear = true;
 
+        // 값을 즉시 캡처 (이후 session이 리셋되어도 안전)
+        float clearTime = session != null ? session.ElapsedTime : 0f;
+        int regressionCount = session != null ? session.RegressionCount : 0;
+
         AudioManager.Instance?.PlayAllClear();
         GameUI.Instance?.ShowAllClear();
 
-        // [Online] 기록 업로드 (비동기 — 실패해도 게임 진행 무관)
-        float clearTime = session != null ? session.ElapsedTime : 0f;
-        string playerName = session != null ? session.PlayerName : "Player";
-        if (session != null && !session.IsTestPlay)
+        // 놀림 메시지 5초 표시 후 이름 입력으로 전환
+        yield return new WaitForSeconds(5f);
+
+        GameUI.Instance?.HideOverlay();
+
+        // 이름 입력 팝업 → 이름 확정 후 레코드 저장 → 묘지 파노라마
+        bool nameConfirmed = false;
+        NameInputUI.Instance?.Show((name, isTestPlay) =>
         {
-            SupabaseManager.Instance?.PostRecord(playerName, clearTime, success =>
+            session.PlayerName = name;
+            session.IsTestPlay = isTestPlay;
+            nameConfirmed = true;
+        });
+
+        yield return new WaitUntil(() => nameConfirmed);
+
+        string playerName = session != null ? session.PlayerName : "Player";
+        bool testPlay = session != null && session.IsTestPlay;
+
+        if (!testPlay)
+        {
+            SupabaseManager.Instance?.PostRecord(playerName, clearTime, regressionCount, success =>
             {
                 if (!success)
                     Debug.LogWarning("[GameManager] PostRecord failed — continuing without record upload.");
             });
         }
 
-        // 놀림 메시지 5초 표시 후 묘지 파노라마로 전환
-        yield return new WaitForSeconds(5f);
-
-        // 놀림 메시지 숨기고 묘지 파노라마 시작
-        bool isTestPlay = session != null && session.IsTestPlay;
-        GameUI.Instance?.HideOverlay();
-        GraveyardUI.Instance?.Show(clearTime, playerName, isTestPlay);
+        GraveyardUI.Instance?.Show(clearTime, playerName, regressionCount, testPlay);
 
         yield return null;
         // isTransitioning은 true로 유지
@@ -498,19 +514,10 @@ public class GameManager : MonoBehaviour
 
         GraveyardUI.Instance?.Hide();
 
-        // [P1] 세션 전체 초기화
+        // 세션 전체 초기화 (이름 입력은 엔딩 후)
         session?.ResetAll();
         SidePanelUI.Instance?.Refresh();
 
-        // [Online] 이름 재입력 → StartStage(1)
-        NameInputUI.Instance?.Show((playerName, isTestPlay) =>
-        {
-            if (session != null)
-            {
-                session.PlayerName = playerName;
-                session.IsTestPlay = isTestPlay;
-            }
-            StartStage(1);
-        });
+        StartStage(1);
     }
 }

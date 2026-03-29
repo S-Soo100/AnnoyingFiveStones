@@ -15,7 +15,7 @@ public class SidePanelUI : MonoBehaviour
     // UI 참조
     private Canvas canvas;
     private TextMeshProUGUI nameLabel;
-    private TextMeshProUGUI loopValueLabel;
+    private TextMeshProUGUI regressionValueLabel;
     private TextMeshProUGUI stageValueLabel;
     private Image[] stageDots;
     private TextMeshProUGUI ageValueLabel;
@@ -77,8 +77,8 @@ public class SidePanelUI : MonoBehaviour
         if (nameLabel != null)
             nameLabel.text = session.PlayerName;
 
-        if (loopValueLabel != null)
-            loopValueLabel.text = $"{session.CurrentLoop} / 10";
+        if (regressionValueLabel != null)
+            regressionValueLabel.text = $"{session.RegressionCount}번";
 
         if (stageValueLabel != null)
             stageValueLabel.text = $"{session.CurrentStageInLoop}단";
@@ -189,11 +189,11 @@ public class SidePanelUI : MonoBehaviour
         // --- 구분선 1 ---
         CreateSeparator(panelRootGo.transform);
 
-        // --- 루프 헤더 ---
-        CreateLabel(panelRootGo.transform, "LoopHeader", "루프", 14, FontStyles.Normal, new Color(0.7f, 0.7f, 0.7f, 1f), 20f);
+        // --- 회귀 헤더 ---
+        CreateLabel(panelRootGo.transform, "RegressionHeader", "회귀", 14, FontStyles.Normal, new Color(0.7f, 0.7f, 0.7f, 1f), 20f);
 
-        // --- 루프 값 ---
-        loopValueLabel = CreateLabel(panelRootGo.transform, "LoopValue", "1 / 10", 28, FontStyles.Bold, Color.white, 38f);
+        // --- 회귀 값 ---
+        regressionValueLabel = CreateLabel(panelRootGo.transform, "RegressionValue", "0번", 28, FontStyles.Bold, Color.white, 38f);
 
         // --- 단계 헤더 ---
         CreateLabel(panelRootGo.transform, "StageHeader", "단계", 14, FontStyles.Normal, new Color(0.7f, 0.7f, 0.7f, 1f), 20f);

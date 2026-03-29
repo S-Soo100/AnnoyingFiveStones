@@ -70,7 +70,7 @@ public class GraveyardUI : MonoBehaviour
     // 공개 API
     // ------------------------------------------------------------------
 
-    public void Show(float myTime, string myName, bool isTestPlay = false)
+    public void Show(float myTime, string myName, int myRegressionCount = 0, bool isTestPlay = false)
     {
         canvas.gameObject.SetActive(true);
         isShowing = true;
@@ -80,7 +80,7 @@ public class GraveyardUI : MonoBehaviour
 
         if (scrollCoroutine != null)
             StopCoroutine(scrollCoroutine);
-        scrollCoroutine = StartCoroutine(CoLoadAndScroll(myTime, myName, isTestPlay));
+        scrollCoroutine = StartCoroutine(CoLoadAndScroll(myTime, myName, myRegressionCount, isTestPlay));
     }
 
     public void Hide()
@@ -136,7 +136,7 @@ public class GraveyardUI : MonoBehaviour
     // 로드 + 스크롤 코루틴
     // ------------------------------------------------------------------
 
-    private IEnumerator CoLoadAndScroll(float myTime, string myName, bool isTestPlay = false)
+    private IEnumerator CoLoadAndScroll(float myTime, string myName, int myRegressionCount, bool isTestPlay = false)
     {
         List<RecordEntry> records = null;
         bool done = false;
@@ -178,13 +178,13 @@ public class GraveyardUI : MonoBehaviour
         // 내 비석 제외한 다른 플레이어 비석
         foreach (var rec in records)
         {
-            CreateTombstone(rec.player_name, rec.clear_time_seconds, false);
+            CreateTombstone(rec.player_name, rec.clear_time_seconds, rec.regression_count, false);
         }
 
         // 마지막에 내 비석 (테스트 플레이 시 생략)
         if (!isTestPlay)
         {
-            CreateTombstone(myName, myTime, true);
+            CreateTombstone(myName, myTime, myRegressionCount, true);
         }
 
         // RightPadding
@@ -256,7 +256,7 @@ public class GraveyardUI : MonoBehaviour
     // 비석 생성
     // ------------------------------------------------------------------
 
-    private void CreateTombstone(string playerName, float clearTimeSeconds, bool isMe)
+    private void CreateTombstone(string playerName, float clearTimeSeconds, int regressionCount, bool isMe)
     {
         // 비석 루트
         var tombGo = new GameObject("Tombstone", typeof(RectTransform));
@@ -330,7 +330,7 @@ public class GraveyardUI : MonoBehaviour
         timeRt.offsetMax = Vector2.zero;
 
         var timeTmp = timeGo.AddComponent<TextMeshProUGUI>();
-        timeTmp.text = FormatTime(clearTimeSeconds);
+        timeTmp.text = $"회귀 {regressionCount}번\n{FormatTime(clearTimeSeconds)}";
         timeTmp.fontSize = 13f;
         timeTmp.color = isMe ? new Color(0.2f, 0.1f, 0f, 1f) : new Color(0.8f, 0.8f, 0.8f, 1f);
         timeTmp.alignment = TextAlignmentOptions.Center;
