@@ -21,6 +21,8 @@ public class HandModelBuilder : MonoBehaviour
 
     // 물리 참조 (보이지 않는 Hitbox)
     public BoxCollider PalmCollider { get; private set; }
+    public BoxCollider FingerColliderL { get; private set; }
+    public BoxCollider FingerColliderR { get; private set; }
     public SphereCollider FistCollider { get; private set; }
 
     public void Build()
@@ -128,6 +130,28 @@ public class HandModelBuilder : MonoBehaviour
         PalmCollider.size = new Vector3(0.85f, 0.65f, 2f); // 시각 Palm 안에 약간 여백, Z만 넓게
         var palmHitbox = palmGo.AddComponent<HandHitbox>();
         palmHitbox.SetZone(HandHitbox.HitZone.Palm);
+
+        // --- Finger Hitbox Left (Palm 왼쪽 가장자리, 받기 모드 전용) ---
+        var fingerLGo = new GameObject("FingerHitbox_L");
+        fingerLGo.transform.SetParent(HitboxRoot, false);
+        fingerLGo.transform.localPosition = new Vector3(-0.65f, 0f, 0f);
+        fingerLGo.layer = Stone.AirLayer;
+        FingerColliderL = fingerLGo.AddComponent<BoxCollider>();
+        FingerColliderL.size = new Vector3(0.4f, 0.65f, 2f);
+        FingerColliderL.enabled = false; // 받기 모드에서만 활성화
+        var fingerLHitbox = fingerLGo.AddComponent<HandHitbox>();
+        fingerLHitbox.SetZone(HandHitbox.HitZone.Finger);
+
+        // --- Finger Hitbox Right (Palm 오른쪽 가장자리) ---
+        var fingerRGo = new GameObject("FingerHitbox_R");
+        fingerRGo.transform.SetParent(HitboxRoot, false);
+        fingerRGo.transform.localPosition = new Vector3(0.65f, 0f, 0f);
+        fingerRGo.layer = Stone.AirLayer;
+        FingerColliderR = fingerRGo.AddComponent<BoxCollider>();
+        FingerColliderR.size = new Vector3(0.4f, 0.65f, 2f);
+        FingerColliderR.enabled = false; // 받기 모드에서만 활성화
+        var fingerRHitbox = fingerRGo.AddComponent<HandHitbox>();
+        fingerRHitbox.SetZone(HandHitbox.HitZone.Finger);
     }
 
     private Rigidbody hitboxRb;
@@ -162,6 +186,8 @@ public class HandModelBuilder : MonoBehaviour
     public void SetCollidersEnabled(bool enabled)
     {
         if (PalmCollider != null) PalmCollider.enabled = enabled;
+        if (FingerColliderL != null) FingerColliderL.enabled = enabled;
+        if (FingerColliderR != null) FingerColliderR.enabled = enabled;
         // FistCollider는 5단 전용, 별도 관리
     }
 
@@ -188,7 +214,23 @@ public class HandModelBuilder : MonoBehaviour
             Gizmos.DrawWireCube(PalmCollider.transform.position + PalmCollider.center, PalmCollider.size);
         }
 
-        // Finger Hitbox 제거됨 — Palm 하나로 통합
+        // Finger Hitbox L — 빨간색
+        if (FingerColliderL != null && FingerColliderL.enabled)
+        {
+            Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
+            Gizmos.DrawCube(FingerColliderL.transform.position + FingerColliderL.center, FingerColliderL.size);
+            Gizmos.color = new Color(1f, 0f, 0f, 0.8f);
+            Gizmos.DrawWireCube(FingerColliderL.transform.position + FingerColliderL.center, FingerColliderL.size);
+        }
+
+        // Finger Hitbox R — 빨간색
+        if (FingerColliderR != null && FingerColliderR.enabled)
+        {
+            Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
+            Gizmos.DrawCube(FingerColliderR.transform.position + FingerColliderR.center, FingerColliderR.size);
+            Gizmos.color = new Color(1f, 0f, 0f, 0.8f);
+            Gizmos.DrawWireCube(FingerColliderR.transform.position + FingerColliderR.center, FingerColliderR.size);
+        }
     }
 #endif
 }
