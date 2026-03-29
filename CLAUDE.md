@@ -98,6 +98,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 1. **가장 작은 수정안을 먼저 제시** — 1~3줄 수정으로 해결 가능한지 확인
 2. **기존 동작(연출, UX, 애니메이션)은 반드시 보존** — 수정 범위 밖의 것을 건드리지 않음
 3. **큰 구조 변경이 필요하면 사용자와 합의 후 진행**
+4. **함수/메서드 삭제 시 — 모든 동작을 나열 후 각각 보존/제거/대체 판단** — 하나의 함수가 여러 책임(스프라이트 교체 + 색상 + **회전** 등)을 가질 수 있음. 눈에 보이는 기능만 인식하고 숨겨진 동작을 놓치면 기능이 조용히 사라짐 (Phase C SetHandMode 삭제 시 회전 누락 교훈)
 
 #### 수정 후 — 자체 검수 (사용자에게 테스트 요청 전 필수)
 1. **전체 실행 흐름을 line-by-line 추적**
@@ -110,8 +111,16 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 - 텔레포트 시 `Rigidbody.isKinematic = true` → 이동 → 복원 패턴 사용
 - `bodyType` 변경 시 원래 값 저장하고 복원
 - `isKinematic` 전환 직후 같은 프레임에서 `linearVelocity` 설정 불가 → **1 FixedUpdate 대기 필요하거나 코루틴 애니메이션 사용**
+- **Kinematic Rigidbody + 활성 Collider = non-kinematic 오브젝트를 밀어냄** — Bounds 판정만 필요할 때 Collider를 켜면 안 됨. `Renderer.bounds`나 수동 계산 사용 (Phase C 교훈)
 - 2.5D 게임에서 "보드 위 돌"은 **중력 OFF + 높은 damping**으로 탁자 위 느낌 구현 (중력 ON이면 벽에서 미끄러짐)
 - 연출이 중요한 동작(던지기/받기)은 **물리 대신 코루틴 애니메이션으로 설계** (예측 가능한 궤적)
+
+#### 2.5D 좌표 매핑 (3D Primitive/Collider 사용 시 필수)
+- 이 프로젝트: 카메라 z=-10, 정면 Orthographic → **X=좌우, Y=상하, Z=깊이(화면 안쪽)**
+- `Scale(1.0, 0.8, 0.15)` = 가로 1.0, 세로 0.8, **두께** 0.15 (Z가 얇아야 함)
+- `Cylinder` 기본 높이 축 = Y → 화면 위쪽으로 뻗음 (회전 불필요). `Euler(90,0,0)`하면 Z축(화면 안쪽)으로 뻗어 **안 보임**
+- SpriteRenderer와 MeshRenderer 정렬 다름 → **Z축 위치로 렌더 순서 결정** (sortingOrder 무효)
+- 에이전트에게 3D 오브젝트 구현 넘길 때 **"X=좌우, Y=상하, Z=깊이" 좌표 매핑을 프롬프트에 명시**
 
 ### 2-1. MCP Unity 사용 규칙 (Phase 0 경험 반영)
 
@@ -164,6 +173,10 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 - **반드시 unity-game-coder 에이전트로 구현** — 직접 코딩 금지
 - unity-game-coder에게 GATE 1 리서치 결과를 컨텍스트로 전달
 - 구현 중 "모르는 동작"이 나오면 즉시 중단 → GATE 1로 돌아가 추가 리서치
+- **구현 전 수치 검증 체크포인트** (오케스트레이터가 직접 수행, 에이전트에 위임 금지):
+  1. 좌표/방향: Scale·Rotation 값이 카메라 시점에서 의도대로 보이는가?
+  2. 크기 비교: A⊃B 판정이면 A와 B의 실제 Bounds/Scale을 Grep/Read로 확인
+  3. 물리 부작용: Collider 활성/비활성 변경이 다른 오브젝트에 미치는 영향 확인
 
 **GATE 5 — 검수** (산출물: 검수 보고서)
 - 자체 검수 (흐름 추적 + 상태 변수 + 엣지케이스)

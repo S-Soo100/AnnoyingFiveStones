@@ -1,21 +1,25 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 받기 시스템: 하강하는 돌과 손의 거리로 캐치 판정.
+/// 받기 시스템: Collider 기반 안착/튕김 판정 (Phase C Step 4).
+/// HandHitbox → HandController.OnStoneHit() → 이 클래스의 OnPalmCatch / OnFingerBounce 호출.
 /// 기획서: "바닥 돌 남음 → 같은 돌로 다시 던지기 / 전부 제거 → 다음 단"
 /// </summary>
 public class CatchSystem : MonoBehaviour
 {
-    [Header("Catch Settings")]
-    [SerializeField] private float catchRadius = 2f;
+    [Header("Bounce Settings")]
+    [SerializeField] private float bounceSpeed = 5f;
+    [SerializeField] private float boardFloorY = -5f;  // 이 아래로 떨어지면 탈락
 
     [Header("State")]
     [SerializeField] private bool isCatchPhase;
 
     private HandController handController;
     private Stone thrownStone;
-    private float lastStoneY;
-    private bool stoneDescending;
+
+    // Bouncing 상태 돌 추적
+    private List<Stone> bouncingStones = new List<Stone>();
 
     public bool IsCatchPhase => isCatchPhase;
 
@@ -27,25 +31,21 @@ public class CatchSystem : MonoBehaviour
     private void Update()
     {
         if (!isCatchPhase) return;
-        if (thrownStone == null) return;
 
-        float currentY = thrownStone.transform.position.y;
-
-        if (currentY < lastStoneY - 0.01f)
-            stoneDescending = true;
-        lastStoneY = currentY;
-
-        if (!stoneDescending) return;
-
-        // 받기 판정
-        float dist = Vector2.Distance(
-            new Vector2(handController.transform.position.x, handController.transform.position.y),
-            new Vector2(thrownStone.transform.position.x, thrownStone.transform.position.y)
-        );
-
-        if (dist <= catchRadius)
+        // Bouncing 돌 바닥 도달 감시
+        for (int i = bouncingStones.Count - 1; i >= 0; i--)
         {
-            OnCatchSuccess();
+            var stone = bouncingStones[i];
+            if (stone == null || !stone.gameObject.activeSelf)
+            {
+                bouncingStones.RemoveAt(i);
+                continue;
+            }
+            if (stone.transform.position.y <= boardFloorY)
+            {
+                OnStoneFell(stone);
+                return;
+            }
         }
     }
 
@@ -53,8 +53,7 @@ public class CatchSystem : MonoBehaviour
     {
         thrownStone = thrown;
         isCatchPhase = true;
-        stoneDescending = false;
-        lastStoneY = thrown.transform.position.y;
+        bouncingStones.Clear();
         Debug.Log("[CatchSystem] Catch phase started!");
     }
 
@@ -62,6 +61,43 @@ public class CatchSystem : MonoBehaviour
     {
         isCatchPhase = false;
         thrownStone = null;
+        bouncingStones.Clear();
+    }
+
+    /// <summary>Palm 안착: 돌을 Caught 상태로 전환 → OnCatchSuccess()</summary>
+    public void OnPalmCatch(Stone stone)
+    {
+        if (!isCatchPhase) return;
+        if (stone != thrownStone) return;  // 던진 돌만 받기 대상
+
+        Debug.Log($"[CatchSystem] Palm catch: stone {stone.StoneIndex}");
+        OnCatchSuccess();
+    }
+
+    /// <summary>Finger 튕김: 돌을 Bouncing 상태로 전환 + 반사 velocity</summary>
+    public void OnFingerBounce(Stone stone, Vector3 reflectDir)
+    {
+        if (!isCatchPhase) return;
+        if (stone.CurrentState == Stone.State.Bouncing) return;  // 이미 튕김 중
+
+        stone.SetState(Stone.State.Bouncing);
+        stone.Rb.linearVelocity = reflectDir * bounceSpeed;
+
+        if (!bouncingStones.Contains(stone))
+            bouncingStones.Add(stone);
+
+        Debug.Log($"[CatchSystem] Finger bounce: stone {stone.StoneIndex}, dir={reflectDir}");
+    }
+
+    /// <summary>Bouncing 돌이 바닥에 도달: 탈락 처리</summary>
+    private void OnStoneFell(Stone stone)
+    {
+        Debug.Log($"[CatchSystem] Stone {stone.StoneIndex} fell to floor!");
+        StopCatch();
+        AudioManager.Instance?.PlayCatchFail();
+        TestLogger.Instance?.LogFailure($"stone_fell_{stone.StoneIndex}");
+        GameManager.Instance.SetFailReason("공기가 바닥에 떨어졌다!");
+        GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
     }
 
     private void OnCatchSuccess()
