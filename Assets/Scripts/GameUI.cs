@@ -81,6 +81,7 @@ public class GameUI : MonoBehaviour
         CreateProgressDots();
         CreateGuideText();
         CreateOverlay();
+        CreatePauseButton();
     }
 
     // ==========================================================
@@ -103,10 +104,11 @@ public class GameUI : MonoBehaviour
         // → TMP fontSize(pt 단위)가 Screen Space와 동일하게 렌더됨
         var rt = canvasGo.GetComponent<RectTransform>();
         rt.position = new Vector3(0f, -1.5f, -1f);
-        rt.sizeDelta = new Vector2(750f, 1400f);
-        rt.localScale = new Vector3(0.01f, 0.01f, 0.01f); // 750px × 0.01 = 7.5 world units
+        rt.sizeDelta = new Vector2(2500f, 1400f);
+        rt.localScale = new Vector3(0.01f, 0.01f, 0.01f); // 2500px × 0.01 = 25 world units
 
         canvasGo.AddComponent<GraphicRaycaster>();
+        c.worldCamera = Camera.main;
         return c;
     }
 
@@ -243,6 +245,43 @@ public class GameUI : MonoBehaviour
         subRt.anchorMin = new Vector2(0f, 0.2f);
         subRt.anchorMax = new Vector2(1f, 0.35f);
         subRt.sizeDelta = Vector2.zero;
+    }
+
+    private void CreatePauseButton()
+    {
+        var btnGo = new GameObject("PauseButton");
+        btnGo.transform.SetParent(canvas.transform, false);
+        var btnRect = btnGo.AddComponent<RectTransform>();
+        // 우측 상단 앵커
+        btnRect.anchorMin = new Vector2(1f, 1f);
+        btnRect.anchorMax = new Vector2(1f, 1f);
+        btnRect.pivot = new Vector2(1f, 1f);
+        btnRect.sizeDelta = new Vector2(160f, 70f);
+        btnRect.anchoredPosition = new Vector2(-40f, -30f);
+
+        // 투명 배경 (클릭 영역 확보)
+        var img = btnGo.AddComponent<Image>();
+        img.color = new Color(0f, 0f, 0f, 0f); // 완전 투명
+
+        var btn = btnGo.AddComponent<Button>();
+        btn.targetGraphic = img;
+        btn.onClick.AddListener(() => PauseMenuUI.Instance?.Toggle());
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(btnGo.transform, false);
+        var labelRect = labelGo.AddComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        var tmp = labelGo.AddComponent<TextMeshProUGUI>();
+        tmp.text = "중지";
+        tmp.fontSize = 36f;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.color = Color.white;
+        tmp.alignment = TextAlignmentOptions.Center;
+        if (koreanTmpFont != null) tmp.font = koreanTmpFont;
     }
 
     // ==========================================================

@@ -179,6 +179,7 @@ public class DebugHUD : MonoBehaviour
                 session.CurrentLoop = agePresets[i] / 5 + 1;
                 session.CurrentStageInLoop = agePresets[i] % 5 + 1;
                 SidePanelUI.Instance?.Refresh();
+                AgeSaturationController.Instance?.UpdateSaturation(agePresets[i]);
             }
         }
         y += btnH + 6f;
@@ -227,6 +228,7 @@ public class DebugHUD : MonoBehaviour
             for (int i = 0; i < 5; i++)
                 session.OnStageComplete(i + 1);
             SidePanelUI.Instance?.Refresh();
+            AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
             gm.StartStage(1);
         }
         y += btnH + 4f;
@@ -239,6 +241,7 @@ public class DebugHUD : MonoBehaviour
                 for (int i = 0; i < 5; i++)
                     session.OnStageComplete(i + 1);
             SidePanelUI.Instance?.Refresh();
+            AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
             gm.StartStage(1);
         }
         y += btnH + 4f;
@@ -248,6 +251,7 @@ public class DebugHUD : MonoBehaviour
         if (GUI.Button(new Rect(x, y, btnW, btnH), "전체 리셋 (0살)", btnStyle))
         {
             session.ResetAll();
+            AgeSaturationController.Instance?.ResetSaturation();
             SidePanelUI.Instance?.Refresh();
             gm.StartStage(1);
         }

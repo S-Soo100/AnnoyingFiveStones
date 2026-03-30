@@ -41,10 +41,21 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float clearDuration = 1.5f;
     [SerializeField] private float failDuration = 1.5f;
 
+    private static readonly Dictionary<int, string> storyMents = new Dictionary<int, string>
+    {
+        { 0, "다섯 개의 돌.\n이것이 당신에게 주어진 전부입니다." },
+        { 5, "던진 것은 반드시 떨어집니다.\n받을 준비를 하세요." },
+        { 15, "돌을 쥘수록 손이 무거워집니다." },
+        { 25, "반이 지났습니다.\n남은 반은 더 빨리 갑니다." },
+        { 35, "손끝이 예전 같지 않습니다.\n그래도, 놓지 마세요." },
+        { 45, "마지막 한 바퀴.\n여기까지 온 것만으로도 충분합니다." },
+    };
+
     private int stage5Step; // 0 = 1차(손등받기), 1 = 2차(손바닥받기)
     private bool isTransitioning;
     private bool isAllClear;
     private bool isPaused;                // [P4]
+    private bool isInTitleScreen = true;
     private string lastFailReason = "";
     private Coroutine transitionCoroutine;
     private InputAction escAction;        // [P4]
@@ -145,16 +156,27 @@ public class GameManager : MonoBehaviour
         if (GraveyardUI.Instance == null)
             new GameObject("GraveyardUI").AddComponent<GraveyardUI>();
 
-        // 이름 입력은 엔딩 후로 이동 — 바로 게임 시작
-        session.PlayerName = "Player";
-        session.IsTestPlay = false;
-        StartStage(1);
+        // [Phase B] AgeSaturationController 자동 생성
+        if (AgeSaturationController.Instance == null)
+            new GameObject("AgeSaturationController").AddComponent<AgeSaturationController>();
+
+        // [Phase B] StoryMentUI 자동 생성
+        if (StoryMentUI.Instance == null)
+            new GameObject("StoryMentUI").AddComponent<StoryMentUI>();
+
+        // 타이틀 화면에서 손 숨김 (1프레임 뒤 — 다른 Start()에서 FindFirstObjectByType 완료 후)
+        StartCoroutine(HideHandNextFrame());
+
+        // 타이틀 화면 표시 — 시작 버튼 누르면 게임 시작
+        if (TitleScreenUI.Instance == null)
+            new GameObject("TitleScreenUI").AddComponent<TitleScreenUI>();
+        TitleScreenUI.Instance?.Show();
     }
 
     private void Update()
     {
         // [P1] 경과 시간 갱신: 전환 중이 아닐 때만
-        if (session != null && !isTransitioning && !isAllClear)
+        if (session != null && !isTransitioning && !isAllClear && !isInTitleScreen)
         {
             session.ElapsedTime += Time.deltaTime;
         }
@@ -165,8 +187,39 @@ public class GameManager : MonoBehaviour
         lastFailReason = reason;
     }
 
+    public void StartGameFromTitle()
+    {
+        isInTitleScreen = false;
+        if (session != null)
+        {
+            session.PlayerName = "Player";
+            session.IsTestPlay = false;
+        }
+        // [Phase B] 타이틀에서 시작 시 채도 초기화
+        AgeSaturationController.Instance?.ResetSaturation();
+
+        // [Phase B] 나이=0 멘트 표시 후 게임 시작
+        if (storyMents.TryGetValue(0, out string ment))
+        {
+            isTransitioning = true;
+            StoryMentUI.Instance?.Show(ment, () =>
+            {
+                isTransitioning = false;
+                handController?.gameObject.SetActive(true);
+                StartStage(1);
+            });
+        }
+        else
+        {
+            handController?.gameObject.SetActive(true);
+            StartStage(1);
+        }
+    }
+
     public void StartStage(int stage)
     {
+        isInTitleScreen = false; // 어떤 경로로든 스테이지 시작 시 타이틀 아님
+
         // 진행 중인 전환 코루틴 중단
         if (transitionCoroutine != null)
         {
@@ -358,6 +411,8 @@ public class GameManager : MonoBehaviour
 
         // [P1] 세션 상태 갱신 (나이++, 5단이면 루프++)
         session?.OnStageComplete(currentStage);
+        // [Phase B] 채도 갱신
+        AgeSaturationController.Instance?.UpdateSaturation(session != null ? session.CurrentAge : 0);
         SidePanelUI.Instance?.Refresh();
 
         int nextStage = currentStage + 1;
@@ -373,7 +428,15 @@ public class GameManager : MonoBehaviour
 
             // [P1] 5단 클리어 + 아직 50살 미만 → 다음 루프 1단 시작
             Debug.Log($"[GameManager] Loop {session?.CurrentLoop} started! (Age={session?.CurrentAge})");
-            transitionCoroutine = StartCoroutine(DoClearTransition(1));
+            int age = session != null ? session.CurrentAge : 0;
+            if (storyMents.TryGetValue(age, out string loopMent))
+            {
+                transitionCoroutine = StartCoroutine(DoClearThenMent(loopMent));
+            }
+            else
+            {
+                transitionCoroutine = StartCoroutine(DoClearTransition(1));
+            }
             return;
         }
 
@@ -394,6 +457,32 @@ public class GameManager : MonoBehaviour
         transitionCoroutine = null;
 
         StartStage(nextStage);
+    }
+
+    private IEnumerator HideHandNextFrame()
+    {
+        yield return null; // 다른 스크립트의 Start() 완료 대기
+        handController?.gameObject.SetActive(false);
+    }
+
+    private IEnumerator DoClearThenMent(string ment)
+    {
+        isTransitioning = true;
+
+        AudioManager.Instance?.PlayStageClear();
+        GameUI.Instance?.ShowClear();
+
+        yield return new WaitForSeconds(clearDuration);
+
+        // 멘트 표시 → 탭 완료 시 다음 루프
+        bool mentDone = false;
+        StoryMentUI.Instance?.Show(ment, () => mentDone = true);
+        yield return new WaitUntil(() => mentDone);
+
+        isTransitioning = false;
+        transitionCoroutine = null;
+
+        StartStage(1);
     }
 
     private IEnumerator DoAllClearTransition()
@@ -475,6 +564,9 @@ public class GameManager : MonoBehaviour
     // [P4] ESC 콜백
     private void OnEscPressed(InputAction.CallbackContext ctx)
     {
+        // 타이틀 화면에서는 ESC 무시
+        if (isInTitleScreen) return;
+
         // ALL CLEAR 화면에서는 ESC 무시
         if (isAllClear) return;
 
@@ -492,8 +584,12 @@ public class GameManager : MonoBehaviour
 
     private void OnAllClearClick(InputAction.CallbackContext ctx)
     {
+        if (isInTitleScreen) return;
         if (!isAllClear) return;
         if (isPaused) return; // [P4] 일시정지 중 클릭 무시
+
+        // [Phase B] 멘트 표시 중 클릭 무시
+        if (StoryMentUI.Instance != null && StoryMentUI.Instance.IsShowing) return;
 
         // GraveyardUI가 활성 상태면 자체 처리
         if (GraveyardUI.Instance != null && GraveyardUI.Instance.IsShowing) return;
@@ -516,8 +612,12 @@ public class GameManager : MonoBehaviour
 
         // 세션 전체 초기화 (이름 입력은 엔딩 후)
         session?.ResetAll();
+        // [Phase B] 채도 리셋
+        AgeSaturationController.Instance?.ResetSaturation();
         SidePanelUI.Instance?.Refresh();
 
-        StartStage(1);
+        isInTitleScreen = true;
+        handController?.gameObject.SetActive(false);
+        TitleScreenUI.Instance?.Show();
     }
 }

@@ -80,35 +80,33 @@ public class GaugeBarUI : MonoBehaviour
 
     private void CreateUI()
     {
-        // 전용 Canvas (GameUI Canvas와 독립)
+        // 전용 Canvas (World Space — 보드 좌측 안쪽 배치)
         canvas = GetComponentInChildren<Canvas>();
         if (canvas == null)
         {
             var canvasGo = new GameObject("GaugeCanvas");
             canvasGo.transform.SetParent(transform);
             canvas = canvasGo.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.renderMode = RenderMode.WorldSpace;
             canvas.sortingOrder = 99;
+            canvas.worldCamera = Camera.main;
 
-            // Screen Space Overlay: viewport 밖 좌측 여백에 렌더링됨
-            var scaler = canvasGo.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1280f, 720f);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0.5f;
+            // World Space 위치: 보드 좌측 안쪽
+            // Cloth(보드) pos=(0, -5.8), scale(8, 6.4) → 좌측 X=-4
+            var canvasRt = canvasGo.GetComponent<RectTransform>();
+            canvasRt.position = new Vector3(-3.2f, -5.8f, -0.1f);
+            canvasRt.sizeDelta = new Vector2(60f, 500f);
+            canvasRt.localScale = new Vector3(0.01f, 0.01f, 0.01f); // 0.6 x 5.0 world units
         }
 
         barRoot = new GameObject("BarRoot", typeof(RectTransform));
         barRoot.transform.SetParent(canvas.transform, false);
         var rootRt = barRoot.GetComponent<RectTransform>();
-        // Screen Space Overlay: 화면 좌측 여백에 게이지 배치
-        // viewport가 x=0.35에서 시작 → 좌측 여백은 화면 0~35%
-        // 게이지 바: 화면 좌측 12% 위치, 세로 중앙 정렬
-        rootRt.anchorMin = new Vector2(0f, 0.5f);
-        rootRt.anchorMax = new Vector2(0f, 0.5f);
-        rootRt.pivot = new Vector2(0.5f, 0.5f);
-        rootRt.sizeDelta = new Vector2(40f, 320f);
-        rootRt.anchoredPosition = new Vector2(420f, 0f); // viewport 경계(x≈448) 바로 왼쪽
+        // 앵커 기반으로 Canvas 전체를 채움
+        rootRt.anchorMin = Vector2.zero;
+        rootRt.anchorMax = Vector2.one;
+        rootRt.offsetMin = new Vector2(5f, 30f);  // 하단 30px 여유 (퍼센트 표시)
+        rootRt.offsetMax = new Vector2(-5f, -5f); // 상단/좌우 5px 여백
 
         // 배경 (어두운 바)
         var bgGo = new GameObject("BarBg", typeof(RectTransform));
@@ -147,7 +145,7 @@ public class GaugeBarUI : MonoBehaviour
         markerRt.pivot = new Vector2(0.5f, 0.5f);
         markerRt.sizeDelta = new Vector2(10, 4); // 좌우 약간 넓게, 높이 4px
 
-        // "POWER" 레이블 — Canvas 직속 자식 (barRoot 너비 제약 회피)
+        // "POWER" 레이블 — Canvas 직속 자식, 바 상단에 배치
         var powerGo = new GameObject("LabelPower", typeof(RectTransform));
         powerGo.transform.SetParent(canvas.transform, false);
         labelPower = powerGo.AddComponent<TextMeshProUGUI>();
@@ -161,11 +159,11 @@ public class GaugeBarUI : MonoBehaviour
         labelPower.overflowMode = TextOverflowModes.Overflow;
         if (koreanTmpFont != null) labelPower.font = koreanTmpFont;
         var powerRt = powerGo.GetComponent<RectTransform>();
-        powerRt.anchorMin = new Vector2(0f, 0.5f);
-        powerRt.anchorMax = new Vector2(0f, 0.5f);
+        powerRt.anchorMin = new Vector2(0.5f, 1f);
+        powerRt.anchorMax = new Vector2(0.5f, 1f);
         powerRt.pivot = new Vector2(0.5f, 0f);
         powerRt.sizeDelta = new Vector2(200f, 30f);
-        powerRt.anchoredPosition = new Vector2(420f, 175f); // barRoot와 x 일치
+        powerRt.anchoredPosition = new Vector2(0f, 5f); // 캔버스 상단에서 약간 위
 
         // 퍼센트 레이블 — barRoot 자식 (바 내부 하단, barRoot show/hide에 자동 종속)
         var pctGo = new GameObject("LabelPercent", typeof(RectTransform));
