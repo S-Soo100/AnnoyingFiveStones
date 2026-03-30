@@ -220,6 +220,10 @@ public class GameManager : MonoBehaviour
     {
         isInTitleScreen = false; // 어떤 경로로든 스테이지 시작 시 타이틀 아님
 
+        // Hand가 비활성이면 활성화 (타이틀 복귀 후 PauseMenu 초기화 등 경로 안전장치)
+        if (handController != null && !handController.gameObject.activeSelf)
+            handController.gameObject.SetActive(true);
+
         // 진행 중인 전환 코루틴 중단
         if (transitionCoroutine != null)
         {
@@ -338,10 +342,18 @@ public class GameManager : MonoBehaviour
             GamePhase.Throw => "[ 클릭하여 던지기 ]",
             GamePhase.PickStones => $"[ 돌 {RequiredPickCount}개를 주우세요 ]",
             GamePhase.Catch => "[ 커서를 움직여 돌을 받으세요! ]",
-            GamePhase.Stage5Throw => "[ 클릭하여 5개 모두 던지기! ]",
-            GamePhase.Stage5Catch => stage5Step == 0
-                ? "[ 손등으로 5개 모두 받기! ]"
-                : "[ 뒤집어서 손바닥으로 받기! ]",
+            GamePhase.Stage5Throw => stage5Step switch
+            {
+                0 => "[ 게이지에 맞춰 클릭! 손바닥 던지기 ]",
+                2 => "[ 게이지에 맞춰 클릭! 손등 던지기 ]",
+                _ => "[ 클릭하여 던지기! ]"
+            },
+            GamePhase.Stage5Catch => stage5Step switch
+            {
+                1 => "[ 손등으로 5개 모두 받기! ]",
+                3 => "[ 타이밍에 맞춰 클릭! 낚아채기! ]",
+                _ => "[ 돌을 받으세요! ]"
+            },
             _ => null
         };
 
@@ -397,12 +409,12 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 5단 내부 단계 진행: 손등 받기 성공 → 2차 던지기로
+    /// 5단 내부 단계 진행: 각 단계 완료 시 step++ (0→1→2→3)
     /// </summary>
     public void AdvanceStage5Step()
     {
-        stage5Step = 1;
-        Debug.Log("[GameManager] Stage 5 step advanced to palm catch.");
+        stage5Step++;
+        Debug.Log($"[GameManager] Stage 5 step advanced to {stage5Step}.");
     }
 
     private void OnStageComplete()

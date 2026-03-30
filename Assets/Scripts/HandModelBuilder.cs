@@ -8,7 +8,7 @@ using UnityEngine;
 public class HandModelBuilder : MonoBehaviour
 {
     [Header("Palm Settings")]
-    [SerializeField] private Vector3 palmScale = new Vector3(1.0f, 0.8f, 0.2f);
+    [SerializeField] private Vector3 palmScale = new Vector3(1.0f, 0.8f, 0.14f);
     [SerializeField] private Color palmColor = new Color(1f, 0.85f, 0.6f, 1f);
 
     [Header("Finger Settings")]
@@ -181,6 +181,50 @@ public class HandModelBuilder : MonoBehaviour
     // ==========================================
     // 공개 API
     // ==========================================
+
+    /// <summary>시각 파트 투명도 설정 (줍기=반투명, 받기=불투명)</summary>
+    public void SetVisualAlpha(float alpha)
+    {
+        SetRendererAlpha(PalmRenderer, alpha);
+        if (Fingers != null)
+        {
+            foreach (var pivot in Fingers)
+            {
+                if (pivot == null) continue;
+                var r = pivot.GetComponentInChildren<MeshRenderer>();
+                SetRendererAlpha(r, alpha);
+            }
+        }
+    }
+
+    private void SetRendererAlpha(Renderer r, float alpha)
+    {
+        if (r == null) return;
+        var mat = r.material;
+        var c = mat.color;
+        c.a = alpha;
+        mat.color = c;
+        // URP 투명도: Surface Type을 Transparent로 전환
+        if (alpha < 1f)
+        {
+            mat.SetFloat("_Surface", 1); // 1 = Transparent
+            mat.SetFloat("_Blend", 0);   // 0 = Alpha
+            mat.SetOverrideTag("RenderType", "Transparent");
+            mat.renderQueue = 3000;
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+        }
+        else
+        {
+            mat.SetFloat("_Surface", 0); // 0 = Opaque
+            mat.SetOverrideTag("RenderType", "Opaque");
+            mat.renderQueue = 2000;
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+            mat.SetInt("_ZWrite", 1);
+        }
+    }
 
     /// <summary>물리 Hitbox Collider 활성/비활성 (받기 모드에서만 ON)</summary>
     public void SetCollidersEnabled(bool enabled)
