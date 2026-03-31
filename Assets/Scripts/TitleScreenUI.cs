@@ -104,11 +104,17 @@ public class TitleScreenUI : MonoBehaviour
         titleTmp.fontStyle = FontStyles.Bold;
         if (koreanFont != null) titleTmp.font = koreanFont;
 
-        // "플레이" 버튼 — 중앙 아래
-        CreateMenuButton("플레이", parent, new Vector2(0f, -40f), 36, OnStartClicked);
+        // 장식용 노란 돌 5개 (타이틀 아래 흩어짐)
+        CreateDecoStones(parent);
 
-        // "설정" 버튼 — 플레이 아래
-        CreateMenuButton("설정", parent, new Vector2(0f, -100f), 30, () => {
+        // "기록 모드" 버튼
+        CreateMenuButton("기록 모드", parent, new Vector2(0f, -40f), 34, () => OnModeSelected(false));
+
+        // "연습 모드" 버튼
+        CreateMenuButton("연습 모드", parent, new Vector2(0f, -100f), 30, () => OnModeSelected(true));
+
+        // "설정" 버튼
+        CreateMenuButton("설정", parent, new Vector2(0f, -160f), 26, () => {
             PauseMenuUI.Instance?.Toggle();
         });
 
@@ -149,6 +155,59 @@ public class TitleScreenUI : MonoBehaviour
         exitTmp.color = new Color(1f, 1f, 1f, 0.6f);
         exitTmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) exitTmp.font = koreanFont;
+    }
+
+    private static Sprite circleSprite;
+
+    private void CreateDecoStones(Transform parent)
+    {
+        // 런타임 원형 스프라이트 생성 (1회)
+        if (circleSprite == null)
+        {
+            int size = 32;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            float center = size / 2f;
+            float radius = size / 2f - 1;
+            for (int px = 0; px < size; px++)
+                for (int py = 0; py < size; py++)
+                {
+                    float dist = Vector2.Distance(new Vector2(px, py), new Vector2(center, center));
+                    tex.SetPixel(px, py, dist <= radius ? Color.white : Color.clear);
+                }
+            tex.Apply();
+            tex.filterMode = FilterMode.Bilinear;
+            circleSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+        }
+
+        // 5개 노란 원을 화면 전체에 넓게 배치 (기획 스크린샷 기준)
+        Vector2[] positions = new Vector2[]
+        {
+            new Vector2(-420f, -20f),   // 좌측
+            new Vector2(-60f, 40f),     // 중앙 위
+            new Vector2(-20f, -30f),    // 중앙 아래
+            new Vector2(280f, 50f),     // 우측 위
+            new Vector2(450f, -140f),   // 우측 하단
+        };
+        float[] sizes = { 80f, 70f, 65f, 75f, 70f }; // 큰 원 (기획 스크린샷 비율)
+
+        Color stoneColor = new Color(0.95f, 0.85f, 0.2f, 0.9f);
+
+        for (int i = 0; i < 5; i++)
+        {
+            var stoneGo = new GameObject($"DecoStone_{i}");
+            stoneGo.transform.SetParent(parent, false);
+            var rect = stoneGo.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(sizes[i], sizes[i]);
+            rect.anchoredPosition = positions[i];
+
+            var img = stoneGo.AddComponent<Image>();
+            img.sprite = circleSprite;
+            img.color = stoneColor;
+            img.raycastTarget = false;
+        }
     }
 
     private void CreateMenuButton(string text, Transform parent, Vector2 pos, int fontSize, UnityEngine.Events.UnityAction onClick)
@@ -227,5 +286,16 @@ public class TitleScreenUI : MonoBehaviour
     private void OnStartClicked()
     {
         Hide(() => GameManager.Instance?.StartGameFromTitle());
+    }
+
+    private void OnModeSelected(bool isTestPlay)
+    {
+        Hide(() =>
+        {
+            var session = GameSession.Instance;
+            if (session != null)
+                session.IsTestPlay = isTestPlay;
+            GameManager.Instance?.StartGameFromTitle();
+        });
     }
 }

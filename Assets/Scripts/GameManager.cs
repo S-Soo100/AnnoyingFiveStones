@@ -164,6 +164,10 @@ public class GameManager : MonoBehaviour
         if (StoryMentUI.Instance == null)
             new GameObject("StoryMentUI").AddComponent<StoryMentUI>();
 
+        // [튜토리얼] TutorialUI 자동 생성
+        if (TutorialUI.Instance == null)
+            new GameObject("TutorialUI").AddComponent<TutorialUI>();
+
         // 타이틀 화면에서 손 숨김 (1프레임 뒤 — 다른 Start()에서 FindFirstObjectByType 완료 후)
         StartCoroutine(HideHandNextFrame());
 
@@ -193,11 +197,31 @@ public class GameManager : MonoBehaviour
         if (session != null)
         {
             session.PlayerName = "Player";
-            session.IsTestPlay = false;
+            // IsTestPlay는 TitleScreenUI.OnModeSelected에서 이미 설정됨
         }
         // [Phase B] 타이틀에서 시작 시 채도 초기화
         AgeSaturationController.Instance?.ResetSaturation();
 
+        // 첫 플레이 튜토리얼
+        if (PlayerPrefs.GetInt("TutorialSeen", 0) == 0)
+        {
+            isTransitioning = true;
+            TutorialUI.Instance?.Show(() =>
+            {
+                PlayerPrefs.SetInt("TutorialSeen", 1);
+                PlayerPrefs.Save();
+                isTransitioning = false;
+                StartGameAfterTutorial();
+            });
+        }
+        else
+        {
+            StartGameAfterTutorial();
+        }
+    }
+
+    private void StartGameAfterTutorial()
+    {
         // [Phase B] 나이=0 멘트 표시 후 게임 시작
         if (storyMents.TryGetValue(0, out string ment))
         {
