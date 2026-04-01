@@ -250,6 +250,10 @@ public class PauseMenuUI : MonoBehaviour
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
 
+        // 호버 시 검지 가리킴 포즈
+        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointIndex;
+
         var labelGo = new GameObject("Label");
         labelGo.transform.SetParent(btnGo.transform, false);
         var labelRect = labelGo.AddComponent<RectTransform>();
@@ -298,6 +302,9 @@ public class PauseMenuUI : MonoBehaviour
         GameManager.Instance?.SetPaused(true);
         Time.timeScale = 0f;
 
+        // 일시정지 중 손 커서 활성화 (메뉴 버튼 호버 피드백)
+        HandCursorUI.Instance?.SetActive(true);
+
         Debug.Log("[PauseMenuUI] Opened. timeScale=0");
     }
 
@@ -307,6 +314,9 @@ public class PauseMenuUI : MonoBehaviour
 
         rootGroup.alpha = 0f;
         rootGroup.blocksRaycasts = false;
+
+        // 손 커서 비활성화 (게임 중으로 복귀)
+        HandCursorUI.Instance?.SetActive(false);
 
         // 복원 순서 엄수: timeScale 먼저, SetPaused 나중
         Time.timeScale = 1f;

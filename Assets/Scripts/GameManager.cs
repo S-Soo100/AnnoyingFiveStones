@@ -168,6 +168,10 @@ public class GameManager : MonoBehaviour
         if (TutorialUI.Instance == null)
             new GameObject("TutorialUI").AddComponent<TutorialUI>();
 
+        // [커서] HandCursorUI 자동 생성
+        if (HandCursorUI.Instance == null)
+            new GameObject("HandCursorUI").AddComponent<HandCursorUI>();
+
         // 타이틀 화면에서 손 숨김 (1프레임 뒤 — 다른 Start()에서 FindFirstObjectByType 완료 후)
         StartCoroutine(HideHandNextFrame());
 
@@ -175,6 +179,7 @@ public class GameManager : MonoBehaviour
         if (TitleScreenUI.Instance == null)
             new GameObject("TitleScreenUI").AddComponent<TitleScreenUI>();
         TitleScreenUI.Instance?.Show();
+        HandCursorUI.Instance?.SetActive(true); // 타이틀에서 손 커서 활성화
     }
 
     private void Update()
@@ -229,12 +234,14 @@ public class GameManager : MonoBehaviour
             StoryMentUI.Instance?.Show(ment, () =>
             {
                 isTransitioning = false;
+                HandCursorUI.Instance?.SetActive(false);
                 handController?.gameObject.SetActive(true);
                 StartStage(1);
             });
         }
         else
         {
+            HandCursorUI.Instance?.SetActive(false);
             handController?.gameObject.SetActive(true);
             StartStage(1);
         }
@@ -561,6 +568,8 @@ public class GameManager : MonoBehaviour
             });
         }
 
+        handController?.gameObject.SetActive(false);
+        HandCursorUI.Instance?.SetActive(true);
         GraveyardUI.Instance?.Show(clearTime, playerName, regressionCount, testPlay);
 
         yield return null;
@@ -654,6 +663,7 @@ public class GameManager : MonoBehaviour
 
         isInTitleScreen = true;
         handController?.gameObject.SetActive(false);
+        HandCursorUI.Instance?.SetActive(true);
         TitleScreenUI.Instance?.Show();
     }
 }

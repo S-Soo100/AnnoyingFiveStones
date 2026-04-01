@@ -133,6 +133,8 @@ public class TitleScreenUI : MonoBehaviour
 
         var exitBtn = exitGo.AddComponent<Button>();
         exitBtn.targetGraphic = exitImg;
+        var exitHover = exitGo.AddComponent<HandCursorHoverTrigger>();
+        exitHover.HoverPose = HandPose.PointIndex;
         exitBtn.onClick.AddListener(() => {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -233,6 +235,10 @@ public class TitleScreenUI : MonoBehaviour
         btn.colors = colors;
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
+
+        // 호버 시 손가락 가리킴 포즈
+        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointIndex;
 
         var labelGo = new GameObject("Label");
         labelGo.transform.SetParent(btnGo.transform, false);

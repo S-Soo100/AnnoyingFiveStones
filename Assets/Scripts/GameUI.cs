@@ -256,8 +256,8 @@ public class GameUI : MonoBehaviour
         btnRect.anchorMin = new Vector2(1f, 1f);
         btnRect.anchorMax = new Vector2(1f, 1f);
         btnRect.pivot = new Vector2(1f, 1f);
-        btnRect.sizeDelta = new Vector2(160f, 70f);
-        btnRect.anchoredPosition = new Vector2(-40f, -30f);
+        btnRect.sizeDelta = new Vector2(500f, 250f);
+        btnRect.anchoredPosition = new Vector2(0f, 0f);
 
         // 투명 배경 (클릭 영역 확보)
         var img = btnGo.AddComponent<Image>();
@@ -266,6 +266,11 @@ public class GameUI : MonoBehaviour
         var btn = btnGo.AddComponent<Button>();
         btn.targetGraphic = img;
         btn.onClick.AddListener(() => PauseMenuUI.Instance?.Toggle());
+
+        // 호버 시 중지 가리킴 포즈 🖕 (열받게!)
+        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointMiddle;
+        hover.KeepTranslucent = true; // 게임 중 호버 시 반투명 유지
 
         var labelGo = new GameObject("Label");
         labelGo.transform.SetParent(btnGo.transform, false);

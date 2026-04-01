@@ -19,6 +19,7 @@ public class GraveyardUI : MonoBehaviour
     private RectTransform content;
     private TextMeshProUGUI statusText;
     private TextMeshProUGUI restartHintText;
+    private GameObject restartHintWrapper;
     private TMP_FontAsset koreanFont;
 
     private Coroutine scrollCoroutine;
@@ -75,7 +76,7 @@ public class GraveyardUI : MonoBehaviour
         canvas.gameObject.SetActive(true);
         isShowing = true;
         hasReachedEnd = false;
-        restartHintText.gameObject.SetActive(false);
+        restartHintWrapper.SetActive(false);
         statusText.text = "불러오는 중...";
 
         if (scrollCoroutine != null)
@@ -242,7 +243,7 @@ public class GraveyardUI : MonoBehaviour
 
     private IEnumerator CoBlinkHint()
     {
-        restartHintText.gameObject.SetActive(true);
+        restartHintWrapper.SetActive(true);
         while (true)
         {
             restartHintText.alpha = 1f;
@@ -443,12 +444,28 @@ public class GraveyardUI : MonoBehaviour
         statusText.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) statusText.font = koreanFont;
 
-        // RestartHintText — 하단 중앙
+        // RestartHintText — 하단 중앙 (호버 감지용 래퍼 + 텍스트)
+        restartHintWrapper = new GameObject("RestartHintWrapper", typeof(RectTransform));
+        var hintWrapperGo = restartHintWrapper;
+        hintWrapperGo.transform.SetParent(canvasGo.transform, false);
+        var wrapperRt = hintWrapperGo.GetComponent<RectTransform>();
+        wrapperRt.anchorMin = new Vector2(0.2f, 0.02f);
+        wrapperRt.anchorMax = new Vector2(0.8f, 0.12f);
+        wrapperRt.offsetMin = Vector2.zero;
+        wrapperRt.offsetMax = Vector2.zero;
+
+        // 투명 Image로 호버 감지 (IPointerEnterHandler 동작에 Graphic 필요)
+        var wrapperImg = hintWrapperGo.AddComponent<Image>();
+        wrapperImg.color = new Color(0f, 0f, 0f, 0f);
+        var hover = hintWrapperGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointIndex;
+
+        // 텍스트는 래퍼의 자식
         var hintGo = new GameObject("RestartHintText", typeof(RectTransform));
-        hintGo.transform.SetParent(canvasGo.transform, false);
+        hintGo.transform.SetParent(hintWrapperGo.transform, false);
         var hintRt = hintGo.GetComponent<RectTransform>();
-        hintRt.anchorMin = new Vector2(0.2f, 0.02f);
-        hintRt.anchorMax = new Vector2(0.8f, 0.12f);
+        hintRt.anchorMin = Vector2.zero;
+        hintRt.anchorMax = Vector2.one;
         hintRt.offsetMin = Vector2.zero;
         hintRt.offsetMax = Vector2.zero;
         restartHintText = hintGo.AddComponent<TextMeshProUGUI>();
@@ -456,8 +473,10 @@ public class GraveyardUI : MonoBehaviour
         restartHintText.fontSize = 18f;
         restartHintText.color = Color.white;
         restartHintText.alignment = TextAlignmentOptions.Center;
+        restartHintText.raycastTarget = false;
         if (koreanFont != null) restartHintText.font = koreanFont;
-        hintGo.SetActive(false);
+
+        hintWrapperGo.SetActive(false);
 
         // 초기 비활성화
         canvasGo.SetActive(false);

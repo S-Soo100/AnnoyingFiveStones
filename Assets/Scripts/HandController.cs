@@ -1177,6 +1177,26 @@ public class HandController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 불투명도 오버라이드 (호버 트리거 전용).
+    /// true 시 반투명 고정, false 시 현재 모드에 맞게 복원.
+    /// </summary>
+    private bool alphaOverride;
+
+    public void SetAlphaOverride(bool active)
+    {
+        alphaOverride = active;
+        if (active)
+        {
+            handModel?.SetVisualAlpha(0.35f);
+        }
+        else
+        {
+            // 현재 모드에 맞게 복원
+            handModel?.SetVisualAlpha(isCatchMode ? 1f : 0.35f);
+        }
+    }
+
     /// <summary>받기 모드 전환: 시각 회전 + 물리 hitbox 재배치</summary>
     private void SetCatchMode(bool catching)
     {
@@ -1185,15 +1205,76 @@ public class HandController : MonoBehaviour
         {
             // 시각: 옆에서 본 손 (손가락 왼쪽, 손바닥 틸트)
             transform.localEulerAngles = new Vector3(-60f, 0f, 90f);
-            // 받기 모드: 불투명
-            handModel?.SetVisualAlpha(1f);
+            // 받기 모드: 불투명 (오버라이드 중이면 스킵)
+            if (!alphaOverride) handModel?.SetVisualAlpha(1f);
         }
         else
         {
             transform.localEulerAngles = Vector3.zero;
             // 줍기 모드: 반투명
-            handModel?.SetVisualAlpha(0.35f);
+            if (!alphaOverride) handModel?.SetVisualAlpha(0.35f);
         }
+    }
+
+    /// <summary>
+    /// 특정 포즈로 손가락 애니메이션 (외부에서 호출 가능).
+    /// HandPose와 동일한 포즈를 3D 손에 적용.
+    /// </summary>
+    /// X축 회전 접힘 각도: 양수 = 화면 안쪽으로 말림 (주먹 쥐기)
+    private const float FingerFoldX = 90f;
+
+    public void SetHandPose(HandPose pose)
+    {
+        if (handModel == null || handModel.Fingers == null) return;
+        // X축 회전 각도 배열: 0 = 펼침, FingerFoldX = 접힘
+        float[] targets;
+        switch (pose)
+        {
+            case HandPose.PointIndex:
+                // 검지(1)만 펼침, 나머지 접힘
+                targets = new float[] { FingerFoldX, 0f, FingerFoldX, FingerFoldX, FingerFoldX };
+                break;
+            case HandPose.PointMiddle:
+                // 중지(2)만 펼침, 나머지 접힘
+                targets = new float[] { FingerFoldX, FingerFoldX, 0f, FingerFoldX, FingerFoldX };
+                break;
+            default: // Open
+                targets = new float[] { 0f, 0f, 0f, 0f, 0f };
+                break;
+        }
+        if (fingerFoldCoroutine != null) StopCoroutine(fingerFoldCoroutine);
+        fingerFoldCoroutine = StartCoroutine(DoFingerFoldCustom(targets));
+    }
+
+    private IEnumerator DoFingerFoldCustom(float[] targetAngles)
+    {
+        if (handModel == null || handModel.Fingers == null) yield break;
+
+        float duration = 0.1f;
+        float elapsed = 0f;
+        float[] startAngles = new float[handModel.Fingers.Length];
+        for (int i = 0; i < handModel.Fingers.Length; i++)
+        {
+            startAngles[i] = handModel.Fingers[i].localEulerAngles.x;
+            if (startAngles[i] > 180f) startAngles[i] -= 360f;
+        }
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            for (int i = 0; i < handModel.Fingers.Length; i++)
+            {
+                float angle = Mathf.Lerp(startAngles[i], targetAngles[i], t);
+                handModel.Fingers[i].localEulerAngles = new Vector3(angle, 0f, 0f);
+            }
+            yield return null;
+        }
+        for (int i = 0; i < handModel.Fingers.Length; i++)
+        {
+            handModel.Fingers[i].localEulerAngles = new Vector3(targetAngles[i], 0f, 0f);
+        }
+        fingerFoldCoroutine = null;
     }
 
     /// <summary>손가락 접힘/펼침 애니메이션</summary>
@@ -1208,23 +1289,18 @@ public class HandController : MonoBehaviour
     {
         if (handModel == null || handModel.Fingers == null) yield break;
 
-        // 손가락별 접힘 방향 (안쪽으로 모이도록)
-        // Thumb(-0.55) → +Z로 회전, Index(-0.2) → +Z, Middle(0) → +Z,
-        // Ring(+0.2) → -Z, Pinky(+0.38) → -Z
-        // 왼쪽 손가락(엄지~중지)은 시계방향(음수Z)으로 접혀야 안쪽
-        // 오른쪽 손가락(약지~소지)은 반시계방향(양수Z)으로 접혀야 안쪽
-        float[] foldAngles = { -70f, -50f, -40f, 50f, 70f };
+        // X축 회전: 양수 = 화면 안쪽으로 말림 (주먹 쥐기)
+        // 모든 손가락 동일 각도 (90도)
         float duration = 0.1f;
         float elapsed = 0f;
 
-        // 현재 각도 저장
         float[] startAngles = new float[handModel.Fingers.Length];
         float[] targetAngles = new float[handModel.Fingers.Length];
         for (int i = 0; i < handModel.Fingers.Length; i++)
         {
-            startAngles[i] = handModel.Fingers[i].localEulerAngles.z;
+            startAngles[i] = handModel.Fingers[i].localEulerAngles.x;
             if (startAngles[i] > 180f) startAngles[i] -= 360f;
-            targetAngles[i] = fold ? foldAngles[i] : 0f;
+            targetAngles[i] = fold ? FingerFoldX : 0f;
         }
 
         while (elapsed < duration)
@@ -1235,17 +1311,14 @@ public class HandController : MonoBehaviour
             for (int i = 0; i < handModel.Fingers.Length; i++)
             {
                 float angle = Mathf.Lerp(startAngles[i], targetAngles[i], t);
-                var euler = handModel.Fingers[i].localEulerAngles;
-                handModel.Fingers[i].localEulerAngles = new Vector3(euler.x, euler.y, angle);
+                handModel.Fingers[i].localEulerAngles = new Vector3(angle, 0f, 0f);
             }
             yield return null;
         }
 
-        // 최종 값 보정
         for (int i = 0; i < handModel.Fingers.Length; i++)
         {
-            var euler = handModel.Fingers[i].localEulerAngles;
-            handModel.Fingers[i].localEulerAngles = new Vector3(euler.x, euler.y, targetAngles[i]);
+            handModel.Fingers[i].localEulerAngles = new Vector3(targetAngles[i], 0f, 0f);
         }
 
         fingerFoldCoroutine = null;
