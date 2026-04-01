@@ -22,10 +22,10 @@ public class TitleScreenUI : MonoBehaviour
 
     private const float FloatSpeed = 15f;        // 부유 속도 (px/s)
     private const float FloatRadius = 40f;       // 부유 반경 (원래 위치에서)
-    private const float FleeDistance = 120f;     // 회피 시작 거리 (px)
-    private const float FleeForce = 400f;        // 회피 순간 속도 (px/s)
-    private const float FleeDamping = 3f;        // 회피 후 감속 계수
-    private const float HomeReturnForce = 1.5f;  // 원래 위치 복귀 힘
+    private const float FleeDistance = 150f;     // 회피 시작 거리 (px)
+    private const float FleeImpulse = 800f;      // 회피 순간 임펄스 (px/s, dt 미곱)
+    private const float FleeDamping = 4f;        // 회피 후 감속 계수
+    private const float HomeReturnForce = 0.8f;  // 원래 위치 복귀 힘 (약하게 — 도망 우선)
 
     private void Awake()
     {
@@ -319,14 +319,15 @@ public class TitleScreenUI : MonoBehaviour
             float noiseY = Mathf.PerlinNoise(0f, seed + time * 0.3f) - 0.5f;
             Vector2 floatTarget = home + new Vector2(noiseX, noiseY) * FloatRadius * 2f;
 
-            // --- 2. 마우스 회피 ---
+            // --- 2. 마우스 회피 (임펄스 — dt 안 곱함, 순간 튕김) ---
             Vector2 toMouse = pos - mouseLocal;
             float dist = toMouse.magnitude;
             if (dist < FleeDistance && dist > 0.1f)
             {
                 Vector2 fleeDir = toMouse.normalized;
-                float fleePower = (1f - dist / FleeDistance); // 가까울수록 강하게
-                decoStoneVelocity[i] += fleeDir * FleeForce * fleePower * dt;
+                float fleePower = (1f - dist / FleeDistance);
+                fleePower *= fleePower; // 제곱: 가까울수록 폭발적으로 강해짐
+                decoStoneVelocity[i] += fleeDir * FleeImpulse * fleePower;
             }
 
             // --- 3. 원래 위치 복귀 힘 ---
