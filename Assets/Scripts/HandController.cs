@@ -36,7 +36,8 @@ public class HandController : MonoBehaviour
 
     // === 5단 꺾기 전용 ===
     [Header("Stage 5 Settings")]
-    [SerializeField] private float stage5CatchRadius = 1.8f;    // 5개 동시 캐치 반경
+    [SerializeField] private float stage5CatchRadius = 1.8f;    // 5개 동시 캐치 반경 (기본값, 손등 받기 시 2배)
+    [SerializeField] private float stage5BackhandScaleMultiplier = 2f; // 손등 받기 시 손 크기 배율
     [SerializeField] private float stage5SpreadRange = 1.2f;     // 돌 퍼짐 범위 (카시오페이아급 밀집)
     [SerializeField] private float stage5MinSpacing = 0.3f;      // 돌 최소 간격
     [SerializeField] private float stage5MissThreshold = 3.5f;   // catchAreaY - 이 값 아래로 지나가면 실패 (보드 근처까지 허용)
@@ -672,6 +673,21 @@ public class HandController : MonoBehaviour
     /// 5개 돌의 하강 + 캐치 판정 코루틴.
     /// 플레이어는 커서 좌우 이동으로 손을 움직여 받는다.
     /// </summary>
+    private IEnumerator RestoreHandScale(Vector3 originalScale, float duration)
+    {
+        Vector3 startScale = transform.localScale;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            float eased = t * (2f - t); // EaseOut
+            transform.localScale = Vector3.Lerp(startScale, originalScale, eased);
+            yield return null;
+        }
+        transform.localScale = originalScale;
+    }
+
     private IEnumerator DoStage5Catch(Stone[] stones, int count, System.Action<bool> onResult)
     {
         // === 슬라이드 인 (0.3초) ===
@@ -699,6 +715,26 @@ public class HandController : MonoBehaviour
         // 슬라이드 인 완료 — 이제부터 LateUpdate가 X축 조작 처리
         SetCatchMode(true);
         stage5CatchActive = true;
+
+        // === 손등 받기: 손 크기 2배로 확대 (0.3초 보간) ===
+        float originalCatchRadius = stage5CatchRadius;
+        float scaleDuration = 0.3f;
+        float scaleElapsed = 0f;
+        Vector3 originalScale = transform.localScale;
+        Vector3 targetScale = originalScale * stage5BackhandScaleMultiplier;
+        float targetRadius = originalCatchRadius * stage5BackhandScaleMultiplier;
+
+        while (scaleElapsed < scaleDuration)
+        {
+            scaleElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(scaleElapsed / scaleDuration);
+            float eased = t * (2f - t); // EaseOut
+            transform.localScale = Vector3.Lerp(originalScale, targetScale, eased);
+            stage5CatchRadius = Mathf.Lerp(originalCatchRadius, targetRadius, eased);
+            yield return null;
+        }
+        transform.localScale = targetScale;
+        stage5CatchRadius = targetRadius;
 
         // === 독립 낙하 시간 계산 ===
         bool[] caught = new bool[count];
@@ -779,6 +815,9 @@ public class HandController : MonoBehaviour
                     Debug.Log($"[Stage5] MISSED stone {stones[i].StoneIndex}!");
                     TestLogger.Instance?.LogFailure($"stage5_miss_stone_{stones[i].StoneIndex}");
                     stage5CatchActive = false;
+                    // 실패 시 즉시 원래 크기로 복원
+                    transform.localScale = originalScale;
+                    stage5CatchRadius = originalCatchRadius;
                     SetCatchMode(false);
                     onResult?.Invoke(false);
                     GameManager.Instance.SetFailReason("돌을 놓쳤다!");
@@ -791,6 +830,9 @@ public class HandController : MonoBehaviour
             if (caughtCount >= count)
             {
                 stage5CatchActive = false;
+                // 손 크기 복원 (0.2초 보간)
+                yield return RestoreHandScale(originalScale, 0.2f);
+                stage5CatchRadius = originalCatchRadius;
                 SetCatchMode(false);
                 onResult?.Invoke(true);
                 yield break;
@@ -801,6 +843,9 @@ public class HandController : MonoBehaviour
 
         // 시간 초과
         stage5CatchActive = false;
+        // 시간 초과 시 즉시 원래 크기로 복원
+        transform.localScale = originalScale;
+        stage5CatchRadius = originalCatchRadius;
         SetCatchMode(false);
         if (caughtCount < count)
         {
@@ -841,6 +886,27 @@ public class HandController : MonoBehaviour
 
         SetCatchMode(true);
         stage5CatchActive = true;
+
+        // === 손바닥 받기: 손 크기 2배로 확대 (0.3초 보간) ===
+        float originalGrabRadius = stage5FistGrabRadius;
+        Vector3 originalScale = transform.localScale;
+        Vector3 targetScale = originalScale * stage5BackhandScaleMultiplier;
+        float targetGrabRadius = originalGrabRadius * stage5BackhandScaleMultiplier;
+        {
+            float scaleElapsed = 0f;
+            float scaleDuration = 0.3f;
+            while (scaleElapsed < scaleDuration)
+            {
+                scaleElapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(scaleElapsed / scaleDuration);
+                float eased = t * (2f - t);
+                transform.localScale = Vector3.Lerp(originalScale, targetScale, eased);
+                stage5FistGrabRadius = Mathf.Lerp(originalGrabRadius, targetGrabRadius, eased);
+                yield return null;
+            }
+            transform.localScale = targetScale;
+            stage5FistGrabRadius = targetGrabRadius;
+        }
 
         // 각 돌의 낙하 시작 위치
         float[] stoneStartY = new float[count];
@@ -934,6 +1000,8 @@ public class HandController : MonoBehaviour
                     AudioManager.Instance?.PlayStageClear();
                     yield return new WaitForSeconds(0.5f);
                     stage5CatchActive = false;
+                    yield return RestoreHandScale(originalScale, 0.2f);
+                    stage5FistGrabRadius = originalGrabRadius;
                     SetCatchMode(false);
                     AnimateFingerFold(false);
                     callback?.Invoke(true);
@@ -953,6 +1021,8 @@ public class HandController : MonoBehaviour
                     AudioManager.Instance?.PlayStageClear();
                     yield return new WaitForSeconds(0.5f);
                     stage5CatchActive = false;
+                    yield return RestoreHandScale(originalScale, 0.2f);
+                    stage5FistGrabRadius = originalGrabRadius;
                     SetCatchMode(false);
                     AnimateFingerFold(false);
                     callback?.Invoke(true);
@@ -963,6 +1033,8 @@ public class HandController : MonoBehaviour
                     // 미완성 → 실패
                     yield return new WaitForSeconds(0.5f);
                     stage5CatchActive = false;
+                    transform.localScale = originalScale;
+                    stage5FistGrabRadius = originalGrabRadius;
                     SetCatchMode(false);
                     AnimateFingerFold(false);
                     GameManager.Instance.SetFailReason("돌을 놓쳤다!");
@@ -976,6 +1048,8 @@ public class HandController : MonoBehaviour
             if (anyReachedFloor && !isGrabbing)
             {
                 stage5CatchActive = false;
+                transform.localScale = originalScale;
+                stage5FistGrabRadius = originalGrabRadius;
                 SetCatchMode(false);
                 AnimateFingerFold(false);
                 AudioManager.Instance?.PlayCatchFail();
@@ -990,6 +1064,8 @@ public class HandController : MonoBehaviour
 
         // 타임아웃
         stage5CatchActive = false;
+        transform.localScale = originalScale;
+        stage5FistGrabRadius = originalGrabRadius;
         SetCatchMode(false);
         AnimateFingerFold(false);
         AudioManager.Instance?.PlayCatchFail();
