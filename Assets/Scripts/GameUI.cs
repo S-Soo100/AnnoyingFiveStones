@@ -270,7 +270,6 @@ public class GameUI : MonoBehaviour
         // 호버 시 중지 가리킴 포즈 🖕 (열받게!)
         var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
         hover.HoverPose = HandPose.PointMiddle;
-        hover.KeepTranslucent = true; // 게임 중 호버 시 반투명 유지
 
         var labelGo = new GameObject("Label");
         labelGo.transform.SetParent(btnGo.transform, false);

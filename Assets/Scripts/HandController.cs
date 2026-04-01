@@ -1177,26 +1177,6 @@ public class HandController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 불투명도 오버라이드 (호버 트리거 전용).
-    /// true 시 반투명 고정, false 시 현재 모드에 맞게 복원.
-    /// </summary>
-    private bool alphaOverride;
-
-    public void SetAlphaOverride(bool active)
-    {
-        alphaOverride = active;
-        if (active)
-        {
-            handModel?.SetVisualAlpha(0.35f);
-        }
-        else
-        {
-            // 현재 모드에 맞게 복원
-            handModel?.SetVisualAlpha(isCatchMode ? 1f : 0.35f);
-        }
-    }
-
     /// <summary>받기 모드 전환: 시각 회전 + 물리 hitbox 재배치</summary>
     private void SetCatchMode(bool catching)
     {
@@ -1205,14 +1185,14 @@ public class HandController : MonoBehaviour
         {
             // 시각: 옆에서 본 손 (손가락 왼쪽, 손바닥 틸트)
             transform.localEulerAngles = new Vector3(-60f, 0f, 90f);
-            // 받기 모드: 불투명 (오버라이드 중이면 스킵)
-            if (!alphaOverride) handModel?.SetVisualAlpha(1f);
+            // 받기 모드: 불투명
+            handModel?.SetVisualAlpha(1f);
         }
         else
         {
             transform.localEulerAngles = Vector3.zero;
             // 줍기 모드: 반투명
-            if (!alphaOverride) handModel?.SetVisualAlpha(0.35f);
+            handModel?.SetVisualAlpha(0.35f);
         }
     }
 
