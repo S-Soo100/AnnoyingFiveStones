@@ -27,6 +27,14 @@ public class TitleScreenUI : MonoBehaviour
     private const float FleeDamping = 4f;        // 회피 후 감속 계수
     private const float HomeReturnForce = 0.8f;  // 원래 위치 복귀 힘 (약하게 — 도망 우선)
 
+    // 놀지 말고 토스트
+    private float chasingTimer;          // 돌 근처에 머문 누적 시간
+    private bool toastShown;             // 이미 표시했으면 재표시 안 함
+    private TextMeshProUGUI toastText;
+    private CanvasGroup toastGroup;
+    private Coroutine toastCoroutine;
+    private const float ChasingThreshold = 10f; // 10초
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -182,6 +190,45 @@ public class TitleScreenUI : MonoBehaviour
         exitTmp.color = new Color(1f, 1f, 1f, 0.6f);
         exitTmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) exitTmp.font = koreanFont;
+
+        // 토스트 메시지 (하단, 처음엔 숨김)
+        CreateToast(parent);
+    }
+
+    private void CreateToast(Transform parent)
+    {
+        var toastGo = new GameObject("Toast");
+        toastGo.transform.SetParent(parent, false);
+        var toastRect = toastGo.AddComponent<RectTransform>();
+        toastRect.anchorMin = new Vector2(0.5f, 0f);
+        toastRect.anchorMax = new Vector2(0.5f, 0f);
+        toastRect.pivot = new Vector2(0.5f, 0f);
+        toastRect.sizeDelta = new Vector2(700f, 50f);
+        toastRect.anchoredPosition = new Vector2(0f, 30f);
+
+        // 반투명 배경
+        var bgImg = toastGo.AddComponent<Image>();
+        bgImg.color = new Color(0f, 0f, 0f, 0.6f);
+        bgImg.raycastTarget = false;
+
+        toastGroup = toastGo.AddComponent<CanvasGroup>();
+        toastGroup.alpha = 0f;
+
+        var textGo = new GameObject("Text");
+        textGo.transform.SetParent(toastGo.transform, false);
+        var textRect = textGo.AddComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(10f, 0f);
+        textRect.offsetMax = new Vector2(-10f, 0f);
+
+        toastText = textGo.AddComponent<TextMeshProUGUI>();
+        toastText.text = "놀지 말고 공기놀이를 시작하시는게 어떨까요?";
+        toastText.fontSize = 22f;
+        toastText.color = Color.white;
+        toastText.alignment = TextAlignmentOptions.Center;
+        toastText.raycastTarget = false;
+        if (koreanFont != null) toastText.font = koreanFont;
     }
 
     private static Sprite circleSprite;
@@ -346,6 +393,62 @@ public class TitleScreenUI : MonoBehaviour
 
             decoStoneRects[i].anchoredPosition = pos;
         }
+
+        // --- 놀지 말고 토스트 판정 ---
+        if (!toastShown)
+        {
+            // 돌 중 하나라도 회피 거리 안에 있으면 "쫓아다니는 중"
+            bool chasingAny = false;
+            for (int i = 0; i < 5; i++)
+            {
+                if (decoStoneRects[i] == null) continue;
+                float d = (decoStoneRects[i].anchoredPosition - mouseLocal).magnitude;
+                if (d < FleeDistance * 1.5f) { chasingAny = true; break; }
+            }
+
+            if (chasingAny)
+            {
+                chasingTimer += dt;
+                if (chasingTimer >= ChasingThreshold)
+                {
+                    toastShown = true;
+                    if (toastCoroutine != null) StopCoroutine(toastCoroutine);
+                    toastCoroutine = StartCoroutine(ShowToast());
+                }
+            }
+            else
+            {
+                // 돌에서 멀어지면 타이머 서서히 감소 (완전 리셋은 아님)
+                chasingTimer = Mathf.Max(0f, chasingTimer - dt * 0.5f);
+            }
+        }
+    }
+
+    private IEnumerator ShowToast()
+    {
+        // 페이드 인 (0.5초)
+        float elapsed = 0f;
+        while (elapsed < 0.5f)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            toastGroup.alpha = Mathf.Clamp01(elapsed / 0.5f);
+            yield return null;
+        }
+        toastGroup.alpha = 1f;
+
+        // 3초 유지
+        yield return new WaitForSecondsRealtime(3f);
+
+        // 페이드 아웃 (0.5초)
+        elapsed = 0f;
+        while (elapsed < 0.5f)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            toastGroup.alpha = 1f - Mathf.Clamp01(elapsed / 0.5f);
+            yield return null;
+        }
+        toastGroup.alpha = 0f;
+        toastCoroutine = null;
     }
 
     // === 공개 API ===
@@ -356,6 +459,10 @@ public class TitleScreenUI : MonoBehaviour
         rootGroup.alpha = 1f;
         rootGroup.blocksRaycasts = true;
         IsShowing = true;
+        // 토스트 리셋 (타이틀 재진입 시 다시 발동 가능)
+        chasingTimer = 0f;
+        toastShown = false;
+        if (toastGroup != null) toastGroup.alpha = 0f;
         Debug.Log("[TitleScreenUI] Show.");
     }
 
