@@ -51,7 +51,7 @@ public class HandModelBuilder : MonoBehaviour
         if (col != null) DestroyImmediate(col);
 
         PalmRenderer = palm.GetComponent<MeshRenderer>();
-        PalmRenderer.material.color = palmColor;
+        PalmRenderer.material = CreateURPMaterial(palmColor);
     }
 
     private void CreateVisualFingers()
@@ -91,8 +91,18 @@ public class HandModelBuilder : MonoBehaviour
             var col = finger.GetComponent<Collider>();
             if (col != null) DestroyImmediate(col);
 
-            finger.GetComponent<MeshRenderer>().material.color = fingerColor;
+            finger.GetComponent<MeshRenderer>().material = CreateURPMaterial(fingerColor);
         }
+    }
+
+    /// <summary>URP Lit 셰이더로 머테리얼 생성 (빌드 시 Standard 셰이더 스트리핑 방지)</summary>
+    private static Material CreateURPMaterial(Color color)
+    {
+        var shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null) shader = Shader.Find("Standard"); // fallback
+        var mat = new Material(shader);
+        mat.color = color;
+        return mat;
     }
 
     // ==========================================
