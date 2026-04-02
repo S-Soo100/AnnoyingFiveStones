@@ -2,6 +2,8 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using TMPro;
 
 public class TitleScreenUI : MonoBehaviour
@@ -19,6 +21,13 @@ public class TitleScreenUI : MonoBehaviour
     private float[] decoStoneNoiseOffsets;     // Perlin Noise 시드 (돌마다 다른 궤적)
     private InputAction decoPointerAction;
     private Canvas titleCanvas;
+
+    // 3D 장식 돌 관련
+    private Camera decoStoneCamera;
+    private RenderTexture decoStoneRT;
+    private Transform[] decoStone3D;
+    private Vector3[] decoStoneRotSpeed;
+    private GameObject decoStoneCameraGo;
 
     private const float FloatSpeed = 15f;        // 부유 속도 (px/s)
     private const float FloatRadius = 40f;       // 부유 반경 (원래 위치에서)
@@ -52,6 +61,22 @@ public class TitleScreenUI : MonoBehaviour
         if (Instance == this) Instance = null;
         decoPointerAction?.Disable();
         decoPointerAction?.Dispose();
+        CleanupDecoStone3D();
+    }
+
+    private void CleanupDecoStone3D()
+    {
+        if (decoStoneRT != null)
+        {
+            decoStoneRT.Release();
+            Destroy(decoStoneRT);
+            decoStoneRT = null;
+        }
+        if (decoStoneCameraGo != null)
+        {
+            Destroy(decoStoneCameraGo);
+            decoStoneCameraGo = null;
+        }
     }
 
     private void Init()
@@ -137,7 +162,7 @@ public class TitleScreenUI : MonoBehaviour
         titleTmp.fontStyle = FontStyles.Bold;
         if (koreanFont != null) titleTmp.font = koreanFont;
 
-        // 장식용 노란 돌 5개 (타이틀 아래 흩어짐)
+        // 장식용 3D 돌 5개 (타이틀 아래 흩어짐)
         CreateDecoStones(parent);
 
         // "기록 모드" 버튼
@@ -231,29 +256,149 @@ public class TitleScreenUI : MonoBehaviour
         if (koreanFont != null) toastText.font = koreanFont;
     }
 
-    private static Sprite circleSprite;
-
     private void CreateDecoStones(Transform parent)
     {
-        // 런타임 원형 스프라이트 생성 (1회)
-        if (circleSprite == null)
+        // --- 1. TitleStones 레이어 확인 (없으면 기존 미사용 레이어 사용) ---
+        int titleStoneLayer = LayerMask.NameToLayer("TitleStones");
+        if (titleStoneLayer == -1)
         {
-            int size = 32;
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            float center = size / 2f;
-            float radius = size / 2f - 1;
-            for (int px = 0; px < size; px++)
-                for (int py = 0; py < size; py++)
+            // TitleStones 레이어가 없으면 빈 레이어 탐색 (8~31)
+            for (int l = 8; l < 32; l++)
+            {
+                string layerName = LayerMask.LayerToName(l);
+                if (string.IsNullOrEmpty(layerName))
                 {
-                    float dist = Vector2.Distance(new Vector2(px, py), new Vector2(center, center));
-                    tex.SetPixel(px, py, dist <= radius ? Color.white : Color.clear);
+                    titleStoneLayer = l;
+                    Debug.LogWarning($"[TitleScreenUI] 'TitleStones' 레이어 미설정. 빈 레이어 {l} 사용.");
+                    break;
                 }
-            tex.Apply();
-            tex.filterMode = FilterMode.Bilinear;
-            circleSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+            }
+            if (titleStoneLayer == -1) titleStoneLayer = 31; // 최후 수단
         }
 
-        // 5개 노란 원을 화면 전체에 넓게 배치 (기획 스크린샷 기준)
+        // --- 2. RenderTexture 생성 (640x128, 돌 5개를 x축으로 나열) ---
+        decoStoneRT = new RenderTexture(640, 128, 16, RenderTextureFormat.ARGB32);
+        decoStoneRT.name = "DecoStoneRT";
+        decoStoneRT.Create();
+
+        // --- 3. 전용 카메라 생성 ---
+        decoStoneCameraGo = new GameObject("DecoStoneCamera");
+        decoStoneCameraGo.transform.SetParent(transform); // TitleScreenUI 하위
+        decoStoneCameraGo.transform.position = new Vector3(20f, 100f, -10f); // 화면 밖 먼 곳
+        decoStoneCameraGo.layer = titleStoneLayer;
+
+        decoStoneCamera = decoStoneCameraGo.AddComponent<Camera>();
+        decoStoneCamera.orthographic = true;
+        decoStoneCamera.orthographicSize = 0.8f; // 돌 하나가 128px 높이에 맞도록
+        decoStoneCamera.nearClipPlane = 0.1f;
+        decoStoneCamera.farClipPlane = 20f;
+        decoStoneCamera.cullingMask = 1 << titleStoneLayer;
+        decoStoneCamera.clearFlags = CameraClearFlags.SolidColor;
+        decoStoneCamera.backgroundColor = new Color(0f, 0f, 0f, 0f); // 투명
+        decoStoneCamera.targetTexture = decoStoneRT;
+        decoStoneCamera.depth = -10; // 메인 카메라보다 낮은 depth
+
+        // URP에서 카메라 추가 데이터 설정
+        var camData = decoStoneCamera.GetUniversalAdditionalCameraData();
+        if (camData != null)
+        {
+            camData.renderType = CameraRenderType.Base;
+            camData.renderPostProcessing = false;
+        }
+
+        // --- 4. 전용 조명 (TitleStones 레이어만 비추는 Directional Light) ---
+        var lightGo = new GameObject("DecoStoneLight");
+        lightGo.transform.SetParent(decoStoneCameraGo.transform, false);
+        lightGo.transform.localPosition = new Vector3(0f, 2f, -3f);
+        lightGo.transform.localRotation = Quaternion.Euler(30f, 0f, 0f);
+        lightGo.layer = titleStoneLayer;
+        var light = lightGo.AddComponent<Light>();
+        light.type = LightType.Directional;
+        light.intensity = 1.5f;
+        light.color = Color.white;
+        light.cullingMask = 1 << titleStoneLayer;
+
+        // --- 5. 돌 머테리얼 생성 (URP Lit + Emission) ---
+        var stoneMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        Color stoneColor = new Color(0.95f, 0.85f, 0.2f, 1f);
+        stoneMat.SetColor("_BaseColor", stoneColor);
+        stoneMat.SetFloat("_Smoothness", 0.5f);
+        stoneMat.SetFloat("_Metallic", 0.1f);
+        // Emission 활성화 (조명 의존 제거)
+        stoneMat.EnableKeyword("_EMISSION");
+        stoneMat.SetColor("_EmissionColor", stoneColor * 0.4f);
+        stoneMat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+
+        // --- 6. Stone에서 mesh 빌려오기 시도 ---
+        Mesh stoneMesh = null;
+        var existingStones = FindObjectsByType<StoneShape>(FindObjectsSortMode.None);
+        if (existingStones != null && existingStones.Length > 0)
+        {
+            var mf = existingStones[0].GetComponent<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null)
+            {
+                stoneMesh = mf.sharedMesh;
+            }
+        }
+
+        // --- 7. 3D 돌 5개 생성 ---
+        decoStone3D = new Transform[5];
+        decoStoneRotSpeed = new Vector3[5];
+
+        // 카메라 orthographicSize=0.8 → 세로 ±0.8 units 표시
+        // RT 640x128 → 가로:세로 = 5:1 → 가로 ±4.0 units 표시
+        // 돌 5개를 x 간격 1.6 units로 배치 (중앙 정렬: -3.2, -1.6, 0, 1.6, 3.2)
+        float[] stoneXOffsets = { -3.2f, -1.6f, 0f, 1.6f, 3.2f };
+        float[] stoneSizes = { 0.55f, 0.48f, 0.45f, 0.52f, 0.48f }; // 다양한 크기
+
+        Vector3 camPos = decoStoneCameraGo.transform.position;
+
+        for (int i = 0; i < 5; i++)
+        {
+            GameObject stoneGo;
+            if (stoneMesh != null)
+            {
+                // Stone mesh 사용
+                stoneGo = new GameObject($"DecoStone3D_{i}");
+                var mf = stoneGo.AddComponent<MeshFilter>();
+                mf.sharedMesh = stoneMesh;
+                var mr = stoneGo.AddComponent<MeshRenderer>();
+                mr.material = stoneMat;
+            }
+            else
+            {
+                // Fallback: Sphere primitive
+                stoneGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                stoneGo.name = $"DecoStone3D_{i}";
+                // Sphere primitive에는 Collider가 붙는데 타이틀용이므로 제거
+                var col = stoneGo.GetComponent<Collider>();
+                if (col != null) Destroy(col);
+                stoneGo.GetComponent<MeshRenderer>().material = stoneMat;
+                // StoneShape 추가하여 공기돌 형태로 변형
+                stoneGo.AddComponent<StoneShape>();
+            }
+
+            stoneGo.transform.SetParent(decoStoneCameraGo.transform, false);
+            stoneGo.transform.localPosition = new Vector3(stoneXOffsets[i], 0f, 5f); // 카메라 앞 5 units
+            stoneGo.transform.localScale = Vector3.one * stoneSizes[i];
+            stoneGo.transform.localRotation = Random.rotation; // 랜덤 초기 회전
+            stoneGo.layer = titleStoneLayer;
+
+            // 자식 오브젝트도 같은 레이어로 설정
+            foreach (Transform child in stoneGo.transform)
+                child.gameObject.layer = titleStoneLayer;
+
+            decoStone3D[i] = stoneGo.transform;
+
+            // 랜덤 회전 속도 (축마다 다르게)
+            decoStoneRotSpeed[i] = new Vector3(
+                Random.Range(-30f, 30f),
+                Random.Range(-40f, 40f),
+                Random.Range(-20f, 20f)
+            );
+        }
+
+        // --- 8. Canvas에 RawImage 5개 배치 (uvRect로 RT 1/5씩 표시) ---
         Vector2[] positions = new Vector2[]
         {
             new Vector2(-420f, -20f),   // 좌측
@@ -262,9 +407,7 @@ public class TitleScreenUI : MonoBehaviour
             new Vector2(280f, 50f),     // 우측 위
             new Vector2(450f, -140f),   // 우측 하단
         };
-        float[] sizes = { 80f, 70f, 65f, 75f, 70f }; // 큰 원 (기획 스크린샷 비율)
-
-        Color stoneColor = new Color(0.95f, 0.85f, 0.2f, 0.9f);
+        float[] uiSizes = { 80f, 70f, 65f, 75f, 70f }; // UI에서의 크기 (px)
 
         decoStoneRects = new RectTransform[5];
         decoStoneHomePositions = new Vector2[5];
@@ -279,13 +422,14 @@ public class TitleScreenUI : MonoBehaviour
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(sizes[i], sizes[i]);
+            rect.sizeDelta = new Vector2(uiSizes[i], uiSizes[i]);
             rect.anchoredPosition = positions[i];
 
-            var img = stoneGo.AddComponent<Image>();
-            img.sprite = circleSprite;
-            img.color = stoneColor;
-            img.raycastTarget = false;
+            var rawImg = stoneGo.AddComponent<RawImage>();
+            rawImg.texture = decoStoneRT;
+            // UV Rect: 각 돌은 RT의 1/5 구간 (x 방향으로 슬라이스)
+            rawImg.uvRect = new Rect(i / 5f, 0f, 1f / 5f, 1f);
+            rawImg.raycastTarget = false;
 
             decoStoneRects[i] = rect;
             decoStoneHomePositions[i] = positions[i];
@@ -392,6 +536,12 @@ public class TitleScreenUI : MonoBehaviour
             pos.y = Mathf.Clamp(pos.y, -320f, 320f);
 
             decoStoneRects[i].anchoredPosition = pos;
+
+            // --- 7. 3D 돌 회전 ---
+            if (decoStone3D != null && decoStone3D[i] != null)
+            {
+                decoStone3D[i].Rotate(decoStoneRotSpeed[i] * dt, Space.World);
+            }
         }
 
         // --- 놀지 말고 토스트 판정 ---
@@ -451,6 +601,13 @@ public class TitleScreenUI : MonoBehaviour
         toastCoroutine = null;
     }
 
+    // === 3D 돌 Show/Hide 헬퍼 ===
+
+    private void SetDecoStone3DActive(bool active)
+    {
+        if (decoStoneCameraGo != null) decoStoneCameraGo.SetActive(active);
+    }
+
     // === 공개 API ===
 
     public void Show()
@@ -463,6 +620,8 @@ public class TitleScreenUI : MonoBehaviour
         chasingTimer = 0f;
         toastShown = false;
         if (toastGroup != null) toastGroup.alpha = 0f;
+        // 3D 돌 + 카메라 활성화
+        SetDecoStone3DActive(true);
         Debug.Log("[TitleScreenUI] Show.");
     }
 
@@ -484,6 +643,8 @@ public class TitleScreenUI : MonoBehaviour
         rootGroup.alpha = 0f;
         rootGroup.blocksRaycasts = false;
         IsShowing = false;
+        // 3D 돌 + 카메라 비활성화 (성능)
+        SetDecoStone3DActive(false);
         Debug.Log("[TitleScreenUI] Hidden.");
         onComplete?.Invoke();
     }

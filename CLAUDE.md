@@ -65,6 +65,11 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 | **Standard** | 2~3 파일 또는 기존 동작 변경, 되돌리기 <1시간 | Designer 분석 → Implementer |
 | **Critical** | 4+ 파일, 새 시스템, 외부 의존성 | 풀 GATE (리서치→설계→승인→구현→검수) |
 
+> **트랙 선언 = 파이프라인 실행 의무.** "Standard"라고 적어놓고 Designer 분석 없이 직접 코딩하면 안 된다.
+> 기술적 장벽(렌더링/물리/좌표계)이 예상되면 반드시 Designer 에이전트에 먼저 분석 요청.
+> 실패 시 패치를 누적하지 말고 1회 실패 후 Designer 재분석으로 돌아간다.
+> (타이틀 3D 돌 전환 시 트랙 선언만 하고 즉흥 코딩 → 3연속 패치 실패 교훈)
+
 ### 라우팅 트리
 ```
 요청 수신
