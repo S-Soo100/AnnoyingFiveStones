@@ -295,7 +295,6 @@ public class GameManager : MonoBehaviour
 
         // UI 연출 시작
         GameUI.Instance?.ShowStageIntro(stage);
-        GameUI.Instance?.UpdateProgressDots(stage);
 
         float duration = stage == 5 ? stage5IntroDuration : stageIntroDuration;
         yield return new WaitForSeconds(duration);
@@ -371,7 +370,7 @@ public class GameManager : MonoBehaviour
             GamePhase.Scatter => "[ 꾹 눌러서 게이지 조절, 놓으면 뿌리기 ]",
             GamePhase.PickThrowStone => "[ 커서를 돌 위로 이동 ]",
             GamePhase.Throw => "[ 클릭하여 던지기 ]",
-            GamePhase.PickStones => $"[ 돌 {RequiredPickCount}개를 주우세요 ]",
+            GamePhase.PickStones => "[ 돌을 단계에 맞게 주우세요 ]",
             GamePhase.Catch => "[ 커서를 움직여 돌을 받으세요! ]",
             GamePhase.Stage5Throw => stage5Step switch
             {

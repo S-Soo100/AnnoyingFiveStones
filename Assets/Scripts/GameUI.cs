@@ -78,7 +78,7 @@ public class GameUI : MonoBehaviour
                 canvas = CreateCanvas();
         }
 
-        CreateProgressDots();
+        // CreateProgressDots(); — 진행도 도트 삭제 (N단 안내 제거)
         CreateGuideText();
         CreateOverlay();
         CreatePauseButton();
@@ -457,15 +457,15 @@ public class GameUI : MonoBehaviour
     private IEnumerator DoStageIntro(int stage)
     {
         bool isStage5 = stage == 5;
-        string mainText = isStage5 ? "꺾기" : $"{stage}단";
+        string mainText = "준비하세요.";
         Color mainColor = isStage5
             ? new Color(1f, 0.84f, 0f, 1f)
             : Color.white;
 
         overlayMainText.text = mainText;
         overlayMainText.color = mainColor;
-        overlayMainText.fontSize = isStage5 ? 100 : 80;
-        overlaySubText.text = isStage5 ? "5단 — 최종" : "";
+        overlayMainText.fontSize = 80;
+        overlaySubText.text = isStage5 ? "대충 나이먹기 직전" : "";
         overlaySubText.color = new Color(1f, 1f, 1f, 0.8f);
         overlayBg.color = isStage5 ? new Color(0, 0, 0, 0.4f) : new Color(0, 0, 0, 0);
         overlayGroup.alpha = 1f;

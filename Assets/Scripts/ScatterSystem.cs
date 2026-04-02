@@ -10,8 +10,8 @@ public class ScatterSystem : MonoBehaviour
 {
     [Header("Gauge Settings")]
     [SerializeField] private float gaugeSpeed = 2f;
-    [SerializeField] private float minScatterForce = 0.8f;
-    [SerializeField] private float maxScatterForce = 3.5f;
+    [SerializeField] private float minScatterForce = 1.0f;
+    [SerializeField] private float maxScatterForce = 3.0f;
 
     [Header("Scatter Settings")]
     [SerializeField] private float baseSpreadRadius = 0.9f;  // 게이지 0%에서도 최소 퍼짐 반지름
@@ -151,13 +151,24 @@ public class ScatterSystem : MonoBehaviour
         var stones = GameManager.Instance.Stones;
         float boardCenterY = boardTransform != null ? boardTransform.position.y : -4f;
 
-        // 오각형 패턴 기본 오프셋 (게이지 0%에서도 최소 퍼짐 보장)
-        float angleStep = 360f / stones.Length;
+        // 10각형 꼭짓점 중 랜덤 5개 선택 → 매번 다른 문어 모양 배치
+        int slotCount = 10;
+        int[] slots = new int[slotCount];
+        for (int i = 0; i < slotCount; i++) slots[i] = i;
+        // Fisher-Yates 셔플 후 앞 5개만 사용
+        for (int i = slotCount - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (slots[i], slots[j]) = (slots[j], slots[i]);
+        }
+
+        float slotAngleStep = 360f / slotCount;
         Vector2[] baseOffsets = new Vector2[stones.Length];
         for (int i = 0; i < stones.Length; i++)
         {
-            float angle = (angleStep * i + Random.Range(-15f, 15f)) * Mathf.Deg2Rad;
-            baseOffsets[i] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * baseSpreadRadius;
+            float angle = (slotAngleStep * slots[i] + Random.Range(-10f, 10f)) * Mathf.Deg2Rad;
+            float radius = baseSpreadRadius * Random.Range(0.8f, 1.2f); // 반지름도 약간 랜덤
+            baseOffsets[i] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
         }
 
         // 최소 간격 보장: 너무 가까운 돌 쌍이 있으면 밀어냄

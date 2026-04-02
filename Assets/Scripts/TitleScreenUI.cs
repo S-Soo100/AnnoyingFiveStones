@@ -165,6 +165,9 @@ public class TitleScreenUI : MonoBehaviour
         // 장식용 3D 돌 5개 (타이틀 아래 흩어짐)
         CreateDecoStones(parent);
 
+        // 말풍선 장식
+        CreateSpeechBubbles(parent);
+
         // "기록 모드" 버튼
         CreateMenuButton("기록 모드", parent, new Vector2(0f, -40f), 34, () => OnModeSelected(false));
 
@@ -256,6 +259,139 @@ public class TitleScreenUI : MonoBehaviour
         if (koreanFont != null) toastText.font = koreanFont;
     }
 
+    private void CreateSpeechBubbles(Transform parent)
+    {
+        // === 1번 말풍선: 왼쪽 아래, 뾰족한 폭발형 (흰색 바탕 + 빨간 글씨 "마참내") ===
+        {
+            var bubbleGo = new GameObject("Bubble_Left");
+            bubbleGo.transform.SetParent(parent, false);
+            var rt = bubbleGo.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(0f, 0f);
+            rt.pivot = new Vector2(0f, 0f);
+            rt.sizeDelta = new Vector2(180f, 140f);
+            rt.anchoredPosition = new Vector2(40f, 40f);
+
+            // 폭발형 모양: 런타임 텍스처
+            var img = bubbleGo.AddComponent<Image>();
+            img.sprite = CreateStarburstSprite(12, 64);
+            img.color = Color.white;
+            img.raycastTarget = false;
+
+            // 텍스트
+            var textGo = new GameObject("Text");
+            textGo.transform.SetParent(bubbleGo.transform, false);
+            var textRt = textGo.AddComponent<RectTransform>();
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = new Vector2(15f, 15f);
+            textRt.offsetMax = new Vector2(-15f, -15f);
+
+            var tmp = textGo.AddComponent<TextMeshProUGUI>();
+            tmp.text = "마참내";
+            tmp.fontSize = 36f;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.color = Color.red;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.raycastTarget = false;
+            if (koreanFont != null) tmp.font = koreanFont;
+
+            // 약간 기울이기 (만화 느낌)
+            rt.localRotation = Quaternion.Euler(0f, 0f, 8f);
+        }
+
+        // === 2번 말풍선: 오른쪽 아래, 타원형 (노란색 바탕 + 흰색 글씨 "즐겁다") ===
+        {
+            var bubbleGo = new GameObject("Bubble_Right");
+            bubbleGo.transform.SetParent(parent, false);
+            var rt = bubbleGo.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(1f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(1f, 0f);
+            rt.sizeDelta = new Vector2(160f, 100f);
+            rt.anchoredPosition = new Vector2(-40f, 50f);
+
+            // 타원형: 런타임 텍스처
+            var img = bubbleGo.AddComponent<Image>();
+            img.sprite = CreateEllipseSprite(64);
+            img.color = new Color(1f, 0.85f, 0.1f, 1f); // 노란색
+            img.raycastTarget = false;
+
+            // 텍스트
+            var textGo = new GameObject("Text");
+            textGo.transform.SetParent(bubbleGo.transform, false);
+            var textRt = textGo.AddComponent<RectTransform>();
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = new Vector2(10f, 10f);
+            textRt.offsetMax = new Vector2(-10f, -10f);
+
+            var tmp = textGo.AddComponent<TextMeshProUGUI>();
+            tmp.text = "즐겁다";
+            tmp.fontSize = 30f;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.color = Color.white;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.raycastTarget = false;
+            if (koreanFont != null) tmp.font = koreanFont;
+
+            // 약간 반대로 기울이기
+            rt.localRotation = Quaternion.Euler(0f, 0f, -5f);
+        }
+    }
+
+    /// <summary>폭발/뾰족한 별 모양 스프라이트 런타임 생성</summary>
+    private static Sprite CreateStarburstSprite(int points, int texSize)
+    {
+        var tex = new Texture2D(texSize, texSize, TextureFormat.RGBA32, false);
+        float center = texSize / 2f;
+        float outerR = texSize / 2f - 1;
+        float innerR = outerR * 0.55f;
+
+        for (int px = 0; px < texSize; px++)
+        {
+            for (int py = 0; py < texSize; py++)
+            {
+                float dx = px - center;
+                float dy = py - center;
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                float angle = Mathf.Atan2(dy, dx);
+
+                // 별 모양: 각도에 따라 반지름이 inner~outer 사이를 오감
+                float t = (Mathf.Sin(angle * points) + 1f) * 0.5f;
+                float edgeR = Mathf.Lerp(innerR, outerR, t);
+
+                tex.SetPixel(px, py, dist <= edgeR ? Color.white : Color.clear);
+            }
+        }
+        tex.Apply();
+        tex.filterMode = FilterMode.Bilinear;
+        return Sprite.Create(tex, new Rect(0, 0, texSize, texSize), new Vector2(0.5f, 0.5f));
+    }
+
+    /// <summary>타원형 스프라이트 런타임 생성</summary>
+    private static Sprite CreateEllipseSprite(int texSize)
+    {
+        var tex = new Texture2D(texSize, texSize, TextureFormat.RGBA32, false);
+        float cx = texSize / 2f;
+        float cy = texSize / 2f;
+        float rx = texSize / 2f - 1;
+        float ry = texSize / 2f - 1;
+
+        for (int px = 0; px < texSize; px++)
+        {
+            for (int py = 0; py < texSize; py++)
+            {
+                float dx = (px - cx) / rx;
+                float dy = (py - cy) / ry;
+                tex.SetPixel(px, py, (dx * dx + dy * dy) <= 1f ? Color.white : Color.clear);
+            }
+        }
+        tex.Apply();
+        tex.filterMode = FilterMode.Bilinear;
+        return Sprite.Create(tex, new Rect(0, 0, texSize, texSize), new Vector2(0.5f, 0.5f));
+    }
+
     private void CreateDecoStones(Transform parent)
     {
         // --- 1. TitleStones 레이어 확인 (없으면 기존 미사용 레이어 사용) ---
@@ -319,7 +455,9 @@ public class TitleScreenUI : MonoBehaviour
         light.cullingMask = 1 << titleStoneLayer;
 
         // --- 5. 돌 머테리얼 생성 (URP Lit + Emission) ---
-        var stoneMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        var urpShader = Shader.Find("Universal Render Pipeline/Lit");
+        if (urpShader == null) urpShader = Shader.Find("Standard"); // 빌드 fallback
+        var stoneMat = new Material(urpShader);
         Color stoneColor = new Color(0.95f, 0.85f, 0.2f, 1f);
         stoneMat.SetColor("_BaseColor", stoneColor);
         stoneMat.SetFloat("_Smoothness", 0.5f);
