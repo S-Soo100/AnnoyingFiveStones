@@ -322,16 +322,45 @@ public class HandController : MonoBehaviour
                 AudioManager.Instance?.PlayStonePick(pickedStones.Count);
                 TestLogger.Instance?.LogStoneState(stone.StoneIndex, "hold_picked", stone.transform.position);
 
-                // 초과 → 즉시 실패
-                if (pickedStones.Count > required)
+                // 3단 특수: RequiredPickCount=-1이면 1 or 3만 허용
+                if (required < 0)
                 {
-                    isHolding = false;
-                    AnimateFingerFold(false);
-                    AudioManager.Instance?.PlayPickExcess();
-                    TestLogger.Instance?.LogFailure($"pick_excess_{pickedStones.Count}_of_{required}");
-                    GameManager.Instance.SetFailReason("돌을 너무 많이 집었다!");
-                    GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
-                    return;
+                    // 2개 → 실패 (1도 3도 아님)
+                    if (pickedStones.Count == 2)
+                    {
+                        isHolding = false;
+                        AnimateFingerFold(false);
+                        AudioManager.Instance?.PlayPickExcess();
+                        TestLogger.Instance?.LogFailure($"stage3_invalid_pick_2");
+                        GameManager.Instance.SetFailReason("돌을 너무 많이 집었다!");
+                        GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+                        return;
+                    }
+                    // 4개 이상 → 실패
+                    if (pickedStones.Count >= 4)
+                    {
+                        isHolding = false;
+                        AnimateFingerFold(false);
+                        AudioManager.Instance?.PlayPickExcess();
+                        TestLogger.Instance?.LogFailure($"stage3_invalid_pick_{pickedStones.Count}");
+                        GameManager.Instance.SetFailReason("돌을 너무 많이 집었다!");
+                        GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+                        return;
+                    }
+                }
+                else
+                {
+                    // 초과 → 즉시 실패
+                    if (pickedStones.Count > required)
+                    {
+                        isHolding = false;
+                        AnimateFingerFold(false);
+                        AudioManager.Instance?.PlayPickExcess();
+                        TestLogger.Instance?.LogFailure($"pick_excess_{pickedStones.Count}_of_{required}");
+                        GameManager.Instance.SetFailReason("돌을 너무 많이 집었다!");
+                        GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+                        return;
+                    }
                 }
 
                 // 받기 모드 전환은 위치 기반 (Update에서 Y 위치 체크)

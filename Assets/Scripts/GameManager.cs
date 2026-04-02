@@ -24,6 +24,10 @@ public class GameManager : MonoBehaviour
     [SerializeField] private int currentStage = 1;
     [SerializeField] private GamePhase currentPhase = GamePhase.Scatter;
 
+    // 3단 서브라운드: 첫 줍기 결과에 따라 다음 필요 수량 결정
+    // -1 = 아직 첫 줍기 안 함, 1 or 3 = 첫 줍기에서 주운 수
+    private int stage3FirstPickCount = -1;
+
     [Header("References (auto-resolved at runtime)")]
     private Stone[] stones;
     private Transform boardTransform;
@@ -77,15 +81,29 @@ public class GameManager : MonoBehaviour
     {
         get
         {
+            if (currentStage == 3)
+            {
+                // 3단: 첫 줍기 = 1 or 3 자유, 두 번째 = 나머지 (합계 4)
+                if (stage3FirstPickCount < 0)
+                    return -1; // 아직 미정 → HandController에서 1 또는 3 허용
+                else
+                    return 4 - stage3FirstPickCount; // 첫 줍기의 보수
+            }
             return currentStage switch
             {
                 1 => 1,
                 2 => 2,
-                3 => 3, // 3단은 3+1 또는 1+3 (첫 회차 기준 3)
                 4 => 4,
                 _ => 0
             };
         }
+    }
+
+    /// <summary>3단 첫 줍기 결과 기록 (CatchSystem에서 호출)</summary>
+    public void SetStage3FirstPick(int count)
+    {
+        stage3FirstPickCount = count;
+        Debug.Log($"[GameManager] Stage 3 first pick: {count} → next required: {4 - count}");
     }
 
     /// <summary>
@@ -264,6 +282,7 @@ public class GameManager : MonoBehaviour
 
         currentStage = stage;
         isAllClear = false;
+        stage3FirstPickCount = -1; // 3단 서브라운드 리셋
 
         // [P1] 세션 단계 갱신 + 사이드 패널 반영
         if (session != null)

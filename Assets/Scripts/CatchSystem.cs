@@ -106,7 +106,7 @@ public class CatchSystem : MonoBehaviour
         int picked = handController.PickedStones.Count;
         int required = GameManager.Instance.RequiredPickCount;
 
-        // 보드에 남은 돌 수 (picked stones는 이미 InHand이므로 OnBoard 카운트에 포함 안 됨)
+        // 보드에 남은 돌 수 (모든 분기에서 필요)
         int remainingOnBoard = 0;
         foreach (var stone in GameManager.Instance.Stones)
         {
@@ -114,19 +114,37 @@ public class CatchSystem : MonoBehaviour
                 remainingOnBoard++;
         }
 
-        // 실제 필요 수량 = min(required, 줍기 시점의 보드 돌 수)
-        int stonesAvailableAtPickTime = remainingOnBoard + picked;
-        int actualRequired = Mathf.Min(required, stonesAvailableAtPickTime);
-
-        if (picked < actualRequired)
+        // 3단 첫 줍기: required=-1 → 1 or 3만 허용
+        if (required < 0)
         {
-            StopCatch();
-            AudioManager.Instance?.PlayCatchFail();
-            Debug.Log($"[CatchSystem] UNDERPICK FAIL: picked={picked}, required={actualRequired} (req={required}, boardRemain={remainingOnBoard})");
-            TestLogger.Instance?.LogFailure($"underpick_{picked}_of_{actualRequired}");
-            GameManager.Instance.SetFailReason("돌을 덜 주웠다!");
-            GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
-            return;
+            if (picked != 1 && picked != 3)
+            {
+                StopCatch();
+                AudioManager.Instance?.PlayCatchFail();
+                Debug.Log($"[CatchSystem] STAGE3 INVALID PICK: {picked} (must be 1 or 3)");
+                TestLogger.Instance?.LogFailure($"stage3_invalid_{picked}");
+                GameManager.Instance.SetFailReason("돌을 잘못 집었다!");
+                GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+                return;
+            }
+            // 첫 줍기 결과 기록 → 다음 RequiredPickCount가 결정됨
+            GameManager.Instance.SetStage3FirstPick(picked);
+        }
+        else
+        {
+            int stonesAvailableAtPickTime = remainingOnBoard + picked;
+            int actualRequired = Mathf.Min(required, stonesAvailableAtPickTime);
+
+            if (picked < actualRequired)
+            {
+                StopCatch();
+                AudioManager.Instance?.PlayCatchFail();
+                Debug.Log($"[CatchSystem] UNDERPICK FAIL: picked={picked}, required={actualRequired} (req={required}, boardRemain={remainingOnBoard})");
+                TestLogger.Instance?.LogFailure($"underpick_{picked}_of_{actualRequired}");
+                GameManager.Instance.SetFailReason("돌을 덜 주웠다!");
+                GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+                return;
+            }
         }
         // === 미달 검증 끝 ===
 
@@ -148,7 +166,6 @@ public class CatchSystem : MonoBehaviour
             stone.gameObject.SetActive(false);
         }
 
-        // remainingOnBoard는 위에서 이미 계산됨
         Debug.Log($"[CatchSystem] Remaining on board: {remainingOnBoard}");
 
         if (remainingOnBoard == 0)
