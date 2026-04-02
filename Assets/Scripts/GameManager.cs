@@ -150,6 +150,9 @@ public class GameManager : MonoBehaviour
             stones[i].Initialize(i);
         }
 
+        // 보드 하단 벽 생성 (돌이 아래로 굴러 떨어지는 것 방지)
+        CreateBoardBottomWall();
+
         // [P1] GameSession 자동 생성/참조
         if (GameSession.Instance == null)
             new GameObject("GameSession").AddComponent<GameSession>();
@@ -206,6 +209,41 @@ public class GameManager : MonoBehaviour
         if (session != null && !isTransitioning && !isAllClear && !isInTitleScreen)
         {
             session.ElapsedTime += Time.deltaTime;
+        }
+
+        // 상시 장외 감시: PickThrowStone/PickStones 중 OnBoard 돌이 보드 밖이면 실패
+        if (!isTransitioning && !isAllClear && !isInTitleScreen && boardTransform != null)
+        {
+            var phase = currentPhase;
+            if (phase == GamePhase.PickThrowStone || phase == GamePhase.PickStones || phase == GamePhase.Throw)
+            {
+                CheckOnBoardStonesOutOfBounds();
+            }
+        }
+    }
+
+    private void CheckOnBoardStonesOutOfBounds()
+    {
+        if (stones == null) return;
+        Vector2 boardCenter = new Vector2(boardTransform.position.x, boardTransform.position.y);
+        Vector2 halfSize = new Vector2(4f, 3.2f); // boardSize / 2
+
+        foreach (var stone in stones)
+        {
+            if (stone.CurrentState != Stone.State.OnBoard) continue;
+            if (!stone.gameObject.activeSelf) continue;
+
+            Vector2 pos = new Vector2(stone.transform.position.x, stone.transform.position.y);
+            bool outX = pos.x < boardCenter.x - halfSize.x - 0.5f || pos.x > boardCenter.x + halfSize.x + 0.5f;
+            bool outY = pos.y < boardCenter.y - halfSize.y - 0.5f || pos.y > boardCenter.y + halfSize.y + 0.5f;
+
+            if (outX || outY)
+            {
+                Debug.Log($"[GameManager] Stone {stone.StoneIndex} out of bounds during play at ({pos.x:F1},{pos.y:F1})");
+                SetFailReason("낙!");
+                SetPhase(GamePhase.Failed);
+                return;
+            }
         }
     }
 
@@ -442,6 +480,21 @@ public class GameManager : MonoBehaviour
         transitionCoroutine = null;
 
         StartStage(1);
+    }
+
+    /// <summary>보드 하단에 보이지 않는 벽 생성 (돌이 아래로 굴러 떨어지는 것만 방지)</summary>
+    private void CreateBoardBottomWall()
+    {
+        if (boardTransform == null) return;
+
+        float boardCenterX = boardTransform.position.x;
+        float boardBottomY = boardTransform.position.y - 3.2f; // boardSize.y / 2
+
+        var wallGo = new GameObject("BoardBottomWall");
+        wallGo.transform.position = new Vector3(boardCenterX, boardBottomY - 0.25f, 0f);
+        var col = wallGo.AddComponent<BoxCollider>();
+        col.size = new Vector3(10f, 0.5f, 2f); // 넓고 얇은 벽
+        // Rigidbody 없음 = Static Collider (움직이지 않음)
     }
 
     private static readonly Vector3 StoneOriginalScale = new Vector3(0.3f, 0.3f, 0.3f);
