@@ -10,11 +10,13 @@ public class ScatterSystem : MonoBehaviour
 {
     [Header("Gauge Settings")]
     [SerializeField] private float gaugeSpeed = 2f;
-    [SerializeField] private float minScatterForce = 0.3f;
-    [SerializeField] private float maxScatterForce = 5f;
+    [SerializeField] private float minScatterForce = 0.8f;
+    [SerializeField] private float maxScatterForce = 3.5f;
 
     [Header("Scatter Settings")]
-    [SerializeField] private float dropHeight = 1.5f;       // 보드 중앙 위로 이 높이에서 떨어뜨림
+    [SerializeField] private float baseSpreadRadius = 0.9f;  // 게이지 0%에서도 최소 퍼짐 반지름
+    [SerializeField] private float minStoneSeparation = 0.8f; // 돌 사이 최소 간격 (units)
+    [SerializeField] private float dropHeight = 1.5f;        // 보드 중앙 위로 이 높이에서 떨어뜨림
     [SerializeField] private float settleSpeedThreshold = 0.1f; // 이 속도 이하면 안착 간주
     [SerializeField] private float settleTimeout = 4f;       // 최대 안착 대기 시간
 
@@ -135,7 +137,9 @@ public class ScatterSystem : MonoBehaviour
         isGaugeActive = false;
         GaugeBarUI.Instance?.Hide();
         AudioManager.Instance?.PlayGaugeConfirm();
-        float power = Mathf.Lerp(minScatterForce, maxScatterForce, currentGaugeValue);
+        // 제곱 커브: 낮은 게이지에서 미세 조절 가능, 상위에서 급격히 증가
+        float curved = currentGaugeValue * currentGaugeValue;
+        float power = Mathf.Lerp(minScatterForce, maxScatterForce, curved);
         TestLogger.Instance?.LogScatter(power, currentGaugeValue);
         Debug.Log($"[ScatterSystem] Scatter power: {power:F2} (gauge: {currentGaugeValue:F2})");
 
@@ -147,24 +151,72 @@ public class ScatterSystem : MonoBehaviour
         var stones = GameManager.Instance.Stones;
         float boardCenterY = boardTransform != null ? boardTransform.position.y : -4f;
 
+        // 오각형 패턴 기본 오프셋 (게이지 0%에서도 최소 퍼짐 보장)
+        float angleStep = 360f / stones.Length;
+        Vector2[] baseOffsets = new Vector2[stones.Length];
+        for (int i = 0; i < stones.Length; i++)
+        {
+            float angle = (angleStep * i + Random.Range(-15f, 15f)) * Mathf.Deg2Rad;
+            baseOffsets[i] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * baseSpreadRadius;
+        }
+
+        // 최소 간격 보장: 너무 가까운 돌 쌍이 있으면 밀어냄
+        for (int pass = 0; pass < 10; pass++)
+        {
+            bool adjusted = false;
+            for (int a = 0; a < stones.Length; a++)
+            {
+                for (int b = a + 1; b < stones.Length; b++)
+                {
+                    Vector2 diff = baseOffsets[a] - baseOffsets[b];
+                    float dist = diff.magnitude;
+                    if (dist < minStoneSeparation && dist > 0.001f)
+                    {
+                        Vector2 push = diff.normalized * (minStoneSeparation - dist) * 0.5f;
+                        baseOffsets[a] += push;
+                        baseOffsets[b] -= push;
+                        adjusted = true;
+                    }
+                }
+            }
+            if (!adjusted) break;
+        }
+
         for (int i = 0; i < stones.Length; i++)
         {
             var stone = stones[i];
             stone.SetState(Stone.State.OnBoard);
 
-            // 보드 중앙에서 시작 (돌끼리 겹치지 않게 약간 오프셋)
-            float offsetX = (i - 2) * 0.15f;
-            float offsetY = ((i % 2) - 0.5f) * 0.15f;
-            stone.transform.position = new Vector3(offsetX, boardCenterY + offsetY, 0f);
+            // 보드 중앙 + 기본 오프셋에서 시작
+            stone.transform.position = new Vector3(
+                baseOffsets[i].x,
+                boardCenterY + baseOffsets[i].y,
+                0f
+            );
+            // Y축만 랜덤 회전 (X/Z 틸트는 물리가 자연스럽게 처리)
+            // air_rock이 비대칭이라 Y 회전만으로도 다양한 모양
+            stone.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+            // SphereCollider를 air_rock mesh에 맞게 확대 (시각 mesh가 바닥 아래로 돌출 방지)
+            var col = stone.GetComponent<SphereCollider>();
+            if (col != null) col.radius = 0.9f;
+
             stone.Rb.linearVelocity = Vector3.zero;
             stone.Rb.angularVelocity = Vector3.zero;
 
-            // 탁자 위에서 X/Y 방향으로 퍼짐 (탑뷰 느낌, 중력 없음)
-            float spreadX = Random.Range(-1f, 1f) * power;
-            float spreadY = Random.Range(-0.6f, 0.6f) * power;
+            // X/Y 방향으로 퍼짐 + 기본 오프셋 방향으로 약간 밀어줌
+            float spreadX = Random.Range(-1f, 1f) * power + baseOffsets[i].x * 0.5f;
+            float spreadY = Random.Range(-0.6f, 0.6f) * power + baseOffsets[i].y * 0.5f;
 
             Vector3 force = new Vector3(spreadX, spreadY, 0f);
             stone.Rb.AddForce(force, ForceMode.Impulse);
+
+            // 회전 부여 (퍼지면서 굴러가는 느낌)
+            stone.Rb.AddTorque(
+                new Vector3(Random.Range(-3f, 3f), Random.Range(-5f, 5f), Random.Range(-3f, 3f)),
+                ForceMode.Impulse
+            );
+
             AudioManager.Instance?.PlayScatterHit(i);
         }
 
