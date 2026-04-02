@@ -426,6 +426,8 @@ public class GameManager : MonoBehaviour
         StartStage(1);
     }
 
+    private static readonly Vector3 StoneOriginalScale = new Vector3(0.3f, 0.3f, 0.3f);
+
     private void ResetAllStones()
     {
         handController.ResetHand();
@@ -433,6 +435,7 @@ public class GameManager : MonoBehaviour
         {
             stone.gameObject.SetActive(true); // 비활성화된 돌 복원
             stone.transform.SetParent(null);
+            stone.transform.localScale = StoneOriginalScale; // 5단 스케일 변동 복원
             stone.SetState(Stone.State.OnBoard);
             stone.Rb.linearVelocity = Vector3.zero;
             stone.Rb.angularVelocity = Vector3.zero;
