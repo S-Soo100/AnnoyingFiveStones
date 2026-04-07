@@ -315,12 +315,32 @@ public class HandController : MonoBehaviour
             // 돌 중심점이 손바닥 Bounds 안에 있는지 판정
             if (palmBounds.Contains(stone.transform.position))
             {
+                // v4: 기믹 ValidatePick — Add 전에 먼저 확인
+                if (GameManager.Instance != null)
+                {
+                    var gimmick = GameManager.Instance.CurrentGimmick;
+                    if (gimmick != null && !gimmick.ValidatePick(stone))
+                    {
+                        // 기믹이 거부한 돌 — 즉시 실패 (가짜 돌 줍기 등)
+                        isHolding = false;
+                        AnimateFingerFold(false);
+                        AudioManager.Instance?.PlayPickExcess();
+                        TestLogger.Instance?.LogFailure("gimmick_invalid_pick");
+                        GameManager.Instance.SetFailReason("잘못된 돌을 집었다!");
+                        GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+                        return;
+                    }
+                }
+
                 pickedStones.Add(stone);
                 stone.SetState(Stone.State.InHand);
                 stone.transform.SetParent(transform);
                 stone.transform.localPosition = Vector3.up * 0.3f * pickedStones.Count;
                 AudioManager.Instance?.PlayStonePick(pickedStones.Count);
                 TestLogger.Instance?.LogStoneState(stone.StoneIndex, "hold_picked", stone.transform.position);
+
+                // v4: 기믹에 줍기 알림 (FleeGimmick 등 첫 줍기 트리거)
+                GameManager.Instance?.NotifyStonePicked(stone);
 
                 // 3단 첫 줍기: 1 or 3 허용 (2는 받기 시 CatchSystem이 검증)
                 // 줍는 도중 2를 거쳐야 3에 도달하므로, 여기서는 4+ 초과만 차단
@@ -397,6 +417,9 @@ public class HandController : MonoBehaviour
         AudioManager.Instance?.PlayThrowUp();
         TestLogger.Instance?.LogStoneState(stone.StoneIndex, "thrown_up", stone.transform.position);
         Debug.Log($"[Hand] Threw stone {stone.StoneIndex} from y={startY:F1} to peak y={throwPeakY}");
+
+        // v4: 기믹에 던지기 시작 알림 (ColorSelectGimmick 등 추가 돌 스폰)
+        GameManager.Instance?.NotifyThrowStart(stone);
 
         // 줍기 단계 시작 (올라가는 동안 바닥 돌 줍기)
         GameManager.Instance.SetPhase(GameManager.GamePhase.PickStones);

@@ -38,7 +38,11 @@ public class SidePanelUI : MonoBehaviour
     {
         var session = GameSession.Instance;
         if (session == null) return;
-        if (ageLabel != null) ageLabel.text = $"나이: {session.CurrentAge}살";
+        if (ageLabel != null)
+        {
+            var config = StageConfig.Get(session.CurrentLoop);
+            ageLabel.text = $"{session.CurrentAge}살 [{config?.StageName ?? ""}]";
+        }
         if (regressionLabel != null) regressionLabel.text = $"회귀: {session.RegressionCount}번";
     }
 

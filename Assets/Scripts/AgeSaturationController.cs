@@ -62,7 +62,9 @@ public class AgeSaturationController : MonoBehaviour
     /// </summary>
     public void UpdateSaturation(int age)
     {
-        float target = -(age / 50f) * 80f;  // 0살=0, 50살=-80
+        // v4: 10살~55살. 10살=0(풀컬러), 55살=-80(거의 흑백)
+        float normalized = Mathf.Clamp01((age - 10f) / 45f); // 10살=0, 55살=1
+        float target = -normalized * 80f;
         Debug.Log($"[AgeSaturation] UpdateSaturation(age={age}) → target={target}, colorAdj={colorAdjustments != null}");
         if (colorAdjustments == null) return;
         if (lerpCoroutine != null) StopCoroutine(lerpCoroutine);

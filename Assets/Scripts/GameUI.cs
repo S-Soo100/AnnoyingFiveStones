@@ -462,10 +462,25 @@ public class GameUI : MonoBehaviour
             ? new Color(1f, 0.84f, 0f, 1f)
             : Color.white;
 
+        // v4: 스테이지 테마 표시
+        string subText = "";
+        var gm = GameManager.Instance;
+        var session = GameSession.Instance;
+        if (gm != null && session != null)
+        {
+            var config = StageConfig.Get(session.CurrentLoop);
+            if (config != null)
+            {
+                subText = isStage5
+                    ? $"[{config.StageName}] 꺾기"
+                    : $"[{config.StageName}]";
+            }
+        }
+
         overlayMainText.text = mainText;
         overlayMainText.color = mainColor;
         overlayMainText.fontSize = 80;
-        overlaySubText.text = isStage5 ? "대충 나이먹기 직전" : "";
+        overlaySubText.text = subText;
         overlaySubText.color = new Color(1f, 1f, 1f, 0.8f);
         overlayBg.color = isStage5 ? new Color(0, 0, 0, 0.4f) : new Color(0, 0, 0, 0);
         overlayGroup.alpha = 1f;

@@ -118,7 +118,7 @@ public class PauseMenuUI : MonoBehaviour
         boxRect.anchorMin = new Vector2(0.5f, 0.5f);
         boxRect.anchorMax = new Vector2(0.5f, 0.5f);
         boxRect.pivot = new Vector2(0.5f, 0.5f);
-        boxRect.sizeDelta = new Vector2(320f, 300f);
+        boxRect.sizeDelta = new Vector2(320f, 380f);
         boxRect.anchoredPosition = Vector2.zero;
 
         var layout = boxGo.AddComponent<VerticalLayoutGroup>();
@@ -144,9 +144,10 @@ public class PauseMenuUI : MonoBehaviour
         var titleLE = titleGo.AddComponent<LayoutElement>();
         titleLE.preferredHeight = 60f;
 
-        // 버튼 3개
+        // 버튼 4개
         CreateButton("게임 재개", boxGo.transform, OnResume);
         CreateButton("게임 초기화", boxGo.transform, OnReset);
+        CreateButton("전체화면", boxGo.transform, OnToggleFullscreen);
         CreateButton("게임 종료", boxGo.transform, OnQuit);
 
         return panelGo;
@@ -347,6 +348,11 @@ public class PauseMenuUI : MonoBehaviour
     {
         mainPanel.SetActive(false);
         quitConfirmPanel.SetActive(true);
+    }
+
+    private void OnToggleFullscreen()
+    {
+        ScreenManager.Instance?.ToggleFullscreen();
     }
 
     private void OnQuitConfirm()

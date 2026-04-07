@@ -11,12 +11,41 @@ public class Stone : MonoBehaviour
         Bouncing    // 손가락에 튕겨 아직 공중, 바닥 닿으면 탈락
     }
 
+    public enum StoneColor
+    {
+        Default,
+        Red,
+        Blue,
+        Yellow,
+        Green,
+        Purple
+    }
+
+    // 기존 색상 팔레트 (머티리얼에 적용)
+    private static readonly Color[] colorPalette = new Color[]
+    {
+        new Color(0.7f, 0.65f, 0.55f), // Default (기존 돌 색)
+        new Color(0.9f, 0.2f, 0.2f),   // Red
+        new Color(0.2f, 0.4f, 0.9f),   // Blue
+        new Color(0.95f, 0.85f, 0.2f), // Yellow
+        new Color(0.2f, 0.8f, 0.3f),   // Green
+        new Color(0.6f, 0.2f, 0.8f),   // Purple
+    };
+
     [Header("State")]
     [SerializeField] private State currentState = State.OnBoard;
+
+    [Header("v4 Color/Fake")]
+    [SerializeField] private StoneColor stoneColor = StoneColor.Default;
+    [SerializeField] private bool isFake = false;
+
+    public StoneColor Color => stoneColor;
+    public bool IsFake => isFake;
 
     private Rigidbody rb;
     private Collider col;
     private int stoneIndex;
+    private Color originalMaterialColor; // 원본 머티리얼 색상 보존
 
     public State CurrentState => currentState;
     public Rigidbody Rb => rb;
@@ -33,6 +62,14 @@ public class Stone : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         col = GetComponent<Collider>();
+        // 원본 머티리얼 색상 저장 (URP Lit: _BaseColor)
+        var r = GetComponent<Renderer>();
+        if (r != null)
+        {
+            originalMaterialColor = r.material.HasProperty("_BaseColor")
+                ? r.material.GetColor("_BaseColor")
+                : r.material.color;
+        }
         // 빠른 낙하 시 터널링 방지
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
         // 2.5D: Z축 이동/회전 고정
@@ -53,6 +90,83 @@ public class Stone : MonoBehaviour
     public void Initialize(int index)
     {
         stoneIndex = index;
+    }
+
+    public void SetColor(StoneColor color)
+    {
+        stoneColor = color;
+        var renderer = GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            var mat = renderer.material;
+            Color targetCol;
+            if (color == StoneColor.Default)
+            {
+                targetCol = originalMaterialColor;
+            }
+            else
+            {
+                targetCol = colorPalette[(int)color];
+            }
+            // URP Lit: _BaseColor 사용 (legacy _Color도 함께 설정)
+            mat.SetColor("_BaseColor", targetCol);
+            mat.color = targetCol;
+        }
+    }
+
+    public void SetFake(bool fake)
+    {
+        isFake = fake;
+    }
+
+    /// <summary>투명도 설정 (0=완전투명, 1=불투명). Stage 5 Proximity Reveal용.</summary>
+    public void SetAlpha(float alpha)
+    {
+        var renderer = GetComponent<Renderer>();
+        if (renderer == null) return;
+
+        var mat = renderer.material;
+
+        // URP Lit: _BaseColor의 알파를 변경 (RGB는 유지)
+        if (mat.HasProperty("_BaseColor"))
+        {
+            Color c = mat.GetColor("_BaseColor");
+            c.a = alpha;
+            mat.SetColor("_BaseColor", c);
+        }
+
+        // URP Lit 셰이더: Surface Type 전환
+        if (alpha < 0.99f)
+        {
+            mat.SetFloat("_Surface", 1f);    // Transparent
+            mat.SetFloat("_Blend", 0f);      // Alpha blend
+            mat.SetFloat("_AlphaClip", 0f);  // 알파 클립 비활성
+            mat.SetFloat("_SrcBlend", 5f);   // SrcAlpha
+            mat.SetFloat("_DstBlend", 10f);  // OneMinusSrcAlpha
+            mat.SetFloat("_ZWrite", 0f);
+            mat.renderQueue = 3000;
+            mat.SetOverrideTag("RenderType", "Transparent");
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        }
+        else
+        {
+            mat.SetFloat("_Surface", 0f);    // Opaque
+            mat.SetFloat("_AlphaClip", 0f);
+            mat.SetFloat("_SrcBlend", 1f);   // One
+            mat.SetFloat("_DstBlend", 0f);   // Zero
+            mat.SetFloat("_ZWrite", 1f);
+            mat.renderQueue = -1;
+            mat.SetOverrideTag("RenderType", "");
+            mat.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        }
+    }
+
+    /// <summary>색상+가짜 상태 초기화</summary>
+    public void ResetColorAndFake()
+    {
+        SetColor(StoneColor.Default);
+        SetFake(false);
+        SetAlpha(1f);
     }
 
     public void SetState(State newState)

@@ -168,9 +168,21 @@ public class CatchSystem : MonoBehaviour
 
         Debug.Log($"[CatchSystem] Remaining on board: {remainingOnBoard}");
 
-        if (remainingOnBoard == 0)
+        // v4: 기믹이 활성이면 기믹의 클리어 판정 우선
+        var gimmick = GameManager.Instance.CurrentGimmick;
+        bool stageComplete;
+        if (gimmick != null)
         {
-            // 모든 돌 제거 → 단계 클리어
+            stageComplete = gimmick.IsRoundComplete(picked, remainingOnBoard);
+        }
+        else
+        {
+            stageComplete = (remainingOnBoard == 0);
+        }
+
+        if (stageComplete)
+        {
+            // 단계 클리어
             GameManager.Instance.SetPhase(GameManager.GamePhase.StageComplete);
         }
         else

@@ -149,13 +149,17 @@ public class ScatterSystem : MonoBehaviour
     private IEnumerator DoScatter(float power)
     {
         var stones = GameManager.Instance.Stones;
+        int stoneCount = stones.Length;
         float boardCenterY = boardTransform != null ? boardTransform.position.y : -4f;
 
-        // 10각형 꼭짓점 중 랜덤 5개 선택 → 매번 다른 문어 모양 배치
-        int slotCount = 10;
+        // 돌 개수에 따라 최소 간격 동적 조정
+        float dynamicMinSeparation = stoneCount <= 5 ? minStoneSeparation : minStoneSeparation * 0.5f;
+
+        // 슬롯 개수: 돌의 2배 (최소 10)
+        int slotCount = Mathf.Max(10, stoneCount * 2);
         int[] slots = new int[slotCount];
         for (int i = 0; i < slotCount; i++) slots[i] = i;
-        // Fisher-Yates 셔플 후 앞 5개만 사용
+        // Fisher-Yates 셔플 후 앞 stoneCount개만 사용
         for (int i = slotCount - 1; i > 0; i--)
         {
             int j = Random.Range(0, i + 1);
@@ -181,9 +185,9 @@ public class ScatterSystem : MonoBehaviour
                 {
                     Vector2 diff = baseOffsets[a] - baseOffsets[b];
                     float dist = diff.magnitude;
-                    if (dist < minStoneSeparation && dist > 0.001f)
+                    if (dist < dynamicMinSeparation && dist > 0.001f)
                     {
-                        Vector2 push = diff.normalized * (minStoneSeparation - dist) * 0.5f;
+                        Vector2 push = diff.normalized * (dynamicMinSeparation - dist) * 0.5f;
                         baseOffsets[a] += push;
                         baseOffsets[b] -= push;
                         adjusted = true;
