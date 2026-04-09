@@ -13,11 +13,9 @@ public class ColorSelectGimmick : StageGimmick
 
     private static readonly Stone.StoneColor[] allColors = new Stone.StoneColor[]
     {
-        Stone.StoneColor.Red,
-        Stone.StoneColor.Blue,
         Stone.StoneColor.Yellow,
+        Stone.StoneColor.Red,
         Stone.StoneColor.Green,
-        Stone.StoneColor.Purple,
     };
 
     public override void OnStageStart(int stageInLoop)
@@ -27,16 +25,16 @@ public class ColorSelectGimmick : StageGimmick
         additionalStones = null;
         completedRounds = 0;
 
-        // 5개 돌에 각각 다른 색 배정 (Red, Blue, Yellow, Green, Purple)
+        // 5개 돌에 3색 배정 (노랑, 빨강, 초록)
         var pool = StonePool.Instance;
         if (pool == null) return;
         var active = pool.ActiveStones;
 
-        for (int i = 0; i < active.Length && i < allColors.Length; i++)
+        for (int i = 0; i < active.Length; i++)
         {
-            active[i].SetColor(allColors[i]);
+            active[i].SetColor(allColors[i % allColors.Length]);
         }
-        Debug.Log("[ColorSelectGimmick] Stage started: 5 colors assigned.");
+        Debug.Log("[ColorSelectGimmick] Stage started: 3 colors assigned to 5 stones.");
     }
 
     /// <summary>
@@ -71,52 +69,36 @@ public class ColorSelectGimmick : StageGimmick
         // 추가 15개 활성화
         var pool = StonePool.Instance;
         if (pool == null) return;
+
         additionalStones = pool.ActivateAdditional(15);
 
-        // 추가 돌을 보드 위 무작위 위치에 배치
-        var board = gameManager?.BoardTransform;
-        float cx = board != null ? board.position.x : 0f;
-        float cy = board != null ? board.position.y : 0f;
-        float halfW = 3.5f;
-        float halfH = 2.8f;
-
-        foreach (var s in additionalStones)
+        // 전체 보드 돌 수집 (기존 4 + 추가 15 = 19개)
+        var allBoardStones = new System.Collections.Generic.List<Stone>();
+        foreach (var s in pool.ActiveStones)
         {
-            s.SetState(Stone.State.OnBoard);
-            s.Rb.linearVelocity = Vector3.zero;
-            s.Rb.angularVelocity = Vector3.zero;
-            float rx = cx + Random.Range(-halfW, halfW);
-            float ry = cy + Random.Range(-halfH, halfH);
-            s.transform.position = new Vector3(rx, ry, 0f);
+            if (s.CurrentState == Stone.State.OnBoard)
+                allBoardStones.Add(s);
         }
 
-        // 추가 15개에만 색 배분 (기존 4개는 원래 색 유지 = 방해 색 역할)
-        // T: 추가 돌 중 타겟 색 개수 (최소 4, 최대 10)
-        int T = Random.Range(4, 11);
-        int remaining = additionalStones.Length - T; // 방해 색 개수
-        int D1 = remaining > 1 ? Random.Range(1, remaining) : remaining;
-        int D2 = remaining - D1;
+        // 고정 배분: 노랑 7, 빨강 6, 초록 7 = 20 (던진 돌 1 포함)
+        // 보드 위 19개 + 던진 돌 1개(타겟) = 20
+        // 타겟 색의 보드 할당 = 전체 할당 - 1(던진 돌)
+        int yellowTotal = 7, redTotal = 6, greenTotal = 7;
+        int yellowBoard, redBoard, greenBoard;
 
-        // 방해 색상 2개 선택 (타겟 제외 4색 중 랜덤 2개)
-        var distractorColors = new Stone.StoneColor[2];
-        // 셔플된 순서로 선택
-        var candidates = new System.Collections.Generic.List<Stone.StoneColor>();
-        foreach (var c in allColors)
-        {
-            if (c != targetColor) candidates.Add(c);
-        }
-        // 랜덤 2개
-        int pick1 = Random.Range(0, candidates.Count);
-        distractorColors[0] = candidates[pick1];
-        candidates.RemoveAt(pick1);
-        distractorColors[1] = candidates[Random.Range(0, candidates.Count)];
+        if (targetColor == Stone.StoneColor.Yellow)
+            { yellowBoard = yellowTotal - 1; redBoard = redTotal; greenBoard = greenTotal; }
+        else if (targetColor == Stone.StoneColor.Red)
+            { yellowBoard = yellowTotal; redBoard = redTotal - 1; greenBoard = greenTotal; }
+        else // Green
+            { yellowBoard = yellowTotal; redBoard = redTotal; greenBoard = greenTotal - 1; }
 
-        // 색 배열 준비 (추가 15개용)
-        var colorAssign = new Stone.StoneColor[additionalStones.Length];
+        // 색 배열 생성 + 셔플
+        var colorAssign = new Stone.StoneColor[allBoardStones.Count];
         int idx = 0;
-        for (int i = 0; i < T && idx < colorAssign.Length; i++) colorAssign[idx++] = targetColor;
-        for (int i = 0; i < D1 && idx < colorAssign.Length; i++) colorAssign[idx++] = distractorColors[0];
-        while (idx < colorAssign.Length) colorAssign[idx++] = distractorColors[1];
+        for (int i = 0; i < yellowBoard && idx < colorAssign.Length; i++) colorAssign[idx++] = Stone.StoneColor.Yellow;
+        for (int i = 0; i < redBoard && idx < colorAssign.Length; i++) colorAssign[idx++] = Stone.StoneColor.Red;
+        while (idx < colorAssign.Length) colorAssign[idx++] = Stone.StoneColor.Green;
 
         // Fisher-Yates 셔플
         for (int i = colorAssign.Length - 1; i > 0; i--)
@@ -125,13 +107,30 @@ public class ColorSelectGimmick : StageGimmick
             (colorAssign[i], colorAssign[j]) = (colorAssign[j], colorAssign[i]);
         }
 
-        // 추가 15개에만 배분
-        for (int i = 0; i < additionalStones.Length; i++)
+        // 추가 돌 위치 + 전체 색 배분
+        var board = gameManager?.BoardTransform;
+        float cx = board != null ? board.position.x : 0f;
+        float cy = board != null ? board.position.y : 0f;
+        float halfW = 3.5f;
+        float halfH = 2.8f;
+
+        for (int i = 0; i < allBoardStones.Count; i++)
         {
-            additionalStones[i].SetColor(colorAssign[i]);
+            var s = allBoardStones[i];
+            // 추가 돌은 위치 재배치
+            if (System.Array.IndexOf(additionalStones, s) >= 0)
+            {
+                s.SetState(Stone.State.OnBoard);
+                s.Rb.linearVelocity = Vector3.zero;
+                s.Rb.angularVelocity = Vector3.zero;
+                s.transform.position = new Vector3(
+                    cx + Random.Range(-halfW, halfW),
+                    cy + Random.Range(-halfH, halfH), 0f);
+            }
+            s.SetColor(colorAssign[i]);
         }
 
-        Debug.Log($"[ColorSelectGimmick] Additional 15 distributed: T={T}({targetColor}), D1={D1}({distractorColors[0]}), D2={D2}({distractorColors[1]}). Original 4 kept.");
+        Debug.Log($"[ColorSelectGimmick] 20 stones distributed: Yellow={yellowTotal}, Red={redTotal}, Green={greenTotal}. Target={targetColor}, Board={allBoardStones.Count}.");
     }
 
     public override bool ValidatePick(Stone stone)

@@ -422,7 +422,6 @@ public class GameManager : MonoBehaviour
             currentGimmick = null;
         else
             currentGimmick = StageGimmick.Create(currentStageConfig.Gimmick, this);
-        currentGimmick?.OnStageStart(stage);
 
         stage3FirstPickCount = -1; // 3단 서브라운드 리셋
 
@@ -436,6 +435,7 @@ public class GameManager : MonoBehaviour
 
         // 모든 돌 활성화 + 초기 상태 복원
         ResetAllStones();
+        currentGimmick?.OnStageStart(stage); // ResetAllStones 이후 호출 — 색 배정이 리셋에 덮이지 않도록
 
         TestLogger.Instance?.LogStageChange(stage);
         TestLogger.Instance?.BeginStageAttempt(stage);
