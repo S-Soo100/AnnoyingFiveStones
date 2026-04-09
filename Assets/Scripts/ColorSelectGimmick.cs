@@ -72,6 +72,10 @@ public class ColorSelectGimmick : StageGimmick
 
         additionalStones = pool.ActivateAdditional(15);
 
+        // 추가 돌 상태 초기화 (이전 사용 시 Caught 등 상태가 남아있을 수 있음)
+        foreach (var s in additionalStones)
+            s.SetState(Stone.State.OnBoard);
+
         // 전체 보드 돌 수집 (기존 4 + 추가 15 = 19개)
         var allBoardStones = new System.Collections.Generic.List<Stone>();
         foreach (var s in pool.ActiveStones)
