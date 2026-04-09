@@ -78,9 +78,10 @@ public class GameUI : MonoBehaviour
                 canvas = CreateCanvas();
         }
 
-        CreateProgressDots();
+        // CreateProgressDots(); — 진행도 도트 삭제 (N단 안내 제거)
         CreateGuideText();
         CreateOverlay();
+        CreatePauseButton();
     }
 
     // ==========================================================
@@ -103,10 +104,11 @@ public class GameUI : MonoBehaviour
         // → TMP fontSize(pt 단위)가 Screen Space와 동일하게 렌더됨
         var rt = canvasGo.GetComponent<RectTransform>();
         rt.position = new Vector3(0f, -1.5f, -1f);
-        rt.sizeDelta = new Vector2(750f, 1400f);
-        rt.localScale = new Vector3(0.01f, 0.01f, 0.01f); // 750px × 0.01 = 7.5 world units
+        rt.sizeDelta = new Vector2(2500f, 1400f);
+        rt.localScale = new Vector3(0.01f, 0.01f, 0.01f); // 2500px × 0.01 = 25 world units
 
         canvasGo.AddComponent<GraphicRaycaster>();
+        c.worldCamera = Camera.main;
         return c;
     }
 
@@ -243,6 +245,47 @@ public class GameUI : MonoBehaviour
         subRt.anchorMin = new Vector2(0f, 0.2f);
         subRt.anchorMax = new Vector2(1f, 0.35f);
         subRt.sizeDelta = Vector2.zero;
+    }
+
+    private void CreatePauseButton()
+    {
+        var btnGo = new GameObject("PauseButton");
+        btnGo.transform.SetParent(canvas.transform, false);
+        var btnRect = btnGo.AddComponent<RectTransform>();
+        // 우측 상단 앵커
+        btnRect.anchorMin = new Vector2(1f, 1f);
+        btnRect.anchorMax = new Vector2(1f, 1f);
+        btnRect.pivot = new Vector2(1f, 1f);
+        btnRect.sizeDelta = new Vector2(500f, 250f);
+        btnRect.anchoredPosition = new Vector2(0f, 0f);
+
+        // 투명 배경 (클릭 영역 확보)
+        var img = btnGo.AddComponent<Image>();
+        img.color = new Color(0f, 0f, 0f, 0f); // 완전 투명
+
+        var btn = btnGo.AddComponent<Button>();
+        btn.targetGraphic = img;
+        btn.onClick.AddListener(() => PauseMenuUI.Instance?.Toggle());
+
+        // 호버 시 중지 가리킴 포즈 🖕 (열받게!)
+        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointMiddle;
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(btnGo.transform, false);
+        var labelRect = labelGo.AddComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        var tmp = labelGo.AddComponent<TextMeshProUGUI>();
+        tmp.text = "중지";
+        tmp.fontSize = 36f;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.color = Color.white;
+        tmp.alignment = TextAlignmentOptions.Center;
+        if (koreanTmpFont != null) tmp.font = koreanTmpFont;
     }
 
     // ==========================================================
@@ -414,15 +457,30 @@ public class GameUI : MonoBehaviour
     private IEnumerator DoStageIntro(int stage)
     {
         bool isStage5 = stage == 5;
-        string mainText = isStage5 ? "꺾기" : $"{stage}단";
+        string mainText = "준비하세요.";
         Color mainColor = isStage5
             ? new Color(1f, 0.84f, 0f, 1f)
             : Color.white;
 
+        // v4: 스테이지 테마 표시
+        string subText = "";
+        var gm = GameManager.Instance;
+        var session = GameSession.Instance;
+        if (gm != null && session != null)
+        {
+            var config = StageConfig.Get(session.CurrentLoop);
+            if (config != null)
+            {
+                subText = isStage5
+                    ? $"[{config.StageName}] 꺾기"
+                    : $"[{config.StageName}]";
+            }
+        }
+
         overlayMainText.text = mainText;
         overlayMainText.color = mainColor;
-        overlayMainText.fontSize = isStage5 ? 100 : 80;
-        overlaySubText.text = isStage5 ? "5단 — 최종" : "";
+        overlayMainText.fontSize = 80;
+        overlaySubText.text = subText;
         overlaySubText.color = new Color(1f, 1f, 1f, 0.8f);
         overlayBg.color = isStage5 ? new Color(0, 0, 0, 0.4f) : new Color(0, 0, 0, 0);
         overlayGroup.alpha = 1f;

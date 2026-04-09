@@ -13,7 +13,7 @@ public class GameSession : MonoBehaviour
     public bool IsTestPlay = false;
 
     [Header("Game State")]
-    [SerializeField] private int currentAge = 0;
+    [SerializeField] private int currentAge = 10;
     [SerializeField] private int currentLoop = 1;
     [SerializeField] private int currentStageInLoop = 1;
     [SerializeField] private float elapsedTime = 0f;
@@ -53,8 +53,8 @@ public class GameSession : MonoBehaviour
 
     public int RegressionCount => regressionCount;
 
-    /// <summary>50살 도달 시 게임 클리어</summary>
-    public bool IsGameClear => currentAge >= 50;
+    /// <summary>55살 도달 시 게임 클리어</summary>
+    public bool IsGameClear => currentAge >= 55;
 
     private void Awake()
     {
@@ -108,7 +108,7 @@ public class GameSession : MonoBehaviour
     {
         PlayerName = "Player";
         IsTestPlay = false;
-        currentAge = 0;
+        currentAge = 10;
         currentLoop = 1;
         currentStageInLoop = 1;
         elapsedTime = 0f;

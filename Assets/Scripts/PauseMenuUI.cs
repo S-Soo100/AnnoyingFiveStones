@@ -118,7 +118,7 @@ public class PauseMenuUI : MonoBehaviour
         boxRect.anchorMin = new Vector2(0.5f, 0.5f);
         boxRect.anchorMax = new Vector2(0.5f, 0.5f);
         boxRect.pivot = new Vector2(0.5f, 0.5f);
-        boxRect.sizeDelta = new Vector2(320f, 300f);
+        boxRect.sizeDelta = new Vector2(320f, 380f);
         boxRect.anchoredPosition = Vector2.zero;
 
         var layout = boxGo.AddComponent<VerticalLayoutGroup>();
@@ -144,9 +144,10 @@ public class PauseMenuUI : MonoBehaviour
         var titleLE = titleGo.AddComponent<LayoutElement>();
         titleLE.preferredHeight = 60f;
 
-        // 버튼 3개
+        // 버튼 4개
         CreateButton("게임 재개", boxGo.transform, OnResume);
         CreateButton("게임 초기화", boxGo.transform, OnReset);
+        CreateButton("전체화면", boxGo.transform, OnToggleFullscreen);
         CreateButton("게임 종료", boxGo.transform, OnQuit);
 
         return panelGo;
@@ -250,6 +251,10 @@ public class PauseMenuUI : MonoBehaviour
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
 
+        // 호버 시 검지 가리킴 포즈
+        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointIndex;
+
         var labelGo = new GameObject("Label");
         labelGo.transform.SetParent(btnGo.transform, false);
         var labelRect = labelGo.AddComponent<RectTransform>();
@@ -298,6 +303,9 @@ public class PauseMenuUI : MonoBehaviour
         GameManager.Instance?.SetPaused(true);
         Time.timeScale = 0f;
 
+        // 일시정지 중 손 커서 활성화 (메뉴 버튼 호버 피드백)
+        HandCursorUI.Instance?.SetActive(true);
+
         Debug.Log("[PauseMenuUI] Opened. timeScale=0");
     }
 
@@ -307,6 +315,9 @@ public class PauseMenuUI : MonoBehaviour
 
         rootGroup.alpha = 0f;
         rootGroup.blocksRaycasts = false;
+
+        // 손 커서 비활성화 (게임 중으로 복귀)
+        HandCursorUI.Instance?.SetActive(false);
 
         // 복원 순서 엄수: timeScale 먼저, SetPaused 나중
         Time.timeScale = 1f;
@@ -337,6 +348,11 @@ public class PauseMenuUI : MonoBehaviour
     {
         mainPanel.SetActive(false);
         quitConfirmPanel.SetActive(true);
+    }
+
+    private void OnToggleFullscreen()
+    {
+        ScreenManager.Instance?.ToggleFullscreen();
     }
 
     private void OnQuitConfirm()

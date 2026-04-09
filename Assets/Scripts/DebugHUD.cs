@@ -108,7 +108,7 @@ public class DebugHUD : MonoBehaviour
     {
         float btnW = 70f, btnH = 28f;
         float x = Screen.width - btnW - 10f;
-        float y = 46f; // 스테이지 버튼 아래
+        float y = 80f; // 스테이지 버튼 아래 (중지 버튼과 겹침 방지)
 
         GUIStyle style = new GUIStyle(GUI.skin.button) { fontSize = 12 };
         Color origBg = GUI.backgroundColor;
@@ -130,7 +130,7 @@ public class DebugHUD : MonoBehaviour
 
         float panelW = 220f, panelH = 340f;
         float panelX = Screen.width - panelW - 10f;
-        float panelY = 78f;
+        float panelY = 112f;
 
         // 배경
         GUI.color = new Color(0f, 0f, 0f, 0.75f);
@@ -179,6 +179,7 @@ public class DebugHUD : MonoBehaviour
                 session.CurrentLoop = agePresets[i] / 5 + 1;
                 session.CurrentStageInLoop = agePresets[i] % 5 + 1;
                 SidePanelUI.Instance?.Refresh();
+                AgeSaturationController.Instance?.UpdateSaturation(agePresets[i]);
             }
         }
         y += btnH + 6f;
@@ -227,6 +228,7 @@ public class DebugHUD : MonoBehaviour
             for (int i = 0; i < 5; i++)
                 session.OnStageComplete(i + 1);
             SidePanelUI.Instance?.Refresh();
+            AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
             gm.StartStage(1);
         }
         y += btnH + 4f;
@@ -239,6 +241,7 @@ public class DebugHUD : MonoBehaviour
                 for (int i = 0; i < 5; i++)
                     session.OnStageComplete(i + 1);
             SidePanelUI.Instance?.Refresh();
+            AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
             gm.StartStage(1);
         }
         y += btnH + 4f;
@@ -248,6 +251,7 @@ public class DebugHUD : MonoBehaviour
         if (GUI.Button(new Rect(x, y, btnW, btnH), "전체 리셋 (0살)", btnStyle))
         {
             session.ResetAll();
+            AgeSaturationController.Instance?.ResetSaturation();
             SidePanelUI.Instance?.Refresh();
             gm.StartStage(1);
         }

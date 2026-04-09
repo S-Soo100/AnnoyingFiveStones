@@ -1,7 +1,7 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 
 public class GameManager : MonoBehaviour
 {
@@ -24,6 +24,10 @@ public class GameManager : MonoBehaviour
     [SerializeField] private int currentStage = 1;
     [SerializeField] private GamePhase currentPhase = GamePhase.Scatter;
 
+    // 3단 서브라운드: 첫 줍기 결과에 따라 다음 필요 수량 결정
+    // -1 = 아직 첫 줍기 안 함, 1 or 3 = 첫 줍기에서 주운 수
+    private int stage3FirstPickCount = -1;
+
     [Header("References (auto-resolved at runtime)")]
     private Stone[] stones;
     private Transform boardTransform;
@@ -41,10 +45,17 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float clearDuration = 1.5f;
     [SerializeField] private float failDuration = 1.5f;
 
+    // v4: storyMents 딕셔너리 제거 → StageConfig.Get(stageNumber).StoryMent 로 대체
+
+    // v4: 기믹 필드
+    private StageGimmick currentGimmick;
+    private StageConfig currentStageConfig;
+
     private int stage5Step; // 0 = 1차(손등받기), 1 = 2차(손바닥받기)
     private bool isTransitioning;
     private bool isAllClear;
     private bool isPaused;                // [P4]
+    private bool isInTitleScreen = true;
     private string lastFailReason = "";
     private Coroutine transitionCoroutine;
     private InputAction escAction;        // [P4]
@@ -52,6 +63,27 @@ public class GameManager : MonoBehaviour
     public int CurrentStage => currentStage;
     public GamePhase CurrentPhase => currentPhase;
     public Stone[] Stones => stones;
+    public StageGimmick CurrentGimmick => currentGimmick;
+
+    /// <summary>StonePool에서 활성 돌을 다시 가져와 stones 갱신</summary>
+    public void RefreshStones()
+    {
+        stones = StonePool.Instance != null ? StonePool.Instance.ActiveStones : stones;
+    }
+
+    /// <summary>던질 돌이 공중에 올라갈 때 기믹에 알림 (ColorSelectGimmick 등 추가 돌 스폰용)</summary>
+    public void NotifyThrowStart(Stone thrownStone)
+    {
+        currentGimmick?.OnThrowStart(thrownStone);
+        RefreshStones();
+    }
+
+    /// <summary>돌을 주울 때 기믹에 알림 (FleeGimmick 등 첫 줍기 트리거용)</summary>
+    public void NotifyStonePicked(Stone stone)
+    {
+        currentGimmick?.OnStonePicked(stone);
+    }
+
     public Transform BoardTransform => boardTransform;
     public int Stage5Step => stage5Step;
     public bool IsTransitioning => isTransitioning;
@@ -66,15 +98,29 @@ public class GameManager : MonoBehaviour
     {
         get
         {
+            if (currentStage == 3)
+            {
+                // 3단: 첫 줍기 = 1 or 3 자유, 두 번째 = 나머지 (합계 4)
+                if (stage3FirstPickCount < 0)
+                    return -1; // 아직 미정 → HandController에서 1 또는 3 허용
+                else
+                    return 4 - stage3FirstPickCount; // 첫 줍기의 보수
+            }
             return currentStage switch
             {
                 1 => 1,
                 2 => 2,
-                3 => 3, // 3단은 3+1 또는 1+3 (첫 회차 기준 3)
                 4 => 4,
                 _ => 0
             };
         }
+    }
+
+    /// <summary>3단 첫 줍기 결과 기록 (CatchSystem에서 호출)</summary>
+    public void SetStage3FirstPick(int count)
+    {
+        stage3FirstPickCount = count;
+        Debug.Log($"[GameManager] Stage 3 first pick: {count} → next required: {4 - count}");
     }
 
     /// <summary>
@@ -109,17 +155,22 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         // 런타임 참조 자동 해결
-        stones = FindObjectsByType<Stone>(FindObjectsSortMode.None);
         boardTransform = GameObject.Find("Cloth")?.transform;
         scatterSystem = GetComponent<ScatterSystem>();
         handController = FindFirstObjectByType<HandController>();
         catchSystem = FindFirstObjectByType<CatchSystem>();
 
-        // Stone 인덱스 초기화
-        for (int i = 0; i < stones.Length; i++)
-        {
-            stones[i].Initialize(i);
-        }
+        // StonePool 자동 생성 + 초기화
+        var existingStones = FindObjectsByType<Stone>(FindObjectsSortMode.None);
+        if (StonePool.Instance == null)
+            new GameObject("StonePool").AddComponent<StonePool>();
+        StonePool.Instance.Initialize(existingStones);
+
+        // 기본 5개 활성화 (인덱스 초기화는 StonePool.Initialize에서 처리됨)
+        stones = StonePool.Instance.Activate(5);
+
+        // 보드 하단 벽 생성 (돌이 아래로 굴러 떨어지는 것 방지)
+        CreateBoardBottomWall();
 
         // [P1] GameSession 자동 생성/참조
         if (GameSession.Instance == null)
@@ -130,8 +181,9 @@ public class GameManager : MonoBehaviour
         if (SidePanelUI.Instance == null)
             new GameObject("SidePanelUI").AddComponent<SidePanelUI>();
 
-        // [P4] 창모드 설정
-        Screen.SetResolution(1280, 720, false);
+        // [v4] ScreenManager 자동 생성
+        if (ScreenManager.Instance == null)
+            new GameObject("ScreenManager").AddComponent<ScreenManager>();
 
         // [P4] PauseMenuUI 자동 생성
         if (PauseMenuUI.Instance == null)
@@ -145,18 +197,144 @@ public class GameManager : MonoBehaviour
         if (GraveyardUI.Instance == null)
             new GameObject("GraveyardUI").AddComponent<GraveyardUI>();
 
-        // 이름 입력은 엔딩 후로 이동 — 바로 게임 시작
-        session.PlayerName = "Player";
-        session.IsTestPlay = false;
-        StartStage(1);
+        // [Phase B] AgeSaturationController 자동 생성
+        if (AgeSaturationController.Instance == null)
+            new GameObject("AgeSaturationController").AddComponent<AgeSaturationController>();
+
+        // [Phase B] StoryMentUI 자동 생성
+        if (StoryMentUI.Instance == null)
+            new GameObject("StoryMentUI").AddComponent<StoryMentUI>();
+
+        // [튜토리얼] TutorialUI 자동 생성
+        if (TutorialUI.Instance == null)
+            new GameObject("TutorialUI").AddComponent<TutorialUI>();
+
+        // [커서] HandCursorUI 자동 생성
+        if (HandCursorUI.Instance == null)
+            new GameObject("HandCursorUI").AddComponent<HandCursorUI>();
+
+        // 타이틀 화면에서 손 숨김 (1프레임 뒤 — 다른 Start()에서 FindFirstObjectByType 완료 후)
+        StartCoroutine(HideHandNextFrame());
+
+        // 타이틀 화면 표시 — 시작 버튼 누르면 게임 시작
+        if (TitleScreenUI.Instance == null)
+            new GameObject("TitleScreenUI").AddComponent<TitleScreenUI>();
+        TitleScreenUI.Instance?.Show();
+        HandCursorUI.Instance?.SetActive(true); // 타이틀에서 손 커서 활성화
     }
 
     private void Update()
     {
         // [P1] 경과 시간 갱신: 전환 중이 아닐 때만
-        if (session != null && !isTransitioning && !isAllClear)
+        if (session != null && !isTransitioning && !isAllClear && !isInTitleScreen)
         {
             session.ElapsedTime += Time.deltaTime;
+        }
+
+        // 상시 장외 감시: PickThrowStone/PickStones 중 OnBoard 돌이 보드 밖이면 실패
+        if (!isTransitioning && !isAllClear && !isInTitleScreen && boardTransform != null)
+        {
+            var phase = currentPhase;
+            if (phase == GamePhase.PickThrowStone || phase == GamePhase.PickStones || phase == GamePhase.Throw)
+            {
+                CheckOnBoardStonesOutOfBounds();
+            }
+        }
+
+        // v4: 기믹 프레임 업데이트
+        if (!isTransitioning && !isAllClear && !isInTitleScreen)
+            currentGimmick?.OnUpdate();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        DebugStageJump();
+#endif
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void DebugStageJump()
+    {
+        if (Keyboard.current == null) return;
+        if (isInTitleScreen) return;
+        if (isTransitioning) return;
+        if (isPaused) return;
+        if (StoryMentUI.Instance != null && StoryMentUI.Instance.IsShowing) return;
+
+        // 숫자키 1~9: 스테이지 1~9, 0: 스테이지 10
+        for (int i = 0; i <= 9; i++)
+        {
+            KeyControl key = i switch
+            {
+                0 => Keyboard.current.digit0Key,
+                1 => Keyboard.current.digit1Key,
+                2 => Keyboard.current.digit2Key,
+                3 => Keyboard.current.digit3Key,
+                4 => Keyboard.current.digit4Key,
+                5 => Keyboard.current.digit5Key,
+                6 => Keyboard.current.digit6Key,
+                7 => Keyboard.current.digit7Key,
+                8 => Keyboard.current.digit8Key,
+                9 => Keyboard.current.digit9Key,
+                _ => null
+            };
+            if (key != null && key.wasPressedThisFrame)
+            {
+                int targetLoop = i == 0 ? 10 : i;
+                var config = StageConfig.Get(targetLoop);
+                if (session != null)
+                {
+                    session.CurrentLoop = targetLoop;
+                    session.CurrentAge = config.Age;
+                    session.CurrentStageInLoop = 1;
+                }
+                Debug.Log($"[DEBUG] Jump to Loop {targetLoop} ({config.StageName}), Age={config.Age}");
+                StartStage(1);
+                return;
+            }
+        }
+
+        // +/-: 현재 루프 내 단(1~5) 변경
+        bool plusPressed = Keyboard.current.equalsKey.wasPressedThisFrame ||
+                           Keyboard.current.numpadPlusKey.wasPressedThisFrame;
+        bool minusPressed = Keyboard.current.minusKey.wasPressedThisFrame ||
+                            Keyboard.current.numpadMinusKey.wasPressedThisFrame;
+
+        if (plusPressed)
+        {
+            int nextStage = Mathf.Clamp(currentStage + 1, 1, 5);
+            Debug.Log($"[DEBUG] Stage jump +1 → Stage {nextStage}");
+            StartStage(nextStage);
+        }
+        else if (minusPressed)
+        {
+            int prevStage = Mathf.Clamp(currentStage - 1, 1, 5);
+            Debug.Log($"[DEBUG] Stage jump -1 → Stage {prevStage}");
+            StartStage(prevStage);
+        }
+    }
+#endif
+
+    private void CheckOnBoardStonesOutOfBounds()
+    {
+        if (stones == null) return;
+        Vector2 boardCenter = new Vector2(boardTransform.position.x, boardTransform.position.y);
+        Vector2 halfSize = new Vector2(4f, 3.2f); // boardSize / 2
+
+        foreach (var stone in stones)
+        {
+            if (stone.CurrentState != Stone.State.OnBoard) continue;
+            if (!stone.gameObject.activeSelf) continue;
+
+            Vector2 pos = new Vector2(stone.transform.position.x, stone.transform.position.y);
+            bool outX = pos.x < boardCenter.x - halfSize.x - 0.5f || pos.x > boardCenter.x + halfSize.x + 0.5f;
+            bool outY = pos.y < boardCenter.y - halfSize.y - 0.5f || pos.y > boardCenter.y + halfSize.y + 0.5f;
+
+            if (outX || outY)
+            {
+                Debug.Log($"[GameManager] Stone {stone.StoneIndex} out of bounds during play at ({pos.x:F1},{pos.y:F1})");
+                SetFailReason("낙!");
+                SetPhase(GamePhase.Failed);
+                return;
+            }
         }
     }
 
@@ -165,8 +343,67 @@ public class GameManager : MonoBehaviour
         lastFailReason = reason;
     }
 
+    public void StartGameFromTitle()
+    {
+        isInTitleScreen = false;
+        if (session != null)
+        {
+            session.PlayerName = "Player";
+            // IsTestPlay는 TitleScreenUI.OnModeSelected에서 이미 설정됨
+        }
+        // [Phase B] 타이틀에서 시작 시 채도 초기화
+        AgeSaturationController.Instance?.ResetSaturation();
+
+        // 첫 플레이 튜토리얼
+        if (PlayerPrefs.GetInt("TutorialSeen", 0) == 0)
+        {
+            isTransitioning = true;
+            TutorialUI.Instance?.Show(() =>
+            {
+                PlayerPrefs.SetInt("TutorialSeen", 1);
+                PlayerPrefs.Save();
+                isTransitioning = false;
+                StartGameAfterTutorial();
+            });
+        }
+        else
+        {
+            StartGameAfterTutorial();
+        }
+    }
+
+    private void StartGameAfterTutorial()
+    {
+        // v4: 첫 스테이지 StoryMent 표시 후 게임 시작
+        var config = StageConfig.Get(session != null ? session.CurrentLoop : 1);
+        string ment = config.StoryMent;
+        if (!string.IsNullOrEmpty(ment))
+        {
+            isTransitioning = true;
+            StoryMentUI.Instance?.Show(ment, () =>
+            {
+                isTransitioning = false;
+                HandCursorUI.Instance?.SetActive(false);
+                handController?.gameObject.SetActive(true);
+                StartStage(1);
+            });
+        }
+        else
+        {
+            HandCursorUI.Instance?.SetActive(false);
+            handController?.gameObject.SetActive(true);
+            StartStage(1);
+        }
+    }
+
     public void StartStage(int stage)
     {
+        isInTitleScreen = false; // 어떤 경로로든 스테이지 시작 시 타이틀 아님
+
+        // Hand가 비활성이면 활성화 (타이틀 복귀 후 PauseMenu 초기화 등 경로 안전장치)
+        if (handController != null && !handController.gameObject.activeSelf)
+            handController.gameObject.SetActive(true);
+
         // 진행 중인 전환 코루틴 중단
         if (transitionCoroutine != null)
         {
@@ -176,6 +413,18 @@ public class GameManager : MonoBehaviour
 
         currentStage = stage;
         isAllClear = false;
+
+        // v4: 스테이지 설정 로드 + 기믹 생성
+        currentStageConfig = StageConfig.Get(session != null ? session.CurrentLoop : 1);
+        currentGimmick?.OnStageEnd(); // 이전 기믹 정리
+        // 5단 꺾기에서는 기믹 비활성화
+        if (stage == 5)
+            currentGimmick = null;
+        else
+            currentGimmick = StageGimmick.Create(currentStageConfig.Gimmick, this);
+        currentGimmick?.OnStageStart(stage);
+
+        stage3FirstPickCount = -1; // 3단 서브라운드 리셋
 
         // [P1] 세션 단계 갱신 + 사이드 패널 반영
         if (session != null)
@@ -207,7 +456,6 @@ public class GameManager : MonoBehaviour
 
         // UI 연출 시작
         GameUI.Instance?.ShowStageIntro(stage);
-        GameUI.Instance?.UpdateProgressDots(stage);
 
         float duration = stage == 5 ? stage5IntroDuration : stageIntroDuration;
         yield return new WaitForSeconds(duration);
@@ -256,6 +504,9 @@ public class GameManager : MonoBehaviour
                 handController.ResetHand();
                 scatterSystem.BeginScatter();
                 break;
+            case GamePhase.PickStones:
+                currentGimmick?.OnPickPhaseStart(); // v4: 기믹 훅
+                break;
             case GamePhase.Catch:
                 // BeginCatch는 HandController.DoThrow에서 직접 호출
                 break;
@@ -283,12 +534,20 @@ public class GameManager : MonoBehaviour
             GamePhase.Scatter => "[ 꾹 눌러서 게이지 조절, 놓으면 뿌리기 ]",
             GamePhase.PickThrowStone => "[ 커서를 돌 위로 이동 ]",
             GamePhase.Throw => "[ 클릭하여 던지기 ]",
-            GamePhase.PickStones => $"[ 돌 {RequiredPickCount}개를 주우세요 ]",
+            GamePhase.PickStones => "[ 돌을 단계에 맞게 주우세요 ]",
             GamePhase.Catch => "[ 커서를 움직여 돌을 받으세요! ]",
-            GamePhase.Stage5Throw => "[ 클릭하여 5개 모두 던지기! ]",
-            GamePhase.Stage5Catch => stage5Step == 0
-                ? "[ 손등으로 5개 모두 받기! ]"
-                : "[ 뒤집어서 손바닥으로 받기! ]",
+            GamePhase.Stage5Throw => stage5Step switch
+            {
+                0 => "[ 게이지에 맞춰 클릭! 손바닥 던지기 ]",
+                2 => "[ 게이지에 맞춰 클릭! 손등 던지기 ]",
+                _ => "[ 클릭하여 던지기! ]"
+            },
+            GamePhase.Stage5Catch => stage5Step switch
+            {
+                1 => "[ 손등으로 5개 모두 받기! ]",
+                3 => "[ 타이밍에 맞춰 클릭! 낚아채기! ]",
+                _ => "[ 돌을 받으세요! ]"
+            },
             _ => null
         };
 
@@ -330,13 +589,36 @@ public class GameManager : MonoBehaviour
         StartStage(1);
     }
 
+    /// <summary>보드 하단에 보이지 않는 벽 생성 (돌이 아래로 굴러 떨어지는 것만 방지)</summary>
+    private void CreateBoardBottomWall()
+    {
+        if (boardTransform == null) return;
+
+        float boardCenterX = boardTransform.position.x;
+        float boardBottomY = boardTransform.position.y - 3.2f; // boardSize.y / 2
+
+        var wallGo = new GameObject("BoardBottomWall");
+        wallGo.transform.position = new Vector3(boardCenterX, boardBottomY - 0.25f, 0f);
+        var col = wallGo.AddComponent<BoxCollider>();
+        col.size = new Vector3(10f, 0.5f, 2f); // 넓고 얇은 벽
+        // Rigidbody 없음 = Static Collider (움직이지 않음)
+    }
+
+    private static readonly Vector3 StoneOriginalScale = new Vector3(0.3f, 0.3f, 0.3f);
+
     private void ResetAllStones()
     {
         handController.ResetHand();
+
+        // v4: 스테이지별 돌 개수 설정 (5단 꺾기는 항상 5개)
+        int stoneCount = (currentStage == 5) ? 5
+            : (currentStageConfig != null ? currentStageConfig.TotalStones : 5);
+        stones = StonePool.Instance != null ? StonePool.Instance.Activate(stoneCount) : stones;
+
         foreach (var stone in stones)
         {
-            stone.gameObject.SetActive(true); // 비활성화된 돌 복원
             stone.transform.SetParent(null);
+            stone.transform.localScale = StoneOriginalScale; // 5단 스케일 변동 복원
             stone.SetState(Stone.State.OnBoard);
             stone.Rb.linearVelocity = Vector3.zero;
             stone.Rb.angularVelocity = Vector3.zero;
@@ -344,12 +626,12 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 5단 내부 단계 진행: 손등 받기 성공 → 2차 던지기로
+    /// 5단 내부 단계 진행: 각 단계 완료 시 step++ (0→1→2→3)
     /// </summary>
     public void AdvanceStage5Step()
     {
-        stage5Step = 1;
-        Debug.Log("[GameManager] Stage 5 step advanced to palm catch.");
+        stage5Step++;
+        Debug.Log($"[GameManager] Stage 5 step advanced to {stage5Step}.");
     }
 
     private void OnStageComplete()
@@ -358,22 +640,35 @@ public class GameManager : MonoBehaviour
 
         // [P1] 세션 상태 갱신 (나이++, 5단이면 루프++)
         session?.OnStageComplete(currentStage);
+        // [Phase B] 채도 갱신
+        AgeSaturationController.Instance?.UpdateSaturation(session != null ? session.CurrentAge : 0);
         SidePanelUI.Instance?.Refresh();
+
+        currentGimmick?.OnStageEnd(); // v4: 기믹 정리
 
         int nextStage = currentStage + 1;
         if (nextStage > 5)
         {
-            // [P1] 50살(10루프 5단) 완료 시 게임 클리어
+            // v4: 55살(10스테이지 5단) 완료 시 게임 클리어
             if (session != null && session.IsGameClear)
             {
-                Debug.Log("[GameManager] GAME CLEAR! Age 50 reached!");
+                Debug.Log("[GameManager] GAME CLEAR! Age 55 reached!");
                 transitionCoroutine = StartCoroutine(DoAllClearTransition());
                 return;
             }
 
-            // [P1] 5단 클리어 + 아직 50살 미만 → 다음 루프 1단 시작
-            Debug.Log($"[GameManager] Loop {session?.CurrentLoop} started! (Age={session?.CurrentAge})");
-            transitionCoroutine = StartCoroutine(DoClearTransition(1));
+            // v4: 5단 클리어 + 아직 55살 미만 → 다음 스테이지 번호로 멘트 가져오기
+            Debug.Log($"[GameManager] Stage {session?.CurrentLoop} started! (Age={session?.CurrentAge})");
+            int nextLoopNum = session != null ? session.CurrentLoop : 1;
+            var nextConfig = StageConfig.Get(nextLoopNum);
+            if (nextConfig != null && !string.IsNullOrEmpty(nextConfig.StoryMent))
+            {
+                transitionCoroutine = StartCoroutine(DoClearThenMent(nextConfig.StoryMent));
+            }
+            else
+            {
+                transitionCoroutine = StartCoroutine(DoClearTransition(1));
+            }
             return;
         }
 
@@ -394,6 +689,32 @@ public class GameManager : MonoBehaviour
         transitionCoroutine = null;
 
         StartStage(nextStage);
+    }
+
+    private IEnumerator HideHandNextFrame()
+    {
+        yield return null; // 다른 스크립트의 Start() 완료 대기
+        handController?.gameObject.SetActive(false);
+    }
+
+    private IEnumerator DoClearThenMent(string ment)
+    {
+        isTransitioning = true;
+
+        AudioManager.Instance?.PlayStageClear();
+        GameUI.Instance?.ShowClear();
+
+        yield return new WaitForSeconds(clearDuration);
+
+        // 멘트 표시 → 탭 완료 시 다음 루프
+        bool mentDone = false;
+        StoryMentUI.Instance?.Show(ment, () => mentDone = true);
+        yield return new WaitUntil(() => mentDone);
+
+        isTransitioning = false;
+        transitionCoroutine = null;
+
+        StartStage(1);
     }
 
     private IEnumerator DoAllClearTransition()
@@ -436,6 +757,8 @@ public class GameManager : MonoBehaviour
             });
         }
 
+        handController?.gameObject.SetActive(false);
+        HandCursorUI.Instance?.SetActive(true);
         GraveyardUI.Instance?.Show(clearTime, playerName, regressionCount, testPlay);
 
         yield return null;
@@ -475,6 +798,9 @@ public class GameManager : MonoBehaviour
     // [P4] ESC 콜백
     private void OnEscPressed(InputAction.CallbackContext ctx)
     {
+        // 타이틀 화면에서는 ESC 무시
+        if (isInTitleScreen) return;
+
         // ALL CLEAR 화면에서는 ESC 무시
         if (isAllClear) return;
 
@@ -492,8 +818,12 @@ public class GameManager : MonoBehaviour
 
     private void OnAllClearClick(InputAction.CallbackContext ctx)
     {
+        if (isInTitleScreen) return;
         if (!isAllClear) return;
         if (isPaused) return; // [P4] 일시정지 중 클릭 무시
+
+        // [Phase B] 멘트 표시 중 클릭 무시
+        if (StoryMentUI.Instance != null && StoryMentUI.Instance.IsShowing) return;
 
         // GraveyardUI가 활성 상태면 자체 처리
         if (GraveyardUI.Instance != null && GraveyardUI.Instance.IsShowing) return;
@@ -516,8 +846,13 @@ public class GameManager : MonoBehaviour
 
         // 세션 전체 초기화 (이름 입력은 엔딩 후)
         session?.ResetAll();
+        // [Phase B] 채도 리셋
+        AgeSaturationController.Instance?.ResetSaturation();
         SidePanelUI.Instance?.Refresh();
 
-        StartStage(1);
+        isInTitleScreen = true;
+        handController?.gameObject.SetActive(false);
+        HandCursorUI.Instance?.SetActive(true);
+        TitleScreenUI.Instance?.Show();
     }
 }
