@@ -59,11 +59,13 @@ public class ColorSelectGimmick : StageGimmick
     {
         if (targetConfirmed) return;
 
-        targetColor = thrownStone.Color;
+        // 타겟 색상: 무조건 노랑
+        targetColor = Stone.StoneColor.Yellow;
         targetConfirmed = true;
+        thrownStone.SetColor(Stone.StoneColor.Yellow); // 던진 돌도 노랑으로 강제
         Debug.Log($"[ColorSelectGimmick] Target color confirmed: {targetColor}");
 
-        // UI 안내: 타겟 색 표시
+        // UI 안내
         GameUI.Instance?.UpdateGuideText($"[ {GetColorName(targetColor)}만 주우세요! ]");
 
         // 추가 15개 활성화
@@ -72,7 +74,7 @@ public class ColorSelectGimmick : StageGimmick
 
         additionalStones = pool.ActivateAdditional(15);
 
-        // 추가 돌 상태 초기화 (이전 사용 시 Caught 등 상태가 남아있을 수 있음)
+        // 추가 돌 상태 초기화
         foreach (var s in additionalStones)
             s.SetState(Stone.State.OnBoard);
 
@@ -84,18 +86,18 @@ public class ColorSelectGimmick : StageGimmick
                 allBoardStones.Add(s);
         }
 
-        // 고정 배분: 노랑 7, 빨강 6, 초록 7 = 20 (던진 돌 1 포함)
-        // 보드 위 19개 + 던진 돌 1개(타겟) = 20
-        // 타겟 색의 보드 할당 = 전체 할당 - 1(던진 돌)
-        int yellowTotal = 7, redTotal = 6, greenTotal = 7;
-        int yellowBoard, redBoard, greenBoard;
+        // 랜덤 배분: T(노랑) + D1(빨강) + D2(초록) = 20
+        // T: 현재 단수 클리어 필요 최소(4개) ~ 10개
+        int minRequired = 4; // 1단=4회×1개, 2단=2회×2개, 3단=2회×2개, 4단=1회×4개 → 항상 4
+        int yellowTotal = Random.Range(minRequired, 11); // 4~10
+        int remaining = 20 - yellowTotal;
+        int redTotal = Random.Range(1, remaining); // 1 ~ R-1
+        int greenTotal = remaining - redTotal;
 
-        if (targetColor == Stone.StoneColor.Yellow)
-            { yellowBoard = yellowTotal - 1; redBoard = redTotal; greenBoard = greenTotal; }
-        else if (targetColor == Stone.StoneColor.Red)
-            { yellowBoard = yellowTotal; redBoard = redTotal - 1; greenBoard = greenTotal; }
-        else // Green
-            { yellowBoard = yellowTotal; redBoard = redTotal; greenBoard = greenTotal - 1; }
+        // 보드 위 19개 = 던진 돌(노랑 1) 제외
+        int yellowBoard = yellowTotal - 1;
+        int redBoard = redTotal;
+        int greenBoard = greenTotal;
 
         // 색 배열 생성 + 셔플
         var colorAssign = new Stone.StoneColor[allBoardStones.Count];
@@ -111,26 +113,44 @@ public class ColorSelectGimmick : StageGimmick
             (colorAssign[i], colorAssign[j]) = (colorAssign[j], colorAssign[i]);
         }
 
-        // 추가 돌 위치 + 전체 색 배분
+        // 전체 보드 돌 위치 재배치 (그리드 기반 분산 — 겹침 방지)
         var board = gameManager?.BoardTransform;
         float cx = board != null ? board.position.x : 0f;
         float cy = board != null ? board.position.y : 0f;
         float halfW = 3.5f;
         float halfH = 2.8f;
 
+        // 19개를 5열×4행 그리드에 배치 (1칸 비움) + 랜덤 오프셋
+        int cols = 5, rows = 4;
+        float cellW = (halfW * 2f) / cols;   // 셀 너비
+        float cellH = (halfH * 2f) / rows;   // 셀 높이
+        float jitter = 0.55f;                 // 셀 내 랜덤 흔들림 (크게 → 카오스)
+
+        // 그리드 위치 생성 + 셔플
+        var gridPositions = new System.Collections.Generic.List<Vector3>();
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < cols; c++)
+            {
+                float gx = cx - halfW + cellW * (c + 0.5f) + Random.Range(-jitter, jitter);
+                float gy = cy - halfH + cellH * (r + 0.5f) + Random.Range(-jitter, jitter);
+                gridPositions.Add(new Vector3(gx, gy, 0f));
+            }
+        }
+        // Fisher-Yates 셔플
+        for (int i = gridPositions.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (gridPositions[i], gridPositions[j]) = (gridPositions[j], gridPositions[i]);
+        }
+
         for (int i = 0; i < allBoardStones.Count; i++)
         {
             var s = allBoardStones[i];
-            // 추가 돌은 위치 재배치
-            if (System.Array.IndexOf(additionalStones, s) >= 0)
-            {
-                s.SetState(Stone.State.OnBoard);
-                s.Rb.linearVelocity = Vector3.zero;
-                s.Rb.angularVelocity = Vector3.zero;
-                s.transform.position = new Vector3(
-                    cx + Random.Range(-halfW, halfW),
-                    cy + Random.Range(-halfH, halfH), 0f);
-            }
+            // 전체 돌 위치 재배치 (기존 4개 포함)
+            s.Rb.linearVelocity = Vector3.zero;
+            s.Rb.angularVelocity = Vector3.zero;
+            s.transform.position = gridPositions[i];
             s.SetColor(colorAssign[i]);
         }
 
