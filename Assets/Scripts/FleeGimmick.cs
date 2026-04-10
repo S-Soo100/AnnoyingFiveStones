@@ -7,24 +7,24 @@ using UnityEngine;
 /// </summary>
 public class FleeGimmick : StageGimmick
 {
-    private bool firstPickDone = false;
+    private bool fleeTriggered = false;
     private List<FleeMovement> activeFleers = new List<FleeMovement>();
 
     public override void OnStageStart(int stageInLoop)
     {
-        firstPickDone = false;
+        fleeTriggered = false;
         activeFleers.Clear();
     }
 
-    public override void OnStonePicked(Stone stone)
+    public override void OnThrowStart(Stone thrownStone)
     {
-        if (firstPickDone) return;
-        firstPickDone = true;
+        if (fleeTriggered) return;
+        fleeTriggered = true;
 
         // 보드 경계 Rect 계산
         Rect boardRect = GetBoardRect();
 
-        // 나머지 OnBoard 돌에 FleeMovement 추가
+        // 던진 돌을 제외한 나머지 OnBoard 돌에 FleeMovement 추가
         var pool = StonePool.Instance;
         if (pool == null) return;
         var active = pool.ActiveStones;
@@ -32,7 +32,7 @@ public class FleeGimmick : StageGimmick
         float delay = 0f;
         foreach (var s in active)
         {
-            if (s == stone) continue;
+            if (s == thrownStone) continue;
             if (s.CurrentState != Stone.State.OnBoard) continue;
             if (!s.gameObject.activeSelf) continue;
 
@@ -44,7 +44,7 @@ public class FleeGimmick : StageGimmick
         }
 
         Debug.Log($"[FleeGimmick] {activeFleers.Count} stones started fleeing.");
-        TestLogger.Instance?.LogPhysics("flee_triggered", $"{activeFleers.Count} stones fleeing after first pick: {stone.StoneIndex}");
+        TestLogger.Instance?.LogPhysics("flee_triggered", $"{activeFleers.Count} stones fleeing after throw: {thrownStone.StoneIndex}");
     }
 
     public override void OnStageEnd()
@@ -56,7 +56,7 @@ public class FleeGimmick : StageGimmick
                 Object.Destroy(flee);
         }
         activeFleers.Clear();
-        firstPickDone = false;
+        fleeTriggered = false;
         Debug.Log("[FleeGimmick] Stage ended: FleeMovement components removed.");
     }
 

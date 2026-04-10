@@ -69,6 +69,9 @@ public class FleeMovement : MonoBehaviour
             float elapsed = 0f;
             while (elapsed < fleeDuration)
             {
+                if (stone.CurrentState != Stone.State.OnBoard)
+                    yield break;
+
                 elapsed += Time.fixedDeltaTime;
 
                 // 보드 경계 확인 → 벽에 닿으면 방향 반전
@@ -93,6 +96,9 @@ public class FleeMovement : MonoBehaviour
             }
 
             // ─── Rest 상태 ───
+            if (stone.CurrentState != Stone.State.OnBoard)
+                yield break;
+
             state = FleeState.Rest;
             Debug.Log($"[FleeMovement] {gameObject.name} → Rest");
             if (rb != null) rb.linearVelocity = Vector3.zero;
