@@ -45,6 +45,7 @@ public class HandController : MonoBehaviour
     private bool stage5ClickPending;
     private bool stage5CatchActive;                            // 슬라이드 인 완료 후 true — LateUpdate Y 고정 + X 추종 트리거
     private Coroutine stage5Coroutine;
+    private Coroutine throwCoroutine;
 
     [Header("Stage 5 Height Settings")]
     [SerializeField] private float stage5HeightStep = 0.4f;   // 돌 간 높이 간격 (부드럽게 모임)
@@ -389,7 +390,7 @@ public class HandController : MonoBehaviour
 
         if (phase == GameManager.GamePhase.Throw && throwStone != null)
         {
-            StartCoroutine(DoThrow());
+            throwCoroutine = StartCoroutine(DoThrow());
         }
         else if (phase == GameManager.GamePhase.Stage5Catch)
         {
@@ -466,6 +467,7 @@ public class HandController : MonoBehaviour
                 Debug.Log("[Hand] Stone caught!");
                 SetCatchMode(false);
                 handModel?.SetCollidersEnabled(false);
+                throwCoroutine = null;
                 yield break;
             }
 
@@ -507,6 +509,7 @@ public class HandController : MonoBehaviour
         stone.SetState(Stone.State.OnBoard);
         TestLogger.Instance?.LogFailure("catch_missed_landing");
         GameManager.Instance.SetFailReason("돌을 놓쳤다!");
+        throwCoroutine = null;
         GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
     }
 
@@ -1362,6 +1365,12 @@ public class HandController : MonoBehaviour
         {
             StopCoroutine(stage5Coroutine);
             stage5Coroutine = null;
+        }
+        // 던지기 코루틴이 실행 중이면 중단
+        if (throwCoroutine != null)
+        {
+            StopCoroutine(throwCoroutine);
+            throwCoroutine = null;
         }
         stage5ClickPending = false;
         stage5CatchActive = false;

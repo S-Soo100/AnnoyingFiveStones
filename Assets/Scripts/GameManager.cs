@@ -560,6 +560,7 @@ public class GameManager : MonoBehaviour
     private void OnFailed()
     {
         if (isAllClear) return; // ALL CLEAR 이후 실패 무시
+        if (isTransitioning) return; // 이미 실패 전환 중이면 중복 실패 무시
         Debug.Log("[GameManager] FAILED! Resetting to Stage 1.");
 
         // [P1] 세션: 해당 루프 1단으로 리셋 (나이/루프 유지)
