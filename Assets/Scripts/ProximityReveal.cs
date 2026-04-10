@@ -12,7 +12,7 @@ public class ProximityReveal : MonoBehaviour
     [Header("Settings")]
     public float revealRadius = 1.5f;  // 마우스와 이 거리 이내면 투명해짐
     public float fadeSpeed = 5f;       // 투명도 전환 속도
-    public float minAlpha = 0.4f;      // 최저 투명도
+    public float minAlpha = 0.15f;     // 최저 투명도 (거의 보이지 않음)
 
     private Stone stone;
     private float currentAlpha = 1f;

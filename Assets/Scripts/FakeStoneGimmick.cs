@@ -11,14 +11,23 @@ public class FakeStoneGimmick : StageGimmick
     private Stone[] additionalStones;
     private List<ProximityReveal> revealers = new List<ProximityReveal>();
     private int completedRounds = 0;
+    private bool fakesSpawned = false;
+
+    public override void OnStageStart(int stageInLoop)
+    {
+        fakesSpawned = false;
+    }
 
     public override void OnThrowStart(Stone thrownStone)
     {
+        if (fakesSpawned) return; // 첫 던지기에만 가짜 돌 추가
+        fakesSpawned = true;
+
         var pool = StonePool.Instance;
         if (pool == null) return;
 
-        // 추가 15개 활성화
-        additionalStones = pool.ActivateAdditional(15);
+        // 추가 3개 활성화 (가짜 돌, 진짜 4 + 가짜 3 + 던진 1 = 8개)
+        additionalStones = pool.ActivateAdditional(3);
 
         var board = gameManager?.BoardTransform;
         float cx = board != null ? board.position.x : 0f;
@@ -34,7 +43,7 @@ public class FakeStoneGimmick : StageGimmick
             s.Rb.angularVelocity = Vector3.zero;
         }
 
-        // 진짜 4개(기존 OnBoard) + 가짜 15개 = 19개 전부 위치 랜덤 재배치
+        // 진짜 4개(기존 OnBoard) + 가짜 3개 = 7개 전부 위치 랜덤 재배치
         // → 원래 돌 위치를 기억해도 소용없게 만듦
         var allActive = pool.ActiveStones;
         foreach (var s in allActive)
@@ -49,7 +58,7 @@ public class FakeStoneGimmick : StageGimmick
             s.Rb.angularVelocity = Vector3.zero;
         }
 
-        // 15개를 모두 가짜로 설정 + ProximityReveal 추가
+        // 추가 돌을 모두 가짜로 설정 + ProximityReveal 추가
         revealers.Clear();
         foreach (var s in additionalStones)
         {
@@ -58,7 +67,7 @@ public class FakeStoneGimmick : StageGimmick
             revealers.Add(reveal);
         }
 
-        Debug.Log($"[FakeStoneGimmick] {additionalStones.Length} fake stones spawned. All 19 positions randomized.");
+        Debug.Log($"[FakeStoneGimmick] {additionalStones.Length} fake stones spawned. All {additionalStones.Length + 4} positions randomized.");
     }
 
     public override bool ValidatePick(Stone stone)
@@ -89,6 +98,7 @@ public class FakeStoneGimmick : StageGimmick
     public override void OnStageEnd()
     {
         completedRounds = 0;
+        fakesSpawned = false;
         // ProximityReveal 제거
         foreach (var reveal in revealers)
         {
