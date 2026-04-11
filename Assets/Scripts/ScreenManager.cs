@@ -5,9 +5,16 @@ public class ScreenManager : MonoBehaviour
 {
     public static ScreenManager Instance { get; private set; }
 
+    private const float ResizeDebounceSeconds = 0.4f;
+    private const int SizeTolerancePixels = 4;
+
     private InputAction fullscreenAction;
-    private int lastWidth;
-    private int lastHeight;
+    private int lastAppliedWidth;
+    private int lastAppliedHeight;
+    private int pendingWidth;
+    private int pendingHeight;
+    private float pendingTimer;
+    private bool hasPendingResize;
 
     private void Awake()
     {
@@ -27,8 +34,8 @@ public class ScreenManager : MonoBehaviour
     private void Start()
     {
         Screen.SetResolution(1280, 720, false);
-        lastWidth = 1280;
-        lastHeight = 720;
+        lastAppliedWidth = 1280;
+        lastAppliedHeight = 720;
 
         // F11 전체화면 토글
         fullscreenAction = new InputAction("Fullscreen", InputActionType.Button);
@@ -44,10 +51,50 @@ public class ScreenManager : MonoBehaviour
 
     private void Update()
     {
-        // 창 크기 변경 감지 → 16:9 비율 강제
-        if (!Screen.fullScreen && (Screen.width != lastWidth || Screen.height != lastHeight))
+        if (Screen.fullScreen)
         {
-            EnforceAspectRatio();
+            hasPendingResize = false;
+            return;
+        }
+
+        int curW = Screen.width;
+        int curH = Screen.height;
+
+        // 드래그 중인 크기가 이전에 적용한 값과 허용오차 이상 벌어지면 대기 상태로 진입.
+        // 이 프레임에서는 아무것도 하지 않고 "안정화"를 기다린다.
+        bool differsFromApplied =
+            Mathf.Abs(curW - lastAppliedWidth) > SizeTolerancePixels ||
+            Mathf.Abs(curH - lastAppliedHeight) > SizeTolerancePixels;
+
+        if (differsFromApplied)
+        {
+            bool differsFromPending =
+                !hasPendingResize ||
+                Mathf.Abs(curW - pendingWidth) > SizeTolerancePixels ||
+                Mathf.Abs(curH - pendingHeight) > SizeTolerancePixels;
+
+            if (differsFromPending)
+            {
+                // 아직 크기가 변하고 있음 → 타이머 리셋
+                pendingWidth = curW;
+                pendingHeight = curH;
+                pendingTimer = 0f;
+                hasPendingResize = true;
+            }
+            else
+            {
+                // 크기가 안정화되는 중 → 타이머 누적
+                pendingTimer += Time.unscaledDeltaTime;
+                if (pendingTimer >= ResizeDebounceSeconds)
+                {
+                    EnforceAspectRatio(pendingWidth, pendingHeight);
+                    hasPendingResize = false;
+                }
+            }
+        }
+        else
+        {
+            hasPendingResize = false;
         }
     }
 
@@ -57,8 +104,9 @@ public class ScreenManager : MonoBehaviour
         {
             Screen.fullScreenMode = FullScreenMode.Windowed;
             Screen.SetResolution(1280, 720, false);
-            lastWidth = 1280;
-            lastHeight = 720;
+            lastAppliedWidth = 1280;
+            lastAppliedHeight = 720;
+            hasPendingResize = false;
         }
         else
         {
@@ -67,29 +115,29 @@ public class ScreenManager : MonoBehaviour
         Debug.Log($"[ScreenManager] Fullscreen toggled: {Screen.fullScreen}");
     }
 
-    private void EnforceAspectRatio()
+    private void EnforceAspectRatio(int requestedW, int requestedH)
     {
-        int w = Screen.width;
-        int h = Screen.height;
+        int w = requestedW;
+        int h = requestedH;
 
-        // 어느 쪽이 변경되었는지 감지
-        if (w != lastWidth)
+        // 더 많이 변한 쪽을 기준축으로 삼는다
+        int dw = Mathf.Abs(requestedW - lastAppliedWidth);
+        int dh = Mathf.Abs(requestedH - lastAppliedHeight);
+
+        if (dw >= dh)
         {
-            // 너비 기준으로 높이 조정
             h = Mathf.RoundToInt(w / (16f / 9f));
         }
-        else if (h != lastHeight)
+        else
         {
-            // 높이 기준으로 너비 조정
             w = Mathf.RoundToInt(h * (16f / 9f));
         }
 
-        // 최소 크기 제한
         w = Mathf.Max(w, 640);
         h = Mathf.Max(h, 360);
 
         Screen.SetResolution(w, h, false);
-        lastWidth = w;
-        lastHeight = h;
+        lastAppliedWidth = w;
+        lastAppliedHeight = h;
     }
 }
