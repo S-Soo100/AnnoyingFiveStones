@@ -49,6 +49,7 @@ _현재 없음_
 
 2026-04-11 제너럴 | 작업: donts 체계 구축 + 회고 로그 신설 | 참조: - | 지킴: - | 놓침: - | 메모: 첫 엔트리 (메타 작업)
 2026-04-11 게임 | 작업: Windows 창 리사이즈 튕김 버그 수정 (ScreenManager 디바운스) | 참조: general#1,2,3,4 game#13 | 지킴: general#3(콘솔/코드/diff 중 코드 Read 진단), general#2(단일 파일 최소 변경), general#4(자체 검수 후 테스트 요청), game#13(진단→최소수정→자체검수 3단) | 놓침: - | 재발: - | 메모: Standard 트랙 선언 후 원인이 코드 Read 단계에서 명확히 특정되어 Designer 분석 생략. 원인—Update()에서 Screen.SetResolution을 매 프레임 재호출 → Windows DX 스왑체인 재생성 폭주로 크래시. 해결—0.4s 디바운스 + 4px 허용오차.
+2026-04-11 게임 | 작업: ESC 일시정지 패널 — 전체화면 버튼 삭제 + 게임 종료가 메인 메뉴로 복귀 | 참조: general#2,4 game#13 | 지킴: general#2(단일 파일 최소 변경, 3줄 수준), general#4(자체 검수 — Close→RestartGame 순서 검증), game#13(흐름 추적: RestartGame 내부 ResetAll/GraveyardUI.Hide/TitleScreen.Show까지 확인) | 놓침: - | 재발: - | 메모: Trivial에 가까운 단일 파일 수정이지만 기존 Quit 동작 변경이라 Standard로 처리. OnReset의 "Close() 먼저 → timeScale 복원 → 코루틴 실행" 패턴을 재사용.
 
 ---
 

@@ -144,10 +144,9 @@ public class PauseMenuUI : MonoBehaviour
         var titleLE = titleGo.AddComponent<LayoutElement>();
         titleLE.preferredHeight = 60f;
 
-        // 버튼 4개
+        // 버튼 3개
         CreateButton("게임 재개", boxGo.transform, OnResume);
         CreateButton("게임 초기화", boxGo.transform, OnReset);
-        CreateButton("전체화면", boxGo.transform, OnToggleFullscreen);
         CreateButton("게임 종료", boxGo.transform, OnQuit);
 
         return panelGo;
@@ -350,18 +349,12 @@ public class PauseMenuUI : MonoBehaviour
         quitConfirmPanel.SetActive(true);
     }
 
-    private void OnToggleFullscreen()
-    {
-        ScreenManager.Instance?.ToggleFullscreen();
-    }
-
     private void OnQuitConfirm()
     {
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-#else
-        Application.Quit();
-#endif
+        // 일시정지 해제 후 메인 메뉴(타이틀)로 복귀.
+        // RestartGame이 세션 리셋 + TitleScreenUI.Show까지 처리.
+        Close();
+        GameManager.Instance?.RestartGame();
     }
 
     private void OnQuitCancel()
