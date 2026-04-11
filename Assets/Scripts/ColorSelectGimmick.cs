@@ -2,13 +2,13 @@ using UnityEngine;
 
 /// <summary>
 /// Stage 2 [15살] 색깔 선택 기믹.
-/// 처음 5개 돌에 5색 배정 → 유저가 1개 던지면 타겟 색 확정 → 추가 15개 활성화 + 색 배분.
+/// 처음 5개 돌에 3색 배정 → 유저가 1개 던지면 타겟 색 확정 → 추가 10개 활성화 + 색 배분 (총 15개).
 /// </summary>
 public class ColorSelectGimmick : StageGimmick
 {
     private Stone.StoneColor targetColor = Stone.StoneColor.Default;
     private bool targetConfirmed = false;
-    private Stone[] additionalStones; // 추가 활성화된 15개
+    private Stone[] additionalStones; // 추가 활성화된 10개
     private int completedRounds = 0; // 성공한 줍기-받기 라운드 수
 
     private static readonly Stone.StoneColor[] allColors = new Stone.StoneColor[]
@@ -38,7 +38,7 @@ public class ColorSelectGimmick : StageGimmick
     }
 
     /// <summary>
-    /// 던진 돌의 색을 타겟으로 확정, 추가 15개 돌 활성화 + 색 배분.
+    /// 던진 돌의 색을 타겟으로 확정, 추가 10개 돌 활성화 + 색 배분 (총 15개).
     /// HandController.DoThrow → GameManager.NotifyThrowStart → 여기 호출됨.
     /// </summary>
     /// <summary>타겟 색상의 한글 이름</summary>
@@ -68,17 +68,17 @@ public class ColorSelectGimmick : StageGimmick
         // UI 안내
         GameUI.Instance?.UpdateGuideText($"[ {GetColorName(targetColor)}만 주우세요! ]");
 
-        // 추가 15개 활성화
+        // 추가 10개 활성화 (초기 5 + 추가 10 = 총 15)
         var pool = StonePool.Instance;
         if (pool == null) return;
 
-        additionalStones = pool.ActivateAdditional(15);
+        additionalStones = pool.ActivateAdditional(10);
 
         // 추가 돌 상태 초기화
         foreach (var s in additionalStones)
             s.SetState(Stone.State.OnBoard);
 
-        // 전체 보드 돌 수집 (기존 4 + 추가 15 = 19개)
+        // 전체 보드 돌 수집 (기존 4 + 추가 10 = 14개, 던진 돌 1개 별도)
         var allBoardStones = new System.Collections.Generic.List<Stone>();
         foreach (var s in pool.ActiveStones)
         {
@@ -86,11 +86,11 @@ public class ColorSelectGimmick : StageGimmick
                 allBoardStones.Add(s);
         }
 
-        // 랜덤 배분: T(노랑) + D1(빨강) + D2(초록) = 20
-        // T: 현재 단수 클리어 필요 최소(4개) ~ 10개
+        // 랜덤 배분: T(노랑) + D1(빨강) + D2(초록) = 15
+        // T: 현재 단수 클리어 필요 최소(4개) ~ 8개 (B안: 상한 낮춰 난이도 유지)
         int minRequired = 4; // 1단=4회×1개, 2단=2회×2개, 3단=2회×2개, 4단=1회×4개 → 항상 4
-        int yellowTotal = Random.Range(minRequired, 11); // 4~10
-        int remaining = 20 - yellowTotal;
+        int yellowTotal = Random.Range(minRequired, 9); // 4~8
+        int remaining = 15 - yellowTotal;
         int redTotal = Random.Range(1, remaining); // 1 ~ R-1
         int greenTotal = remaining - redTotal;
 
@@ -154,7 +154,7 @@ public class ColorSelectGimmick : StageGimmick
             s.SetColor(colorAssign[i]);
         }
 
-        Debug.Log($"[ColorSelectGimmick] 20 stones distributed: Yellow={yellowTotal}, Red={redTotal}, Green={greenTotal}. Target={targetColor}, Board={allBoardStones.Count}.");
+        Debug.Log($"[ColorSelectGimmick] 15 stones distributed: Yellow={yellowTotal}, Red={redTotal}, Green={greenTotal}. Target={targetColor}, Board={allBoardStones.Count}.");
     }
 
     public override bool ValidatePick(Stone stone)
