@@ -1,12 +1,13 @@
 using UnityEngine;
 
 /// <summary>
-/// 디버그 전용 HUD (에디터/개발빌드에서만 표시).
+/// 디버그 전용 HUD.
+/// - 에디터: 항상 표시
+/// - 릴리스 빌드: GameSession.IsTestPlay(연습 모드)일 때만 표시, 기록 모드에서는 숨김
 /// 정식 UI는 GameUI.cs (Canvas+TMP)로 이전됨.
 /// </summary>
 public class DebugHUD : MonoBehaviour
 {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private CatchSystem catchSystem;
     private bool showTestPanel;
 
@@ -15,8 +16,30 @@ public class DebugHUD : MonoBehaviour
         catchSystem = FindFirstObjectByType<CatchSystem>();
     }
 
+    /// <summary>
+    /// 디버그 HUD를 보여야 하는가? 에디터는 항상, 빌드는 연습 모드에서만.
+    /// </summary>
+    private static bool ShouldShow()
+    {
+#if UNITY_EDITOR
+        return true;
+#else
+        return GameSession.Instance != null && GameSession.Instance.IsTestPlay;
+#endif
+    }
+
+    /// <summary>
+    /// 우측 상단 "중지"(PauseButton, sizeDelta 500×250 @ 1280×720 ref)와 겹치지 않도록
+    /// 우측 디버그 요소들의 시작 y 위치. 참조 해상도 기준 약 35% 이후부터 배치.
+    /// </summary>
+    private static float RightColumnTop()
+    {
+        return Mathf.Max(260f, Screen.height * 0.38f);
+    }
+
     private void OnGUI()
     {
+        if (!ShouldShow()) return;
         if (GameManager.Instance == null) return;
 
         var gm = GameManager.Instance;
@@ -73,7 +96,7 @@ public class DebugHUD : MonoBehaviour
         float btnW = 40f, btnH = 30f, gap = 2f;
         float totalW = btnW * 5 + gap * 4;
         float startX = Screen.width - totalW - 10f;
-        float btnY = 10f;
+        float btnY = RightColumnTop();
 
         GUIStyle btnStyle = new GUIStyle(GUI.skin.button)
         {
@@ -108,7 +131,7 @@ public class DebugHUD : MonoBehaviour
     {
         float btnW = 70f, btnH = 28f;
         float x = Screen.width - btnW - 10f;
-        float y = 80f; // 스테이지 버튼 아래 (중지 버튼과 겹침 방지)
+        float y = RightColumnTop() + 40f; // 스테이지 버튼(h=30) + gap=10
 
         GUIStyle style = new GUIStyle(GUI.skin.button) { fontSize = 12 };
         Color origBg = GUI.backgroundColor;
@@ -122,108 +145,34 @@ public class DebugHUD : MonoBehaviour
         GUI.backgroundColor = origBg;
     }
 
-    // ── 테스트 패널 ──
+    // ── 테스트 패널 (간소화: 버튼 1개만 노출) ──
     private void DrawTestPanel(GameManager gm)
     {
         var session = GameSession.Instance;
         if (session == null) return;
 
-        float panelW = 220f, panelH = 340f;
+        float btnH = 26f;
+        float padding = 6f;
+        float panelW = 220f;
+        float panelH = btnH + padding * 2f;
         float panelX = Screen.width - panelW - 10f;
-        float panelY = 112f;
+        float panelY = RightColumnTop() + 72f; // 스테이지(40+gap10) + 토글(28+gap4) = 40+28+4
 
         // 배경
         GUI.color = new Color(0f, 0f, 0f, 0.75f);
         GUI.DrawTexture(new Rect(panelX, panelY, panelW, panelH), Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        GUIStyle labelStyle = new GUIStyle(GUI.skin.label) { fontSize = 13 };
-        labelStyle.normal.textColor = Color.white;
-        GUIStyle headerStyle = new GUIStyle(labelStyle) { fontStyle = FontStyle.Bold, fontSize = 14 };
         GUIStyle btnStyle = new GUIStyle(GUI.skin.button) { fontSize = 13 };
         Color origBg = GUI.backgroundColor;
 
-        float x = panelX + 8f;
-        float y = panelY + 6f;
-        float lineH = 24f;
-        float btnW = panelW - 16f;
-        float btnH = 26f;
+        float btnW = panelW - padding * 2f;
+        float x = panelX + padding;
+        float y = panelY + padding;
 
-        // ── 상태 표시 ──
-        GUI.Label(new Rect(x, y, btnW, lineH),
-            $"나이: {session.CurrentAge}  루프: {session.CurrentLoop}  단계: {session.CurrentStageInLoop}", labelStyle);
-        y += lineH;
-        GUI.Label(new Rect(x, y, btnW, lineH),
-            $"회귀: {session.RegressionCount}번", labelStyle);
-        y += lineH;
-
-        // ── 나이 조작 ──
-        GUI.Label(new Rect(x, y, btnW, lineH), "— 나이 설정 —", headerStyle);
-        y += lineH;
-
-        // 나이 프리셋 버튼들
-        int[] agePresets = { 0, 10, 25, 45, 49 };
-        float smallBtnW = (btnW - 4 * 4f) / 5f;
-        for (int i = 0; i < agePresets.Length; i++)
-        {
-            Rect r = new Rect(x + i * (smallBtnW + 4f), y, smallBtnW, btnH);
-            bool isCurrent = session.CurrentAge == agePresets[i];
-            GUI.backgroundColor = isCurrent
-                ? new Color(0.3f, 0.8f, 0.3f, 0.8f)
-                : new Color(0.3f, 0.3f, 0.3f, 0.7f);
-
-            if (GUI.Button(r, $"{agePresets[i]}", btnStyle))
-            {
-                session.CurrentAge = agePresets[i];
-                // 나이에 맞게 루프/스테이지도 계산
-                session.CurrentLoop = agePresets[i] / 5 + 1;
-                session.CurrentStageInLoop = agePresets[i] % 5 + 1;
-                SidePanelUI.Instance?.Refresh();
-                AgeSaturationController.Instance?.UpdateSaturation(agePresets[i]);
-            }
-        }
-        y += btnH + 6f;
-
-        // ── 즉시 이벤트 트리거 ──
-        GUI.Label(new Rect(x, y, btnW, lineH), "— 즉시 트리거 —", headerStyle);
-        y += lineH;
-
-        // ALL CLEAR (50살 도달)
-        GUI.backgroundColor = new Color(1f, 0.84f, 0f, 0.8f);
-        if (GUI.Button(new Rect(x, y, btnW, btnH), "ALL CLEAR (50살 강제)", btnStyle))
-        {
-            session.CurrentAge = 49;
-            session.CurrentLoop = 10;
-            session.CurrentStageInLoop = 5;
-            SidePanelUI.Instance?.Refresh();
-            // 5단 완료 처리 → OnStageComplete에서 age 50 → IsGameClear
-            gm.SetPhase(GameManager.GamePhase.StageComplete);
-        }
-        y += btnH + 4f;
-
-        // 단계 즉시 클리어
-        GUI.backgroundColor = new Color(0.3f, 0.7f, 1f, 0.8f);
-        if (GUI.Button(new Rect(x, y, btnW, btnH), "현재 단계 즉시 클리어", btnStyle))
-        {
-            gm.SetPhase(GameManager.GamePhase.StageComplete);
-        }
-        y += btnH + 4f;
-
-        // 즉시 실패
-        GUI.backgroundColor = new Color(1f, 0.3f, 0.3f, 0.8f);
-        if (GUI.Button(new Rect(x, y, btnW, btnH), "즉시 실패", btnStyle))
-        {
-            gm.SetFailReason("디버그 실패");
-            gm.SetPhase(GameManager.GamePhase.Failed);
-        }
-        y += btnH + 4f;
-
-        // ── 루프 한 바퀴 (1~5단 자동 클리어) ──
-        GUI.Label(new Rect(x, y, btnW, lineH), "— 빠른 진행 —", headerStyle);
-        y += lineH;
-
+        // 다음 스테이지로 (+5살) — 내부 동작은 "루프 1회 완료"와 동일 (5단계 자동 클리어)
         GUI.backgroundColor = new Color(0.6f, 1f, 0.6f, 0.8f);
-        if (GUI.Button(new Rect(x, y, btnW, btnH), "루프 1회 완료 (+5살)", btnStyle))
+        if (GUI.Button(new Rect(x, y, btnW, btnH), "다음 스테이지로 (+5살)", btnStyle))
         {
             for (int i = 0; i < 5; i++)
                 session.OnStageComplete(i + 1);
@@ -231,32 +180,7 @@ public class DebugHUD : MonoBehaviour
             AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
             gm.StartStage(1);
         }
-        y += btnH + 4f;
-
-        // 5루프 한번에
-        GUI.backgroundColor = new Color(0.4f, 0.9f, 0.4f, 0.8f);
-        if (GUI.Button(new Rect(x, y, btnW, btnH), "루프 5회 완료 (+25살)", btnStyle))
-        {
-            for (int loop = 0; loop < 5; loop++)
-                for (int i = 0; i < 5; i++)
-                    session.OnStageComplete(i + 1);
-            SidePanelUI.Instance?.Refresh();
-            AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
-            gm.StartStage(1);
-        }
-        y += btnH + 4f;
-
-        // 리셋
-        GUI.backgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
-        if (GUI.Button(new Rect(x, y, btnW, btnH), "전체 리셋 (0살)", btnStyle))
-        {
-            session.ResetAll();
-            AgeSaturationController.Instance?.ResetSaturation();
-            SidePanelUI.Instance?.Refresh();
-            gm.StartStage(1);
-        }
 
         GUI.backgroundColor = origBg;
     }
-#endif
 }
