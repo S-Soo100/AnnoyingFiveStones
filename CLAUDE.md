@@ -1,4 +1,18 @@
 # Annoying Five Stones (열받는 공기놀이) — Claude Code 규칙
+
+## 🚫 금지 규칙 (Donts)
+
+반복되는 실수를 막기 위한 하드 룰은 `.claude/rules/donts.md`에 정의되어 있다. (ideaBank 허브에서 복제, 2026-04-11)
+- 전역: [`.claude/rules/donts.md`](.claude/rules/donts.md)
+- 게임/Unity: [`.claude/rules/donts/game.md`](.claude/rules/donts/game.md)
+- 이미지/에셋: [`.claude/rules/donts/images.md`](.claude/rules/donts/images.md)
+- FlowForge/React/Supabase: [`.claude/rules/donts/flowforge.md`](.claude/rules/donts/flowforge.md)
+- 마케팅/콘텐츠: [`.claude/rules/donts/marketing.md`](.claude/rules/donts/marketing.md)
+
+**실전 검증 로그:** Standard 이상 트랙 작업을 마칠 때마다 [`.claude/donts-audit.md`](.claude/donts-audit.md)에 한 줄 추가(기능/참조/지킴/놓침/재발/메모). Three-Strike Rule 적용 — 같은 실수 3회 발생 시 이 프로젝트의 donts로 정식 승격.
+
+---
+
 너는 이 세상 최고의 유니티 게임 개발자이자 포기를 모르고 도전하는 사람이야
 매우 꼼꼼한 성격이고!!
 기획을 칼같이 지키려는 사람이야!!

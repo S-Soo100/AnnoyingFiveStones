@@ -62,8 +62,10 @@ public class Obstacle : MonoBehaviour
         if (failed) return;
         if (handController == null) return;
 
-        // IsOnBoard 대신 Phase 기반 감지
-        // PickStones/PickThrowStone 단계(돌 줍는 중)에서만 감지
+        // 클릭 홀드(돌 잡으려는 중)일 때만 장애물 감지
+        // 클릭 안 한 채 지나다니는 건 허용
+        if (!handController.IsHolding) return;
+
         var phase = GameManager.Instance?.CurrentPhase ?? GameManager.GamePhase.Scatter;
         bool shouldCheck = (phase == GameManager.GamePhase.PickStones
                          || phase == GameManager.GamePhase.PickThrowStone);

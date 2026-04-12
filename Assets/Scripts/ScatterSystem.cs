@@ -289,6 +289,8 @@ public class ScatterSystem : MonoBehaviour
         else
         {
             Debug.Log("[ScatterSystem] Scatter complete. All stones on board.");
+            // 기믹에 산란 완료 알림 (장애물과 겹치는 돌 보정 등)
+            GameManager.Instance.CurrentGimmick?.OnScatterComplete(stones);
             GameManager.Instance.SetPhase(GameManager.GamePhase.PickThrowStone);
         }
     }

@@ -66,6 +66,7 @@ public class HandController : MonoBehaviour
     public List<Stone> PickedStones => pickedStones;
     public Stone ThrowStone => throwStone;
     public bool IsOnBoard => isOnBoard;
+    public bool IsHolding => isHolding;
 
     private void Awake()
     {
