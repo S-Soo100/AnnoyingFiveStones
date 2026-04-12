@@ -176,7 +176,7 @@ public class TitleScreenUI : MonoBehaviour
 
         // "설정" 버튼
         CreateMenuButton("설정", parent, new Vector2(0f, -160f), 26, () => {
-            PauseMenuUI.Instance?.Toggle();
+            SettingsPopupUI.EnsureInstance().Open();
         });
 
         // "나가기" — 우측 상단

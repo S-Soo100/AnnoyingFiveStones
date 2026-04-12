@@ -118,12 +118,12 @@ public class PauseMenuUI : MonoBehaviour
         boxRect.anchorMin = new Vector2(0.5f, 0.5f);
         boxRect.anchorMax = new Vector2(0.5f, 0.5f);
         boxRect.pivot = new Vector2(0.5f, 0.5f);
-        boxRect.sizeDelta = new Vector2(320f, 380f);
+        boxRect.sizeDelta = new Vector2(320f, 460f);
         boxRect.anchoredPosition = Vector2.zero;
 
         var layout = boxGo.AddComponent<VerticalLayoutGroup>();
         layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 16f;
+        layout.spacing = 14f;
         layout.padding = new RectOffset(20, 20, 20, 20);
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
@@ -144,12 +144,127 @@ public class PauseMenuUI : MonoBehaviour
         var titleLE = titleGo.AddComponent<LayoutElement>();
         titleLE.preferredHeight = 60f;
 
+        // 음량 슬라이더
+        CreateVolumeSlider(boxGo.transform);
+
         // 버튼 3개
         CreateButton("게임 재개", boxGo.transform, OnResume);
         CreateButton("게임 초기화", boxGo.transform, OnReset);
         CreateButton("게임 종료", boxGo.transform, OnQuit);
 
         return panelGo;
+    }
+
+    private TextMeshProUGUI volumeLabel;
+
+    private void CreateVolumeSlider(Transform parent)
+    {
+        var wrap = new GameObject("VolumeRow");
+        wrap.transform.SetParent(parent, false);
+        var wrapRect = wrap.AddComponent<RectTransform>();
+        wrapRect.sizeDelta = new Vector2(280f, 54f);
+
+        var wrapLE = wrap.AddComponent<LayoutElement>();
+        wrapLE.preferredHeight = 54f;
+        wrapLE.preferredWidth = 280f;
+
+        // 라벨 (상단)
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(wrap.transform, false);
+        var labelRect = labelGo.AddComponent<RectTransform>();
+        labelRect.anchorMin = new Vector2(0f, 1f);
+        labelRect.anchorMax = new Vector2(1f, 1f);
+        labelRect.pivot = new Vector2(0.5f, 1f);
+        labelRect.anchoredPosition = Vector2.zero;
+        labelRect.sizeDelta = new Vector2(0f, 24f);
+
+        volumeLabel = labelGo.AddComponent<TextMeshProUGUI>();
+        volumeLabel.fontSize = 22f;
+        volumeLabel.color = Color.white;
+        volumeLabel.alignment = TextAlignmentOptions.Center;
+        if (koreanFont != null) volumeLabel.font = koreanFont;
+
+        // 슬라이더
+        var sliderGo = new GameObject("Slider");
+        sliderGo.transform.SetParent(wrap.transform, false);
+        var sliderRect = sliderGo.AddComponent<RectTransform>();
+        sliderRect.anchorMin = new Vector2(0f, 0f);
+        sliderRect.anchorMax = new Vector2(1f, 0f);
+        sliderRect.pivot = new Vector2(0.5f, 0f);
+        sliderRect.anchoredPosition = new Vector2(0f, 4f);
+        sliderRect.sizeDelta = new Vector2(0f, 22f);
+
+        // Background
+        var bgGo = new GameObject("Background");
+        bgGo.transform.SetParent(sliderGo.transform, false);
+        var bgRect = bgGo.AddComponent<RectTransform>();
+        bgRect.anchorMin = new Vector2(0f, 0.25f);
+        bgRect.anchorMax = new Vector2(1f, 0.75f);
+        bgRect.offsetMin = Vector2.zero;
+        bgRect.offsetMax = Vector2.zero;
+        var bgImg = bgGo.AddComponent<Image>();
+        bgImg.color = new Color(0.15f, 0.15f, 0.15f, 0.9f);
+
+        // Fill Area + Fill
+        var fillAreaGo = new GameObject("Fill Area");
+        fillAreaGo.transform.SetParent(sliderGo.transform, false);
+        var fillAreaRect = fillAreaGo.AddComponent<RectTransform>();
+        fillAreaRect.anchorMin = new Vector2(0f, 0.25f);
+        fillAreaRect.anchorMax = new Vector2(1f, 0.75f);
+        fillAreaRect.offsetMin = new Vector2(8f, 0f);
+        fillAreaRect.offsetMax = new Vector2(-8f, 0f);
+
+        var fillGo = new GameObject("Fill");
+        fillGo.transform.SetParent(fillAreaGo.transform, false);
+        var fillRect = fillGo.AddComponent<RectTransform>();
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = new Vector2(1f, 1f);
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
+        var fillImg = fillGo.AddComponent<Image>();
+        fillImg.color = new Color(0.45f, 0.75f, 0.95f, 1f);
+
+        // Handle Slide Area + Handle
+        var handleAreaGo = new GameObject("Handle Slide Area");
+        handleAreaGo.transform.SetParent(sliderGo.transform, false);
+        var handleAreaRect = handleAreaGo.AddComponent<RectTransform>();
+        handleAreaRect.anchorMin = Vector2.zero;
+        handleAreaRect.anchorMax = Vector2.one;
+        handleAreaRect.offsetMin = new Vector2(10f, 0f);
+        handleAreaRect.offsetMax = new Vector2(-10f, 0f);
+
+        var handleGo = new GameObject("Handle");
+        handleGo.transform.SetParent(handleAreaGo.transform, false);
+        var handleRect = handleGo.AddComponent<RectTransform>();
+        handleRect.sizeDelta = new Vector2(20f, 28f);
+        var handleImg = handleGo.AddComponent<Image>();
+        handleImg.color = Color.white;
+
+        var slider = sliderGo.AddComponent<AnnoyingSlider>();
+        slider.targetGraphic = handleImg;
+        slider.fillRect = fillRect;
+        slider.handleRect = handleRect;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.value = AudioManager.GetMasterVolume();
+
+        UpdateVolumeLabel(slider.value);
+        slider.onValueChanged.AddListener(v =>
+        {
+            AudioManager.ApplyVolume(v);
+            UpdateVolumeLabel(v);
+        });
+
+        // 호버 시 검지
+        var hover = sliderGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointIndex;
+    }
+
+    private void UpdateVolumeLabel(float v)
+    {
+        if (volumeLabel != null)
+            volumeLabel.text = $"음량 {Mathf.RoundToInt(v * 100f)}%";
     }
 
     // ──────────────────────────────────────────────────────────────────

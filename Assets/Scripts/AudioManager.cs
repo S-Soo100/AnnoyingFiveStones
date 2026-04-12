@@ -13,6 +13,9 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private float sfxVolume = 0.7f;
     [SerializeField] private float jingleVolume = 0.5f;
 
+    private const string MasterVolumePrefKey = "MasterVolume";
+    private const float DefaultMasterVolume = 0.5f;
+
     private AudioSource sfxSource;       // 짧은 효과음용
     private AudioSource jingleSource;    // 징글용 (겹치지 않게)
 
@@ -37,7 +40,29 @@ public class AudioManager : MonoBehaviour
         jingleSource = gameObject.AddComponent<AudioSource>();
         jingleSource.playOnAwake = false;
 
+        ApplyVolume(GetMasterVolume());
+
         LoadAllClips();
+    }
+
+    public static float GetMasterVolume()
+    {
+        return Mathf.Clamp01(PlayerPrefs.GetFloat(MasterVolumePrefKey, DefaultMasterVolume));
+    }
+
+    /// <summary>AudioListener.volume만 즉시 적용 (저장 X). 드래그 중 고빈도 호출용.</summary>
+    public static void ApplyVolume(float v)
+    {
+        AudioListener.volume = Mathf.Clamp01(v);
+    }
+
+    /// <summary>볼륨 적용 + PlayerPrefs 저장. 포인터 뗄 때 / 복귀 완료 시점에서 호출.</summary>
+    public static void SetMasterVolume(float v)
+    {
+        v = Mathf.Clamp01(v);
+        ApplyVolume(v);
+        PlayerPrefs.SetFloat(MasterVolumePrefKey, v);
+        PlayerPrefs.Save();
     }
 
     private void LoadAllClips()
