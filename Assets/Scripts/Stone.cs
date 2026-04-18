@@ -18,7 +18,10 @@ public class Stone : MonoBehaviour
         Blue,
         Yellow,
         Green,
-        Purple
+        Purple,
+        Black,
+        Gray,
+        White
     }
 
     // 기존 색상 팔레트 (머티리얼에 적용)
@@ -30,6 +33,9 @@ public class Stone : MonoBehaviour
         new Color(0.95f, 0.85f, 0.2f), // Yellow
         new Color(0.2f, 0.8f, 0.3f),   // Green
         new Color(0.6f, 0.2f, 0.8f),   // Purple
+        new Color(0.15f, 0.15f, 0.15f), // Black (거의 검정)
+        new Color(0.5f, 0.5f, 0.5f),    // Gray (중간 회색)
+        new Color(0.92f, 0.92f, 0.92f), // White (거의 흰색)
     };
 
     [Header("State")]

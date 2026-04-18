@@ -1,14 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// Stage 2 [15살] 색깔 선택 기믹.
-/// 처음 5개 돌에 3색 배정 → 유저가 1개 던지면 타겟 색 확정 → 추가 10개 활성화 + 색 배분 (총 15개).
+/// Stage 2 [15살] 색깔 선택 기믹 v5.
+/// 뿌리기 시점에 18개(3색×6)를 배치. 던진 후 추가 스폰/위치 셔플 없음.
+/// 타겟 색 = 던진 돌의 색 (노랑 고정 제거).
 /// </summary>
 public class ColorSelectGimmick : StageGimmick
 {
     private Stone.StoneColor targetColor = Stone.StoneColor.Default;
     private bool targetConfirmed = false;
-    private Stone[] additionalStones; // 추가 활성화된 10개
     private int completedRounds = 0; // 성공한 줍기-받기 라운드 수
 
     private static readonly Stone.StoneColor[] allColors = new Stone.StoneColor[]
@@ -18,29 +18,6 @@ public class ColorSelectGimmick : StageGimmick
         Stone.StoneColor.Green,
     };
 
-    public override void OnStageStart(int stageInLoop)
-    {
-        targetColor = Stone.StoneColor.Default;
-        targetConfirmed = false;
-        additionalStones = null;
-        completedRounds = 0;
-
-        // 5개 돌에 3색 배정 (노랑, 빨강, 초록)
-        var pool = StonePool.Instance;
-        if (pool == null) return;
-        var active = pool.ActiveStones;
-
-        for (int i = 0; i < active.Length; i++)
-        {
-            active[i].SetColor(allColors[i % allColors.Length]);
-        }
-        Debug.Log("[ColorSelectGimmick] Stage started: 3 colors assigned to 5 stones.");
-    }
-
-    /// <summary>
-    /// 던진 돌의 색을 타겟으로 확정, 추가 10개 돌 활성화 + 색 배분 (총 15개).
-    /// HandController.DoThrow → GameManager.NotifyThrowStart → 여기 호출됨.
-    /// </summary>
     /// <summary>타겟 색상의 한글 이름</summary>
     private static string GetColorName(Stone.StoneColor color)
     {
@@ -55,56 +32,29 @@ public class ColorSelectGimmick : StageGimmick
         };
     }
 
-    public override void OnThrowStart(Stone thrownStone)
+    public override void OnStageStart(int stageInLoop)
     {
-        if (targetConfirmed) return;
+        targetColor = Stone.StoneColor.Default;
+        targetConfirmed = false;
+        completedRounds = 0;
 
-        // 타겟 색상: 무조건 노랑
-        targetColor = Stone.StoneColor.Yellow;
-        targetConfirmed = true;
-        thrownStone.SetColor(Stone.StoneColor.Yellow); // 던진 돌도 노랑으로 강제
-        Debug.Log($"[ColorSelectGimmick] Target color confirmed: {targetColor}");
-
-        // UI 안내
-        GameUI.Instance?.UpdateGuideText($"[ {GetColorName(targetColor)}만 주우세요! ]");
-
-        // 추가 10개 활성화 (초기 5 + 추가 10 = 총 15)
+        // 18개 돌에 3색 균등 배정: Yellow 6, Red 6, Green 6
         var pool = StonePool.Instance;
         if (pool == null) return;
+        var active = pool.ActiveStones;
 
-        additionalStones = pool.ActivateAdditional(10);
-
-        // 추가 돌 상태 초기화
-        foreach (var s in additionalStones)
-            s.SetState(Stone.State.OnBoard);
-
-        // 전체 보드 돌 수집 (기존 4 + 추가 10 = 14개, 던진 돌 1개 별도)
-        var allBoardStones = new System.Collections.Generic.List<Stone>();
-        foreach (var s in pool.ActiveStones)
-        {
-            if (s.CurrentState == Stone.State.OnBoard)
-                allBoardStones.Add(s);
-        }
-
-        // 랜덤 배분: T(노랑) + D1(빨강) + D2(초록) = 15
-        // T: 현재 단수 클리어 필요 최소(4개) ~ 8개 (B안: 상한 낮춰 난이도 유지)
-        int minRequired = 4; // 1단=4회×1개, 2단=2회×2개, 3단=2회×2개, 4단=1회×4개 → 항상 4
-        int yellowTotal = Random.Range(minRequired, 9); // 4~8
-        int remaining = 15 - yellowTotal;
-        int redTotal = Random.Range(1, remaining); // 1 ~ R-1
-        int greenTotal = remaining - redTotal;
-
-        // 보드 위 19개 = 던진 돌(노랑 1) 제외
-        int yellowBoard = yellowTotal - 1;
-        int redBoard = redTotal;
-        int greenBoard = greenTotal;
-
-        // 색 배열 생성 + 셔플
-        var colorAssign = new Stone.StoneColor[allBoardStones.Count];
+        // 색 배열 생성: 각 6개씩
+        var colorAssign = new Stone.StoneColor[active.Length];
+        int perColor = active.Length / allColors.Length; // 6
         int idx = 0;
-        for (int i = 0; i < yellowBoard && idx < colorAssign.Length; i++) colorAssign[idx++] = Stone.StoneColor.Yellow;
-        for (int i = 0; i < redBoard && idx < colorAssign.Length; i++) colorAssign[idx++] = Stone.StoneColor.Red;
-        while (idx < colorAssign.Length) colorAssign[idx++] = Stone.StoneColor.Green;
+        foreach (var color in allColors)
+        {
+            for (int i = 0; i < perColor && idx < colorAssign.Length; i++)
+                colorAssign[idx++] = color;
+        }
+        // 나머지 남은 슬롯(18이 3으로 나누어 떨어지므로 없음, 방어 처리)
+        while (idx < colorAssign.Length)
+            colorAssign[idx++] = allColors[(idx - 1) % allColors.Length];
 
         // Fisher-Yates 셔플
         for (int i = colorAssign.Length - 1; i > 0; i--)
@@ -113,48 +63,28 @@ public class ColorSelectGimmick : StageGimmick
             (colorAssign[i], colorAssign[j]) = (colorAssign[j], colorAssign[i]);
         }
 
-        // 전체 보드 돌 위치 재배치 (그리드 기반 분산 — 겹침 방지)
-        var board = gameManager?.BoardTransform;
-        float cx = board != null ? board.position.x : 0f;
-        float cy = board != null ? board.position.y : 0f;
-        float halfW = 3.5f;
-        float halfH = 2.8f;
+        // 배정 적용
+        for (int i = 0; i < active.Length; i++)
+            active[i].SetColor(colorAssign[i]);
 
-        // 19개를 5열×4행 그리드에 배치 (1칸 비움) + 랜덤 오프셋
-        int cols = 5, rows = 4;
-        float cellW = (halfW * 2f) / cols;   // 셀 너비
-        float cellH = (halfH * 2f) / rows;   // 셀 높이
-        float jitter = 0.55f;                 // 셀 내 랜덤 흔들림 (크게 → 카오스)
+        Debug.Log($"[ColorSelectGimmick] Stage started: 3 colors assigned to {active.Length} stones (Yellow={perColor}, Red={perColor}, Green={perColor}).");
+    }
 
-        // 그리드 위치 생성 + 셔플
-        var gridPositions = new System.Collections.Generic.List<Vector3>();
-        for (int r = 0; r < rows; r++)
-        {
-            for (int c = 0; c < cols; c++)
-            {
-                float gx = cx - halfW + cellW * (c + 0.5f) + Random.Range(-jitter, jitter);
-                float gy = cy - halfH + cellH * (r + 0.5f) + Random.Range(-jitter, jitter);
-                gridPositions.Add(new Vector3(gx, gy, 0f));
-            }
-        }
-        // Fisher-Yates 셔플
-        for (int i = gridPositions.Count - 1; i > 0; i--)
-        {
-            int j = Random.Range(0, i + 1);
-            (gridPositions[i], gridPositions[j]) = (gridPositions[j], gridPositions[i]);
-        }
+    /// <summary>
+    /// 던진 돌의 색을 타겟으로 확정. 추가 스폰/위치 재배치 없음.
+    /// HandController.DoThrow → GameManager.NotifyThrowStart → 여기 호출됨.
+    /// </summary>
+    public override void OnThrowStart(Stone thrownStone)
+    {
+        if (targetConfirmed) return;
 
-        for (int i = 0; i < allBoardStones.Count; i++)
-        {
-            var s = allBoardStones[i];
-            // 전체 돌 위치 재배치 (기존 4개 포함)
-            s.Rb.linearVelocity = Vector3.zero;
-            s.Rb.angularVelocity = Vector3.zero;
-            s.transform.position = gridPositions[i];
-            s.SetColor(colorAssign[i]);
-        }
+        // 타겟 색상 = 던진 돌의 실제 색
+        targetColor = thrownStone.Color;
+        targetConfirmed = true;
+        Debug.Log($"[ColorSelectGimmick] Target color confirmed: {targetColor} (from thrown stone)");
 
-        Debug.Log($"[ColorSelectGimmick] 15 stones distributed: Yellow={yellowTotal}, Red={redTotal}, Green={greenTotal}. Target={targetColor}, Board={allBoardStones.Count}.");
+        // UI 안내
+        GameUI.Instance?.UpdateGuideText($"[ {GetColorName(targetColor)}만 주우세요! ]");
     }
 
     public override bool ValidatePick(Stone stone)
@@ -170,8 +100,7 @@ public class ColorSelectGimmick : StageGimmick
     }
 
     /// <summary>
-    /// 클리어 판정: 기존 룰대로 라운드 수로 판정 (1단=4회, 2단=2회, 3단=2회, 4단=1회).
-    /// "바닥에 돌 0개" 대신 "라운드 횟수" 기준.
+    /// 클리어 판정: 라운드 횟수 기준 (1단=4회, 2단=2회, 3단=2회, 4단=1회).
     /// </summary>
     public override bool IsRoundComplete(int pickedThisRound, int remainingOnBoard)
     {
@@ -197,14 +126,7 @@ public class ColorSelectGimmick : StageGimmick
 
     public override void OnStageEnd()
     {
-        // 추가 돌 비활성화
-        if (additionalStones != null && StonePool.Instance != null)
-        {
-            StonePool.Instance.DeactivateStones(additionalStones);
-            additionalStones = null;
-        }
-
-        // 전체 색상 리셋 (비활성 돌은 Activate 시 자동 리셋되므로 활성 돌만)
+        // 전체 색상 리셋 (활성 돌만)
         var pool = StonePool.Instance;
         if (pool != null)
         {

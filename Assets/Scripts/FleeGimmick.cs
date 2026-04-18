@@ -63,11 +63,11 @@ public class FleeGimmick : StageGimmick
     private Rect GetBoardRect()
     {
         if (gameManager == null || gameManager.BoardTransform == null)
-            return new Rect(-4f, -12f, 8f, 6.4f);
+            return new Rect(-4.8f, -8.3f, 9.6f, 6.1f);
 
         var boardPos = gameManager.BoardTransform.position;
-        float halfW = 4f;
-        float halfH = 3.2f;
+        float halfW = 4.8f;
+        float halfH = 3.05f;
         return new Rect(
             boardPos.x - halfW,
             boardPos.y - halfH,

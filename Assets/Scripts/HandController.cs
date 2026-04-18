@@ -18,6 +18,10 @@ public class HandController : MonoBehaviour
     [SerializeField] private float throwPeakY = 8f;        // 최고점 Y (하늘 영역 상단)
     [SerializeField] private float throwUpDuration = 0.8f;
     [SerializeField] private float throwDownDuration = 1.0f;
+    private float throwDownDurationOverride = -1f;
+    private float maxMoveSpeed = -1f;      // 음수 = 무제한
+    private float moveSmoothFactor = -1f;  // 음수 = 즉시 추종
+    private HandGhostPool ghostPool;
 
     [Header("Catch Settings")]
     [SerializeField] private float catchAreaY = 2f;         // 받기 영역 Y (하늘/보드 경계)
@@ -199,11 +203,19 @@ public class HandController : MonoBehaviour
     private void UpdatePosition()
     {
         Vector2 screenPos = pointerAction.ReadValue<Vector2>();
-        Vector3 worldPos = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
-        worldPos.z = -0.5f;
-        transform.position = worldPos;
-        // Hitbox 위치 동기화 (회전 독립)
-        handModel?.SyncHitboxPosition(worldPos);
+        Vector3 targetPos = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
+        targetPos.z = -0.5f;
+
+        Vector3 finalPos = targetPos;
+        if (moveSmoothFactor > 0f)
+            finalPos = Vector3.Lerp(transform.position, targetPos, moveSmoothFactor * Time.deltaTime);
+        if (maxMoveSpeed > 0f)
+            finalPos = Vector3.MoveTowards(transform.position, finalPos, maxMoveSpeed * Time.deltaTime);
+        finalPos.z = -0.5f;
+
+        transform.position = finalPos;
+        handModel?.SyncHitboxPosition(finalPos);
+        ghostPool?.OnHandMoved(finalPos);
     }
 
     // === Hold + Bounds 줍기 입력 ===
@@ -460,8 +472,9 @@ public class HandController : MonoBehaviour
         // === 내려오기 (EaseIn — 가속 낙하) ===
         // catchAreaY 위: 코루틴이 위치 직접 제어 (isKinematic=true)
         // catchAreaY 도달: isKinematic=false로 전환 → 물리 엔진이 위치 관리 → Collider 판정 가능
+        float effectiveDownDuration = throwDownDurationOverride > 0f ? throwDownDurationOverride : throwDownDuration;
         elapsed = 0f;
-        while (elapsed < throwDownDuration)
+        while (elapsed < effectiveDownDuration)
         {
             if (catchSystem != null && !catchSystem.IsCatchPhase)
             {
@@ -473,7 +486,7 @@ public class HandController : MonoBehaviour
             }
 
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / throwDownDuration);
+            float t = Mathf.Clamp01(elapsed / effectiveDownDuration);
             float eased = t * t;
             float y = Mathf.Lerp(throwPeakY, startY, eased);
 
@@ -483,7 +496,7 @@ public class HandController : MonoBehaviour
                 stone.Rb.isKinematic = false;
                 stone.Rb.useGravity = true;
                 // 현재 코루틴 하강 속도 유지 (EaseIn t²에 의한 순간 속도)
-                float instantSpeed = (throwPeakY - startY) / throwDownDuration * 2f * t;
+                float instantSpeed = (throwPeakY - startY) / effectiveDownDuration * 2f * t;
                 stone.Rb.linearVelocity = new Vector3(0f, -instantSpeed, 0f);
                 Debug.Log($"[Hand] Stone {stone.StoneIndex} switched to physics at y={y:F2}, speed={instantSpeed:F2}");
             }
@@ -533,10 +546,20 @@ public class HandController : MonoBehaviour
 
         // 1~4단 받기: X/Y 모두 커서 추종, Y 하한 = boardMin.y
         Vector2 screenPos2 = pointerAction.ReadValue<Vector2>();
-        Vector3 worldPos2 = mainCamera.ScreenToWorldPoint(new Vector3(screenPos2.x, screenPos2.y, 10f));
-        float clampedY = Mathf.Max(worldPos2.y, boardMin.y);
-        transform.position = new Vector3(worldPos2.x, clampedY, -0.5f);
-        handModel?.SyncHitboxPosition(transform.position);
+        Vector3 targetPos2 = mainCamera.ScreenToWorldPoint(new Vector3(screenPos2.x, screenPos2.y, 10f));
+        float clampedY = Mathf.Max(targetPos2.y, boardMin.y);
+        Vector3 targetCatch = new Vector3(targetPos2.x, clampedY, -0.5f);
+
+        Vector3 finalCatch = targetCatch;
+        if (moveSmoothFactor > 0f)
+            finalCatch = Vector3.Lerp(transform.position, targetCatch, moveSmoothFactor * Time.deltaTime);
+        if (maxMoveSpeed > 0f)
+            finalCatch = Vector3.MoveTowards(transform.position, finalCatch, maxMoveSpeed * Time.deltaTime);
+        finalCatch.z = -0.5f;
+
+        transform.position = finalCatch;
+        handModel?.SyncHitboxPosition(finalCatch);
+        ghostPool?.OnHandMoved(finalCatch);
     }
 
     // === 5단 꺾기 ===
@@ -1359,6 +1382,29 @@ public class HandController : MonoBehaviour
     /// <summary>
     /// 전체 리셋 (실패/새 스테이지 시작 시)
     /// </summary>
+    /// <summary>기믹용: 던지기 낙하 시간 오버라이드. 음수면 기본값 사용.</summary>
+    public void SetThrowDownDurationOverride(float value) { throwDownDurationOverride = value; }
+
+    /// <summary>기믹용: 손 최대 이동 속도 오버라이드. 음수면 무제한.</summary>
+    public void SetMoveSpeedOverride(float speed) { maxMoveSpeed = speed; }
+    /// <summary>기믹용: 손 이동 감쇠 계수 오버라이드. 음수면 즉시 추종.</summary>
+    public void SetMoveSmoothOverride(float factor) { moveSmoothFactor = factor; }
+    /// <summary>기믹용: 잔상 풀 연결. null이면 잔상 없음.</summary>
+    public void SetGhostPool(HandGhostPool pool) { ghostPool = pool; }
+
+    /// <summary>모든 기믹 오버라이드 해제. 스테이지 완료/재시작 시 호출.</summary>
+    public void ClearAllOverrides()
+    {
+        throwDownDurationOverride = -1f;
+        maxMoveSpeed = -1f;
+        moveSmoothFactor = -1f;
+        if (ghostPool != null)
+        {
+            ghostPool.Cleanup();
+            ghostPool = null;
+        }
+    }
+
     public void ResetHand()
     {
         // 5단 코루틴이 실행 중이면 중단

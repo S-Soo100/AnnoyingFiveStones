@@ -30,8 +30,8 @@ public class ObstacleGimmick : StageGimmick
         var board = gameManager?.BoardTransform;
         float cx = board != null ? board.position.x : 0f;
         float cy = board != null ? board.position.y : 0f;
-        float halfW = 4.0f;
-        float halfH = 3.2f;
+        float halfW = 4.8f;
+        float halfH = 3.05f;
 
         SpawnRuler(cx, cy, halfW, halfH);
         SpawnPen(cx, cy, halfW, halfH);
@@ -274,8 +274,8 @@ public class ObstacleGimmick : StageGimmick
         var board = gameManager?.BoardTransform;
         float cx = board != null ? board.position.x : 0f;
         float cy = board != null ? board.position.y : 0f;
-        float halfW = 4.0f;
-        float halfH = 3.2f;
+        float halfW = 4.8f;
+        float halfH = 3.05f;
 
         for (int i = 0; i < movingBalls.Count; i++)
         {

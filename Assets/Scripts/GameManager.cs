@@ -28,6 +28,11 @@ public class GameManager : MonoBehaviour
     // -1 = 아직 첫 줍기 안 함, 1 or 3 = 첫 줍기에서 주운 수
     private int stage3FirstPickCount = -1;
 
+    // 낙 판정 세이프존: 카메라 가시 영역 + 테이블 상단 경계
+    // (Cloth 기반이 아니라 "회수 불가" 기준 — 2026-04-18 Designer 승인)
+    public static readonly Vector2 SafeZoneMin = new Vector2(-12f, -8.5f);
+    public static readonly Vector2 SafeZoneMax = new Vector2( 12f, -2f);
+
     [Header("References (auto-resolved at runtime)")]
     private Stone[] stones;
     private Transform boardTransform;
@@ -316,17 +321,14 @@ public class GameManager : MonoBehaviour
     private void CheckOnBoardStonesOutOfBounds()
     {
         if (stones == null) return;
-        Vector2 boardCenter = new Vector2(boardTransform.position.x, boardTransform.position.y);
-        Vector2 halfSize = new Vector2(4f, 3.2f); // boardSize / 2
-
         foreach (var stone in stones)
         {
             if (stone.CurrentState != Stone.State.OnBoard) continue;
             if (!stone.gameObject.activeSelf) continue;
 
             Vector2 pos = new Vector2(stone.transform.position.x, stone.transform.position.y);
-            bool outX = pos.x < boardCenter.x - halfSize.x - 0.5f || pos.x > boardCenter.x + halfSize.x + 0.5f;
-            bool outY = pos.y < boardCenter.y - halfSize.y - 0.5f || pos.y > boardCenter.y + halfSize.y + 0.5f;
+            bool outX = pos.x < SafeZoneMin.x || pos.x > SafeZoneMax.x;
+            bool outY = pos.y < SafeZoneMin.y || pos.y > SafeZoneMax.y;
 
             if (outX || outY)
             {
@@ -464,7 +466,7 @@ public class GameManager : MonoBehaviour
         transitionCoroutine = null;
 
         // 실제 게임 시작
-        if (stage <= 4)
+        if (stage != 5)
         {
             SetPhase(GamePhase.Scatter);
         }
@@ -596,12 +598,12 @@ public class GameManager : MonoBehaviour
         if (boardTransform == null) return;
 
         float boardCenterX = boardTransform.position.x;
-        float boardBottomY = boardTransform.position.y - 3.2f; // boardSize.y / 2
+        float boardBottomY = boardTransform.position.y - 3.05f; // boardSize.y / 2
 
         var wallGo = new GameObject("BoardBottomWall");
         wallGo.transform.position = new Vector3(boardCenterX, boardBottomY - 0.25f, 0f);
         var col = wallGo.AddComponent<BoxCollider>();
-        col.size = new Vector3(10f, 0.5f, 2f); // 넓고 얇은 벽
+        col.size = new Vector3(12f, 0.5f, 2f); // 넓고 얇은 벽
         // Rigidbody 없음 = Static Collider (움직이지 않음)
     }
 
@@ -646,6 +648,8 @@ public class GameManager : MonoBehaviour
         SidePanelUI.Instance?.Refresh();
 
         currentGimmick?.OnStageEnd(); // v4: 기믹 정리
+        // 5단 꺾기 후에는 currentGimmick==null이므로 잔여 override 직접 정리
+        handController?.ClearAllOverrides();
 
         int nextStage = currentStage + 1;
         if (nextStage > 5)
@@ -844,6 +848,11 @@ public class GameManager : MonoBehaviour
         }
 
         GraveyardUI.Instance?.Hide();
+
+        // 기믹 정리 (방해물/도망/가짜돌 등 씬 잔여물 제거)
+        currentGimmick?.OnStageEnd();
+        currentGimmick = null;
+        handController?.ClearAllOverrides();
 
         // 세션 전체 초기화 (이름 입력은 엔딩 후)
         session?.ResetAll();

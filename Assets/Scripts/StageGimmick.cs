@@ -41,6 +41,10 @@ public abstract class StageGimmick
             GimmickType.Flee        => new FleeGimmick(),
             GimmickType.FakeStone   => new FakeStoneGimmick(),
             GimmickType.Obstacle    => new ObstacleGimmick(),
+            GimmickType.Gravity     => new GravityGimmick(),
+            GimmickType.AgedHand    => new AgedHandGimmick(),
+            GimmickType.Spotlight   => new SpotlightGimmick(),
+            GimmickType.Monochrome  => new MonochromeGimmick(),
             _                       => null,
         };
         gimmick?.Init(gm);

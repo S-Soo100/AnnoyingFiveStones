@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -21,7 +22,7 @@ public class ScatterSystem : MonoBehaviour
     [SerializeField] private float settleTimeout = 4f;       // 최대 안착 대기 시간
 
     [Header("Board (auto-resolved)")]
-    [SerializeField] private Vector2 boardSize = new Vector2(8f, 6.4f);
+    [SerializeField] private Vector2 boardSize = new Vector2(9.6f, 6.1f);
 
     [Header("State")]
     [SerializeField] private float currentGaugeValue;
@@ -90,7 +91,7 @@ public class ScatterSystem : MonoBehaviour
     public void BeginScatter()
     {
         // 돌들을 보드 중앙에 모아놓기
-        float boardCenterY = boardTransform != null ? boardTransform.position.y : -4f;
+        float boardCenterY = boardTransform != null ? boardTransform.position.y : -5.25f;
         var stones = GameManager.Instance.Stones;
         foreach (var stone in stones)
         {
@@ -150,10 +151,12 @@ public class ScatterSystem : MonoBehaviour
     {
         var stones = GameManager.Instance.Stones;
         int stoneCount = stones.Length;
-        float boardCenterY = boardTransform != null ? boardTransform.position.y : -4f;
+        float boardCenterY = boardTransform != null ? boardTransform.position.y : -5.25f;
 
-        // 돌 개수에 따라 최소 간격 동적 조정
-        float dynamicMinSeparation = stoneCount <= 5 ? minStoneSeparation : minStoneSeparation * 0.5f;
+        // 돌 개수에 따라 최소 간격 + 세기 동적 조정
+        float dynamicMinSeparation = stoneCount <= 5 ? minStoneSeparation : minStoneSeparation * 0.4f;
+        // 많은 돌: 힘을 줄여 보드 밖 낙 방지 (5개=1.0, 18개=0.45, 20개=0.4)
+        float forceScale = stoneCount <= 5 ? 1f : Mathf.Lerp(0.6f, 0.35f, (stoneCount - 6f) / 14f);
 
         // 슬롯 개수: 돌의 2배 (최소 10)
         int slotCount = Mathf.Max(10, stoneCount * 2);
@@ -167,12 +170,13 @@ public class ScatterSystem : MonoBehaviour
         }
 
         float slotAngleStep = 360f / slotCount;
+        float ellipseRatio = boardSize.x / boardSize.y; // 가로로 긴 타원형 (9.6/7 ≈ 1.37)
         Vector2[] baseOffsets = new Vector2[stones.Length];
         for (int i = 0; i < stones.Length; i++)
         {
             float angle = (slotAngleStep * slots[i] + Random.Range(-10f, 10f)) * Mathf.Deg2Rad;
-            float radius = baseSpreadRadius * Random.Range(0.8f, 1.2f); // 반지름도 약간 랜덤
-            baseOffsets[i] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+            float radius = baseSpreadRadius * Random.Range(0.8f, 1.2f);
+            baseOffsets[i] = new Vector2(Mathf.Cos(angle) * ellipseRatio, Mathf.Sin(angle)) * radius;
         }
 
         // 최소 간격 보장: 너무 가까운 돌 쌍이 있으면 밀어냄
@@ -220,15 +224,17 @@ public class ScatterSystem : MonoBehaviour
             stone.Rb.angularVelocity = Vector3.zero;
 
             // X/Y 방향으로 퍼짐 + 기본 오프셋 방향으로 약간 밀어줌
-            float spreadX = Random.Range(-1f, 1f) * power + baseOffsets[i].x * 0.5f;
-            float spreadY = Random.Range(-0.6f, 0.6f) * power + baseOffsets[i].y * 0.5f;
+            float scaledPower = power * forceScale;
+            float spreadX = Random.Range(-1f, 1f) * scaledPower + baseOffsets[i].x * 0.5f * forceScale;
+            float spreadY = Random.Range(-0.6f, 0.6f) * scaledPower + baseOffsets[i].y * 0.5f * forceScale;
 
             Vector3 force = new Vector3(spreadX, spreadY, 0f);
             stone.Rb.AddForce(force, ForceMode.Impulse);
 
             // 회전 부여 (퍼지면서 굴러가는 느낌)
+            float torqueScale = forceScale;
             stone.Rb.AddTorque(
-                new Vector3(Random.Range(-3f, 3f), Random.Range(-5f, 5f), Random.Range(-3f, 3f)),
+                new Vector3(Random.Range(-3f, 3f) * torqueScale, Random.Range(-5f, 5f) * torqueScale, Random.Range(-3f, 3f) * torqueScale),
                 ForceMode.Impulse
             );
 
@@ -256,33 +262,44 @@ public class ScatterSystem : MonoBehaviour
                 break;
         }
 
-        // 장외 체크 (2D 기준: X, Y만 비교)
-        Vector2 boardCenter = new Vector2(
-            boardTransform != null ? boardTransform.position.x : 0f,
-            boardTransform != null ? boardTransform.position.y : -4f
-        );
-        Vector2 halfSize = boardSize * 0.5f;
-
-        bool anyOutOfBounds = false;
+        // 장외 체크 (2D 기준: X, Y만 비교) — SafeZone 기반
+        var outOfBoundsStones = new List<Stone>();
         foreach (var stone in stones)
         {
             Vector2 stonePos = new Vector2(stone.transform.position.x, stone.transform.position.y);
-            bool outX = stonePos.x < boardCenter.x - halfSize.x || stonePos.x > boardCenter.x + halfSize.x;
-            bool outY = stonePos.y < boardCenter.y - halfSize.y || stonePos.y > boardCenter.y + halfSize.y;
+            bool outX = stonePos.x < GameManager.SafeZoneMin.x || stonePos.x > GameManager.SafeZoneMax.x;
+            bool outY = stonePos.y < GameManager.SafeZoneMin.y || stonePos.y > GameManager.SafeZoneMax.y;
 
             if (outX || outY)
             {
                 Debug.Log($"[ScatterSystem] Stone {stone.StoneIndex} out of bounds at ({stonePos.x:F2}, {stonePos.y:F2})");
                 TestLogger.Instance?.LogPhysics("out_of_bounds",
-                    $"stone={stone.StoneIndex} pos=({stonePos.x:F2},{stonePos.y:F2}) board_center=({boardCenter.x:F2},{boardCenter.y:F2}) board_half=({halfSize.x:F2},{halfSize.y:F2})");
-                anyOutOfBounds = true;
+                    $"stone={stone.StoneIndex} pos=({stonePos.x:F2},{stonePos.y:F2}) safe_min=({GameManager.SafeZoneMin.x:F2},{GameManager.SafeZoneMin.y:F2}) safe_max=({GameManager.SafeZoneMax.x:F2},{GameManager.SafeZoneMax.y:F2})");
+                outOfBoundsStones.Add(stone);
             }
         }
 
-        if (anyOutOfBounds)
+        if (outOfBoundsStones.Count > 0)
         {
             AudioManager.Instance?.PlayOutOfBounds();
             TestLogger.Instance?.LogFailure("scatter_out_of_bounds");
+
+            // 낙 연출: InAir 상태 전환 + 하강 속도 → 허공 정지 방지
+            var wall = GameObject.Find("BoardBottomWall");
+            bool wallWasActive = wall != null && wall.activeSelf;
+            if (wall != null) wall.SetActive(false);
+
+            foreach (var s in outOfBoundsStones)
+            {
+                s.SetState(Stone.State.InAir);
+                var v = s.Rb.linearVelocity;
+                s.Rb.linearVelocity = new Vector3(v.x * 0.5f, Mathf.Min(v.y, -4f), 0f);
+            }
+
+            yield return new WaitForSeconds(1.0f);
+
+            if (wall != null) wall.SetActive(wallWasActive);
+
             GameManager.Instance.SetFailReason("낙!");
             GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
         }

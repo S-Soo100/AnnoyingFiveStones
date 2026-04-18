@@ -84,6 +84,33 @@ public class AgeSaturationController : MonoBehaviour
             colorAdjustments.saturation.Override(0f);
     }
 
+    /// <summary>
+    /// Stage 10 전용: 완전 흑백 전환 (saturation → -100, 0.3초 페이드)
+    /// </summary>
+    public void SetFullMonochrome()
+    {
+        if (colorAdjustments == null) return;
+        if (lerpCoroutine != null) StopCoroutine(lerpCoroutine);
+        lerpCoroutine = StartCoroutine(LerpSaturation(currentSaturation, -100f, 0.3f));
+    }
+
+    /// <summary>
+    /// Stage 10 전용: 모노톤 해제 → 현재 나이 기반 채도로 즉시 복귀
+    /// </summary>
+    public void RestoreFromMonochrome(int age)
+    {
+        if (colorAdjustments == null) return;
+        if (lerpCoroutine != null) StopCoroutine(lerpCoroutine);
+        lerpCoroutine = null;
+
+        // 나이 기반 목표 채도 재계산 (UpdateSaturation 로직과 동일)
+        float normalized = Mathf.Clamp01((age - 10f) / 45f);
+        float curved = normalized * normalized * normalized;
+        float target = -curved * 80f;
+        currentSaturation = target;
+        colorAdjustments.saturation.Override(target);
+    }
+
     private IEnumerator LerpSaturation(float from, float to, float duration)
     {
         float elapsed = 0f;

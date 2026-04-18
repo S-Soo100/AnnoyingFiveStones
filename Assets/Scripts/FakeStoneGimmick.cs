@@ -3,71 +3,41 @@ using UnityEngine;
 
 /// <summary>
 /// Stage 5 [30살] 분신 가짜 잡기 기믹.
-/// 던지기 시작 시 추가 15개 활성화, 그 중 일부를 가짜로 설정 + ProximityReveal 추가.
+/// 뿌리기부터 20개 배치 (진짜 5개 인덱스 0~4, 가짜 15개 인덱스 5~19).
 /// 가짜 돌을 집으면 즉시 실패.
 /// </summary>
 public class FakeStoneGimmick : StageGimmick
 {
-    private Stone[] additionalStones;
     private List<ProximityReveal> revealers = new List<ProximityReveal>();
     private int completedRounds = 0;
-    private bool fakesSpawned = false;
 
     public override void OnStageStart(int stageInLoop)
     {
-        fakesSpawned = false;
+        var pool = StonePool.Instance;
+        if (pool == null) return;
+
+        var active = pool.ActiveStones; // 20개 (StageConfig.TotalStones=20)
+
+        revealers.Clear();
+        completedRounds = 0;
+
+        // StoneIndex >= 5인 돌 = 가짜
+        foreach (var s in active)
+        {
+            if (s.StoneIndex >= 5)
+            {
+                s.SetFake(true);
+                var reveal = s.gameObject.AddComponent<ProximityReveal>();
+                revealers.Add(reveal);
+            }
+        }
+
+        Debug.Log($"[FakeStoneGimmick] OnStageStart: {revealers.Count} fake stones marked. Total active={active.Length}");
     }
 
     public override void OnThrowStart(Stone thrownStone)
     {
-        if (fakesSpawned) return; // 첫 던지기에만 가짜 돌 추가
-        fakesSpawned = true;
-
-        var pool = StonePool.Instance;
-        if (pool == null) return;
-
-        // 추가 3개 활성화 (가짜 돌, 진짜 4 + 가짜 3 + 던진 1 = 8개)
-        additionalStones = pool.ActivateAdditional(3);
-
-        var board = gameManager?.BoardTransform;
-        float cx = board != null ? board.position.x : 0f;
-        float cy = board != null ? board.position.y : 0f;
-        float halfW = 3.5f;
-        float halfH = 2.8f;
-
-        // 추가 15개 OnBoard 상태로 설정
-        foreach (var s in additionalStones)
-        {
-            s.SetState(Stone.State.OnBoard);
-            s.Rb.linearVelocity = Vector3.zero;
-            s.Rb.angularVelocity = Vector3.zero;
-        }
-
-        // 진짜 4개(기존 OnBoard) + 가짜 3개 = 7개 전부 위치 랜덤 재배치
-        // → 원래 돌 위치를 기억해도 소용없게 만듦
-        var allActive = pool.ActiveStones;
-        foreach (var s in allActive)
-        {
-            if (s == thrownStone) continue; // 던진 돌은 공중에 있으므로 제외
-            if (s.CurrentState != Stone.State.OnBoard) continue;
-
-            float rx = cx + Random.Range(-halfW, halfW);
-            float ry = cy + Random.Range(-halfH, halfH);
-            s.transform.position = new Vector3(rx, ry, 0f);
-            s.Rb.linearVelocity = Vector3.zero;
-            s.Rb.angularVelocity = Vector3.zero;
-        }
-
-        // 추가 돌을 모두 가짜로 설정 + ProximityReveal 추가
-        revealers.Clear();
-        foreach (var s in additionalStones)
-        {
-            s.SetFake(true);
-            var reveal = s.gameObject.AddComponent<ProximityReveal>();
-            revealers.Add(reveal);
-        }
-
-        Debug.Log($"[FakeStoneGimmick] {additionalStones.Length} fake stones spawned. All {additionalStones.Length + 4} positions randomized.");
+        // 빈 본문 — 던지기 후 추가 스폰/위치 셔플 없음
     }
 
     public override bool ValidatePick(Stone stone)
@@ -98,7 +68,6 @@ public class FakeStoneGimmick : StageGimmick
     public override void OnStageEnd()
     {
         completedRounds = 0;
-        fakesSpawned = false;
         // ProximityReveal 제거
         foreach (var reveal in revealers)
         {
@@ -106,13 +75,6 @@ public class FakeStoneGimmick : StageGimmick
                 Object.Destroy(reveal);
         }
         revealers.Clear();
-
-        // 추가 돌 비활성화
-        if (additionalStones != null && StonePool.Instance != null)
-        {
-            StonePool.Instance.DeactivateStones(additionalStones);
-            additionalStones = null;
-        }
 
         // 활성 돌 isFake 리셋
         var pool = StonePool.Instance;

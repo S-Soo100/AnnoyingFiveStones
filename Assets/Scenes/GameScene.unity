@@ -245,6 +245,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Stone
   currentState: 0
+  stoneColor: 0
+  isFake: 0
 --- !u!54 &423731266
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -792,6 +794,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Stone
   currentState: 0
+  stoneColor: 0
+  isFake: 0
 --- !u!54 &788804193
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -966,6 +970,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Stone
   currentState: 0
+  stoneColor: 0
+  isFake: 0
 --- !u!54 &848210741
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -1586,6 +1592,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Stone
   currentState: 0
+  stoneColor: 0
+  isFake: 0
 --- !u!54 &1479332858
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -1760,6 +1768,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Stone
   currentState: 0
+  stoneColor: 0
+  isFake: 0
 --- !u!54 &1582391180
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2211,8 +2221,8 @@ Transform:
   m_GameObject: {fileID: 1979915420}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -5.8, z: -0.05}
-  m_LocalScale: {x: 8, y: 6.4, z: 1}
+  m_LocalPosition: {x: 0, y: -5.25, z: -0.05}
+  m_LocalScale: {x: 9.6, y: 6.1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
