@@ -39,6 +39,7 @@ public abstract class StageGimmick
             GimmickType.None        => null,
             GimmickType.ColorSelect => new ColorSelectGimmick(),
             GimmickType.Flee        => new FleeGimmick(),
+            GimmickType.Sequence    => new SequenceGimmick(),
             GimmickType.FakeStone   => new FakeStoneGimmick(),
             GimmickType.Obstacle    => new ObstacleGimmick(),
             GimmickType.Gravity     => new GravityGimmick(),

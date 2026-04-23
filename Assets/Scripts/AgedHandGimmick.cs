@@ -6,7 +6,7 @@ using UnityEngine;
 /// </summary>
 public class AgedHandGimmick : StageGimmick
 {
-    private const float MaxSpeed = 8f;        // 초당 월드 유닛 (밸런싱 대상)
+    private const float MaxSpeed = 6.4f;      // v6-4: 8f → 6.4f (× 0.8, 노화 답답함 강화)
     private const float SmoothFactor = 5f;    // 감쇠 계수 (밸런싱 대상)
     private const float Stage5MaxSpeed = 12f;  // 5단 꺾기: 약간만 느리게
     private const float Stage5SmoothFactor = 3f;

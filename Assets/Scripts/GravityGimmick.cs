@@ -9,9 +9,9 @@ using UnityEngine;
 public class GravityGimmick : StageGimmick
 {
     // 무게별 낙하 시간 배율 (throwDownDuration 기준)
-    private const float HeavyMultiplier = 0.65f;  // 검정: 35% 빠른 낙하
+    private const float HeavyMultiplier  = 0.5f;   // 검정: 50% 빠른 낙하 (기존 0.65f → 대비 강화)
     private const float NormalMultiplier = 1.0f;   // 회색: 기본
-    private const float LightMultiplier = 1.5f;    // 흰색: 50% 느린 낙하
+    private const float LightMultiplier  = 1.8f;   // 흰색: 80% 느린 낙하 (기존 1.5f → 대비 강화)
 
     private enum StoneWeight { Heavy, Normal, Light }
 
@@ -97,14 +97,27 @@ public class GravityGimmick : StageGimmick
         // HandController의 기본 throwDownDuration은 1.0f
         float overrideValue = 1.0f * multiplier;
         handController.SetThrowDownDurationOverride(overrideValue);
-        Debug.Log($"[GravityGimmick] Thrown stone {thrownStone.StoneIndex} weight={weight}, multiplier={multiplier}, override={overrideValue}");
+
+        // 무게별 낙하 커브 지정 (배율과 함께 체감 무게 차이 극대화)
+        var curveMode = weight switch
+        {
+            StoneWeight.Heavy  => HandController.ThrowDownCurveMode.EaseIn,   // 검정: 끝에서 가속 (쾅)
+            StoneWeight.Normal => HandController.ThrowDownCurveMode.Linear,   // 회색: 일정 속도
+            StoneWeight.Light  => HandController.ThrowDownCurveMode.EaseOut,  // 흰색: 시작에서 빠르고 끝에서 감속 (깃털)
+            _ => HandController.ThrowDownCurveMode.EaseIn
+        };
+        handController.SetThrowDownCurveMode(curveMode);
+        Debug.Log($"[GravityGimmick] Thrown stone {thrownStone.StoneIndex} weight={weight}, multiplier={multiplier}, override={overrideValue}, curve={curveMode}");
     }
 
     public override void OnStageEnd()
     {
-        // throwDownDuration 오버라이드 해제
+        // throwDownDuration 오버라이드 해제 + 커브 리셋
         if (handController != null)
+        {
             handController.SetThrowDownDurationOverride(-1f);
+            handController.SetThrowDownCurveMode(HandController.ThrowDownCurveMode.EaseIn);
+        }
 
         // 모든 돌 색상 리셋
         var pool = StonePool.Instance;

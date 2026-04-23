@@ -15,6 +15,7 @@ public class SettingsPopupUI : MonoBehaviour
     private CanvasGroup rootGroup;
     private TMP_FontAsset koreanFont;
     private TextMeshProUGUI volumeLabel;
+    private AnnoyingSlider volumeSlider;  // Open()에서 값 갱신하기 위한 참조
     private bool isOpen;
 
     public static SettingsPopupUI EnsureInstance()
@@ -230,17 +231,17 @@ public class SettingsPopupUI : MonoBehaviour
         var handleImg = handleGo.AddComponent<Image>();
         handleImg.color = Color.white;
 
-        var slider = sliderGo.AddComponent<AnnoyingSlider>();
-        slider.targetGraphic = handleImg;
-        slider.fillRect = fillRect;
-        slider.handleRect = handleRect;
-        slider.direction = Slider.Direction.LeftToRight;
-        slider.minValue = 0f;
-        slider.maxValue = 1f;
-        slider.value = AudioManager.GetMasterVolume();
+        volumeSlider = sliderGo.AddComponent<AnnoyingSlider>();
+        volumeSlider.targetGraphic = handleImg;
+        volumeSlider.fillRect = fillRect;
+        volumeSlider.handleRect = handleRect;
+        volumeSlider.direction = Slider.Direction.LeftToRight;
+        volumeSlider.minValue = 0f;
+        volumeSlider.maxValue = 1f;
+        volumeSlider.value = AudioManager.GetMasterVolume();
 
-        UpdateVolumeLabel(slider.value);
-        slider.onValueChanged.AddListener(v =>
+        UpdateVolumeLabel(volumeSlider.value);
+        volumeSlider.onValueChanged.AddListener(v =>
         {
             AudioManager.ApplyVolume(v);
             UpdateVolumeLabel(v);
@@ -304,6 +305,14 @@ public class SettingsPopupUI : MonoBehaviour
         isOpen = true;
         rootGroup.alpha = 1f;
         rootGroup.blocksRaycasts = true;
+
+        // v6-2: 현재 저장된 볼륨 값을 슬라이더에 재동기화
+        if (volumeSlider != null)
+        {
+            float v = AudioManager.GetMasterVolume();
+            volumeSlider.SetValueWithoutNotify(v);
+            UpdateVolumeLabel(v);
+        }
     }
 
     public void Close()

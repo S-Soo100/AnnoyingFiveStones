@@ -19,6 +19,8 @@ public class HandController : MonoBehaviour
     [SerializeField] private float throwUpDuration = 0.8f;
     [SerializeField] private float throwDownDuration = 1.0f;
     private float throwDownDurationOverride = -1f;
+    public enum ThrowDownCurveMode { EaseIn, Linear, EaseOut }
+    private ThrowDownCurveMode throwDownCurveMode = ThrowDownCurveMode.EaseIn;
     private float maxMoveSpeed = -1f;      // 음수 = 무제한
     private float moveSmoothFactor = -1f;  // 음수 = 즉시 추종
     private HandGhostPool ghostPool;
@@ -472,13 +474,18 @@ public class HandController : MonoBehaviour
         // === 내려오기 (EaseIn — 가속 낙하) ===
         // catchAreaY 위: 코루틴이 위치 직접 제어 (isKinematic=true)
         // catchAreaY 도달: isKinematic=false로 전환 → 물리 엔진이 위치 관리 → Collider 판정 가능
+        // v6-1: catchAreaY = 받기 모드 전환 기준선 (더 이상 물리 전환점 아님 → 실제론 여전히 물리 전환점, Collision 판정 필수)
         float effectiveDownDuration = throwDownDurationOverride > 0f ? throwDownDurationOverride : throwDownDuration;
+
+        // v6-1: 낙하 목표 Y를 boardSurfaceY 기준으로 (코루틴 타임아웃 대신 CatchSystem이 판정)
+        float fallTargetY = catchSystem != null ? catchSystem.BoardSurfaceY : startY;
+
         elapsed = 0f;
         while (elapsed < effectiveDownDuration)
         {
             if (catchSystem != null && !catchSystem.IsCatchPhase)
             {
-                Debug.Log("[Hand] Stone caught!");
+                Debug.Log("[Hand] Stone caught or fell (CatchSystem handled)!");
                 SetCatchMode(false);
                 handModel?.SetCollidersEnabled(false);
                 throwCoroutine = null;
@@ -487,16 +494,32 @@ public class HandController : MonoBehaviour
 
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / effectiveDownDuration);
-            float eased = t * t;
-            float y = Mathf.Lerp(throwPeakY, startY, eased);
+            float eased = throwDownCurveMode switch
+            {
+                ThrowDownCurveMode.EaseIn  => t * t,
+                ThrowDownCurveMode.Linear  => t,
+                ThrowDownCurveMode.EaseOut => 1f - (1f - t) * (1f - t),
+                _ => t * t
+            };
+            // v6-1: Lerp 목표를 fallTargetY(보드 표면)로 변경
+            float y = Mathf.Lerp(throwPeakY, fallTargetY, eased);
 
             // catchAreaY 도달: 코루틴 제어에서 물리 낙하로 전환
+            // (Collision 판정을 위해 isKinematic=false 전환 유지)
             if (y <= catchAreaY && stone.Rb.isKinematic)
             {
                 stone.Rb.isKinematic = false;
                 stone.Rb.useGravity = true;
-                // 현재 코루틴 하강 속도 유지 (EaseIn t²에 의한 순간 속도)
-                float instantSpeed = (throwPeakY - startY) / effectiveDownDuration * 2f * t;
+                // 커브별 미분값으로 전환 순간 속도 계산 (속도 점프 방지)
+                // EaseIn: d/dt(t²) = 2t, Linear: d/dt(t) = 1, EaseOut: d/dt(1-(1-t)²) = 2(1-t)
+                float derivative = throwDownCurveMode switch
+                {
+                    ThrowDownCurveMode.EaseIn  => 2f * t,
+                    ThrowDownCurveMode.Linear  => 1f,
+                    ThrowDownCurveMode.EaseOut => 2f * (1f - t),
+                    _ => 2f * t
+                };
+                float instantSpeed = derivative / effectiveDownDuration * (throwPeakY - fallTargetY);
                 stone.Rb.linearVelocity = new Vector3(0f, -instantSpeed, 0f);
                 Debug.Log($"[Hand] Stone {stone.StoneIndex} switched to physics at y={y:F2}, speed={instantSpeed:F2}");
             }
@@ -511,7 +534,17 @@ public class HandController : MonoBehaviour
             yield return null;
         }
 
-        // 못 받음 → 실패
+        // 코루틴 타임아웃: CatchSystem이 이미 처리했을 수도 있음 (중복 방지)
+        if (catchSystem != null && !catchSystem.IsCatchPhase)
+        {
+            // CatchSystem이 이미 실패/성공 처리 완료 — 중복 호출 방지
+            SetCatchMode(false);
+            handModel?.SetCollidersEnabled(false);
+            throwCoroutine = null;
+            yield break;
+        }
+
+        // 못 받음 → 실패 (CatchSystem이 미처 감지 못한 경우 fallback)
         AudioManager.Instance?.PlayCatchFail();
         if (catchSystem != null) catchSystem.StopCatch();
         SetCatchMode(false);
@@ -564,6 +597,9 @@ public class HandController : MonoBehaviour
 
     // === 5단 꺾기 ===
 
+    // v6-1: 5단 내 boardSurfaceY (DoStage5Sequence 시작 시 캐시)
+    private float stage5BoardSurfaceY = -8.2f;
+
     /// <summary>
     /// GameManager에서 호출: 5단 시퀀스 시작 (코루틴이 이미 실행 중이면 중복 시작 방지)
     /// </summary>
@@ -583,6 +619,10 @@ public class HandController : MonoBehaviour
         var gm = GameManager.Instance;
         var allStones = gm.Stones;
         int count = allStones.Length;
+
+        // v6-1: boardSurfaceY 캐시 (DoStage5Catch/FistGrab에서 멤버 변수로 참조)
+        var catchSys = FindFirstObjectByType<CatchSystem>();
+        stage5BoardSurfaceY = catchSys != null ? catchSys.BoardSurfaceY : -8.2f;
 
         // ============ [1단계] 손바닥 던지기 ============
         // SetPhase(Stage5Throw)는 GameManager.DoStageIntro에서 이미 호출됨
@@ -841,7 +881,8 @@ public class HandController : MonoBehaviour
             Debug.Log($"[Stage5] Stone {stones[i].StoneIndex}: startY={stoneStartY[i]:F1}, normalizedH={normalizedH:F2}, downDuration={downDuration[i]:F2}s");
         }
 
-        float landY = catchAreaY - stage5MissThreshold; // 이 아래로 가면 놓침
+        // v6-1: landY를 boardSurfaceY 기준으로 통일 (기존: catchAreaY - stage5MissThreshold)
+        float landY = stage5BoardSurfaceY; // 보드 표면까지 내려오면 놓침
 
         // === 독립 낙하 루프 (EaseIn — 가속) ===
         float globalElapsed = 0f;
@@ -1005,7 +1046,8 @@ public class HandController : MonoBehaviour
             downDuration[i] = baseFallDuration * (1f + normalizedH);
         }
 
-        float landY = catchAreaY - 3.5f;
+        // v6-1: landY를 boardSurfaceY 기준으로 통일 (기존: catchAreaY - 3.5f)
+        float landY = stage5BoardSurfaceY;
         float maxDownDuration = baseFallDuration * 3f;
         float globalElapsed = 0f;
         bool isGrabbing = false; // 홀드 중 (한붓그리기 활성)
@@ -1385,6 +1427,9 @@ public class HandController : MonoBehaviour
     /// <summary>기믹용: 던지기 낙하 시간 오버라이드. 음수면 기본값 사용.</summary>
     public void SetThrowDownDurationOverride(float value) { throwDownDurationOverride = value; }
 
+    /// <summary>기믹용: 낙하 커브 모드 오버라이드. EaseIn=기본(무거움), Linear=중간, EaseOut=가벼움.</summary>
+    public void SetThrowDownCurveMode(ThrowDownCurveMode mode) { throwDownCurveMode = mode; }
+
     /// <summary>기믹용: 손 최대 이동 속도 오버라이드. 음수면 무제한.</summary>
     public void SetMoveSpeedOverride(float speed) { maxMoveSpeed = speed; }
     /// <summary>기믹용: 손 이동 감쇠 계수 오버라이드. 음수면 즉시 추종.</summary>
@@ -1396,6 +1441,7 @@ public class HandController : MonoBehaviour
     public void ClearAllOverrides()
     {
         throwDownDurationOverride = -1f;
+        throwDownCurveMode = ThrowDownCurveMode.EaseIn;
         maxMoveSpeed = -1f;
         moveSmoothFactor = -1f;
         if (ghostPool != null)

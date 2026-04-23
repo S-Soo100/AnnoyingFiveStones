@@ -5,12 +5,13 @@ using UnityEngine;
 /// 받기 시스템: Collider 기반 안착/튕김 판정 (Phase C Step 4).
 /// HandHitbox → HandController.OnStoneHit() → 이 클래스의 OnPalmCatch / OnFingerBounce 호출.
 /// 기획서: "바닥 돌 남음 → 같은 돌로 다시 던지기 / 전부 제거 → 다음 단"
+/// v6-1: boardSurfaceY (보드 표면) 기준으로 낙 판정 통일.
 /// </summary>
 public class CatchSystem : MonoBehaviour
 {
     [Header("Bounce Settings")]
     [SerializeField] private float bounceSpeed = 5f;
-    [SerializeField] private float boardFloorY = -5f;  // 이 아래로 떨어지면 탈락
+    [SerializeField] private float boardFloorY = -9f;  // 안전망 하한선 (fallback, 평상시 발동 안 됨)
 
     [Header("State")]
     [SerializeField] private bool isCatchPhase;
@@ -18,21 +19,52 @@ public class CatchSystem : MonoBehaviour
     private HandController handController;
     private Stone thrownStone;
 
-    // Bouncing 상태 돌 추적
+    // Bouncing + InAir 상태 돌 추적
     private List<Stone> bouncingStones = new List<Stone>();
+    private List<Stone> inAirStones = new List<Stone>();
+
+    // v6-1: 보드 표면 Y (런타임 계산)
+    private float boardSurfaceY = -2.45f; // fallback
 
     public bool IsCatchPhase => isCatchPhase;
+    public float BoardSurfaceY => boardSurfaceY;
 
     private void Start()
     {
         handController = FindFirstObjectByType<HandController>();
+        CalculateBoardSurfaceY();
+    }
+
+    private void CalculateBoardSurfaceY()
+    {
+        var cloth = GameObject.Find("Cloth");
+        if (cloth == null)
+        {
+            Debug.LogWarning("[CatchSystem] Cloth not found! Using fallback boardSurfaceY = -2.45");
+            boardSurfaceY = -2.45f;
+            return;
+        }
+
+        // Renderer.bounds.max.y를 우선 사용 (실제 메시 상단)
+        var renderer = cloth.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            boardSurfaceY = renderer.bounds.max.y;
+        }
+        else
+        {
+            // fallback: position.y + localScale.y * 0.5
+            boardSurfaceY = cloth.transform.position.y + cloth.transform.localScale.y * 0.5f;
+        }
+
+        Debug.Log($"[CatchSystem] boardSurfaceY = {boardSurfaceY:F2}");
     }
 
     private void Update()
     {
         if (!isCatchPhase) return;
 
-        // Bouncing 돌 바닥 도달 감시
+        // Bouncing 돌 감시: boardSurfaceY 도달 시 탈락, boardFloorY(-9f)는 안전망
         for (int i = bouncingStones.Count - 1; i >= 0; i--)
         {
             var stone = bouncingStones[i];
@@ -41,7 +73,37 @@ public class CatchSystem : MonoBehaviour
                 bouncingStones.RemoveAt(i);
                 continue;
             }
+            if (stone.transform.position.y <= boardSurfaceY)
+            {
+                OnStoneFell(stone);
+                return;
+            }
+            // 안전망 fallback (비정상 상황)
             if (stone.transform.position.y <= boardFloorY)
+            {
+                OnStoneFell(stone);
+                return;
+            }
+        }
+
+        // InAir 돌 감시: boardSurfaceY 도달 시 탈락 (isKinematic=false 전환 후)
+        for (int i = inAirStones.Count - 1; i >= 0; i--)
+        {
+            var stone = inAirStones[i];
+            if (stone == null || !stone.gameObject.activeSelf)
+            {
+                inAirStones.RemoveAt(i);
+                continue;
+            }
+            // Kinematic이면 코루틴이 제어 중 — 물리 낙하 전환 후에만 체크
+            if (stone.Rb.isKinematic) continue;
+            if (stone.CurrentState != Stone.State.InAir)
+            {
+                // 상태가 바뀌었으면 (Caught 등) 리스트에서 제거
+                inAirStones.RemoveAt(i);
+                continue;
+            }
+            if (stone.transform.position.y <= boardSurfaceY)
             {
                 OnStoneFell(stone);
                 return;
@@ -54,6 +116,12 @@ public class CatchSystem : MonoBehaviour
         thrownStone = thrown;
         isCatchPhase = true;
         bouncingStones.Clear();
+        inAirStones.Clear();
+
+        // 던진 돌을 InAir 감시 리스트에 등록
+        if (thrown != null && !inAirStones.Contains(thrown))
+            inAirStones.Add(thrown);
+
         Debug.Log("[CatchSystem] Catch phase started!");
     }
 
@@ -62,6 +130,7 @@ public class CatchSystem : MonoBehaviour
         isCatchPhase = false;
         thrownStone = null;
         bouncingStones.Clear();
+        inAirStones.Clear();
     }
 
     /// <summary>Palm 안착: 돌을 Caught 상태로 전환 → OnCatchSuccess()</summary>

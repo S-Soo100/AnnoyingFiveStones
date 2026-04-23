@@ -52,6 +52,7 @@ public class Stone : MonoBehaviour
     private Collider col;
     private int stoneIndex;
     private Color originalMaterialColor; // 원본 머티리얼 색상 보존
+    private StoneShadow shadow; // v6-1: 낙하 그림자
 
     public State CurrentState => currentState;
     public Rigidbody Rb => rb;
@@ -91,6 +92,9 @@ public class Stone : MonoBehaviour
             // AirLayer ↔ AirLayer 충돌 활성 (기본값이 활성이므로 설정 불필요)
             layerCollisionConfigured = true;
         }
+
+        // v6-1: 낙하 그림자 컴포넌트 (기본 비활성)
+        shadow = gameObject.AddComponent<StoneShadow>();
     }
 
     public void Initialize(int index)
@@ -178,6 +182,9 @@ public class Stone : MonoBehaviour
     public void SetState(State newState)
     {
         currentState = newState;
+
+        // v6-1: InAir/Bouncing일 때 그림자 활성
+        shadow?.UpdateVisibility(newState);
 
         switch (newState)
         {

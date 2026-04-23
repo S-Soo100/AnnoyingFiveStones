@@ -98,7 +98,7 @@ public class MonochromeGimmick : StageGimmick
         isMonochrome = false;
 
         // UI 안내
-        GameUI.Instance?.UpdateGuideText($"[ 기억하세요! {memoryTimer:F1}초 ]");
+        GameUI.Instance?.UpdateGuideText($"[ 타겟을 확인하세요 — {memoryTimer:F1}초 후 흑백 ]");
 
         Debug.Log($"[MonochromeGimmick] Additional {additionalStones.Length} stones spawned. Memory time: {memoryTimer}s");
     }
@@ -272,20 +272,43 @@ public class MonochromeGimmick : StageGimmick
     {
         int idx = (int)design;
         stone.SetColor(designColors[idx]);
+        string text = designLabels[idx];
 
-        // TextMeshPro 3D 월드스페이스 라벨 생성
-        var labelGo = new GameObject($"DesignLabel_{stone.StoneIndex}");
-        labelGo.transform.SetParent(stone.transform);
-        labelGo.transform.localPosition = new Vector3(0f, 0f, -0.1f); // 돌 표면보다 약간 카메라 쪽
-        labelGo.transform.localRotation = Quaternion.identity;
-        labelGo.transform.localScale = Vector3.one * 0.5f;
+        // 돌 중앙에 숫자 라벨 1개 (Z=-0.5로 메시 앞면 밖, Stone 회전 무관)
+        CreateLabel(stone, text, new Vector3(0f, 0f, -0.5f), "Center");
+    }
+
+    private void CreateLabel(Stone stone, string text, Vector3 worldOffset, string suffix)
+    {
+        var labelGo = new GameObject($"DesignLabel_{stone.StoneIndex}_{suffix}");
+        // SetParent 제거: Stone의 Z축 회전과 독립 (StoneLabel.LateUpdate로 position만 추적)
+        labelGo.transform.position = stone.transform.position + worldOffset;
+        // Y축 180°: TMP 앞면(+Z)을 카메라 쪽(-Z)으로 반전
+        labelGo.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        // ScaleX=-1: Y 180° 회전이 local X를 뒤집는 부작용(좌우반전) 상쇄
+        labelGo.transform.localScale = new Vector3(-0.6f, 0.6f, 0.3f);
 
         var tmp = labelGo.AddComponent<TextMeshPro>();
-        tmp.text = designLabels[idx];
-        tmp.fontSize = 8f;
+        tmp.text = text;
+        tmp.fontSize = 12f;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = Color.white;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.enableWordWrapping = false;
         tmp.sortingOrder = 10;
+
+        // 프로젝트 패턴 준수: 한글 폰트 에셋 통일 (숫자지만 렌더 파이프라인 일관성)
+        var koreanFont = KoreanFont.GetTMP();
+        if (koreanFont != null) tmp.font = koreanFont;
+
+        // 가독성: 흰 글자 + 검정 외곽선 (컬러 돌 위 + 흑백 전환 전 강한 대비)
+        tmp.outlineColor = Color.black;
+        tmp.outlineWidth = 0.2f;
+
+        // Billboard 컴포넌트: Stone 회전 무시하고 position만 추적
+        var billboard = labelGo.AddComponent<StoneLabel>();
+        billboard.target = stone.transform;
+        billboard.worldOffset = worldOffset;
 
         textLabels.Add(labelGo);
     }
@@ -325,24 +348,7 @@ public class MonochromeGimmick : StageGimmick
         if (satCtrl != null)
             satCtrl.SetFullMonochrome();
 
-        // TextMesh 라벨 숨기기 (Destroy가 아닌 비활성)
-        foreach (var label in textLabels)
-        {
-            if (label != null) label.SetActive(false);
-        }
-
-        // 모든 OnBoard 돌 색상을 Gray로 변경
-        var pool = StonePool.Instance;
-        if (pool != null)
-        {
-            foreach (var s in pool.ActiveStones)
-            {
-                if (s.gameObject.activeSelf && s.CurrentState == Stone.State.OnBoard)
-                    s.SetColor(Stone.StoneColor.Gray);
-            }
-        }
-
-        GameUI.Instance?.UpdateGuideText("[ 기억에 의지하여 타겟을 주우세요! ]");
+        GameUI.Instance?.UpdateGuideText("[ 타겟 숫자를 골라 주우세요 ]");
         Debug.Log("[MonochromeGimmick] Monochrome transition complete.");
     }
 

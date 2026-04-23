@@ -8,7 +8,7 @@ using UnityEngine;
 public class TrapezoidQuad : MonoBehaviour
 {
     [SerializeField, Range(0f, 0.3f)]
-    private float topNarrow = 0.08f; // 윗변 좁힘 비율 (8% = 살짝)
+    private float topNarrow = 0.20f; // 윗변 좁힘 비율 (20% = v6-1 더 기울어진 테이블)
 
     private void Start()
     {

@@ -26,12 +26,13 @@ public class GameManager : MonoBehaviour
 
     // 3단 서브라운드: 첫 줍기 결과에 따라 다음 필요 수량 결정
     // -1 = 아직 첫 줍기 안 함, 1 or 3 = 첫 줍기에서 주운 수
+    // stage3FirstPickCount: "stageInLoop=3의 첫 줍기 개수" — Loop 3(Flee), Loop 4(Sequence) 모두 적용
     private int stage3FirstPickCount = -1;
 
-    // 낙 판정 세이프존: 카메라 가시 영역 + 테이블 상단 경계
-    // (Cloth 기반이 아니라 "회수 불가" 기준 — 2026-04-18 Designer 승인)
-    public static readonly Vector2 SafeZoneMin = new Vector2(-12f, -8.5f);
-    public static readonly Vector2 SafeZoneMax = new Vector2( 12f, -2f);
+    // 낙 판정 세이프존: board(X±4.8, Y[-8.3,-2.2]) + 여유분 0.5 world
+    // Y상한 -2는 테이블 상단 경계 (메모리 설계). X/Y하한은 "흰 테이블 살짝만 벗어나도 낙" 유저 피드백 반영 (2026-04-18 재조정)
+    public static readonly Vector2 SafeZoneMin = new Vector2(-5.3f, -8.8f);
+    public static readonly Vector2 SafeZoneMax = new Vector2( 5.3f, -2f);
 
     [Header("References (auto-resolved at runtime)")]
     private Stone[] stones;
@@ -654,10 +655,10 @@ public class GameManager : MonoBehaviour
         int nextStage = currentStage + 1;
         if (nextStage > 5)
         {
-            // v4: 55살(10스테이지 5단) 완료 시 게임 클리어
+            // v4: 60살(10스테이지 5단 완료 후) 도달 시 게임 클리어
             if (session != null && session.IsGameClear)
             {
-                Debug.Log("[GameManager] GAME CLEAR! Age 55 reached!");
+                Debug.Log("[GameManager] GAME CLEAR! Age 60 reached!");
                 transitionCoroutine = StartCoroutine(DoAllClearTransition());
                 return;
             }

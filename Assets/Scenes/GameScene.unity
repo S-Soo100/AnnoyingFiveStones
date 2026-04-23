@@ -526,7 +526,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 12f3504b1d770436aaa785f39adeacd2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TrapezoidQuad
-  topNarrow: 0.08
+  topNarrow: 0.2
 --- !u!1 &533509875
 GameObject:
   m_ObjectHideFlags: 0
@@ -1999,7 +1999,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CatchSystem
   bounceSpeed: 5
-  boardFloorY: -5
+  boardFloorY: -9
   isCatchPhase: 0
 --- !u!114 &1608197136
 MonoBehaviour:
@@ -2252,7 +2252,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 12f3504b1d770436aaa785f39adeacd2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TrapezoidQuad
-  topNarrow: 0.08
+  topNarrow: 0.2
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

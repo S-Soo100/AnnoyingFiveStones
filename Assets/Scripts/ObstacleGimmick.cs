@@ -53,7 +53,7 @@ public class ObstacleGimmick : StageGimmick
 
         var renderer = go.GetComponent<Renderer>();
         if (renderer != null)
-            renderer.material.color = new Color(0.85f, 0.72f, 0.45f);
+            renderer.material = CreateLitMaterial(new Color(0.85f, 0.72f, 0.45f));
 
         float posX = cx + halfW * 0.15f;
         float posY = cy + halfH * 0.15f;
@@ -89,7 +89,7 @@ public class ObstacleGimmick : StageGimmick
 
         var renderer = go.GetComponent<Renderer>();
         if (renderer != null)
-            renderer.material.color = new Color(0.2f, 0.2f, 0.6f);
+            renderer.material = CreateLitMaterial(new Color(0.2f, 0.2f, 0.6f));
 
         float posX, posY, angle;
         switch (side)
@@ -150,7 +150,7 @@ public class ObstacleGimmick : StageGimmick
 
             var renderer = go.GetComponent<Renderer>();
             if (renderer != null)
-                renderer.material.color = new Color(0.9f, 0.85f, 0.75f);
+                renderer.material = CreateLitMaterial(new Color(0.9f, 0.85f, 0.75f));
 
             float posX, posY;
             switch (corners[i])
@@ -192,7 +192,7 @@ public class ObstacleGimmick : StageGimmick
 
             var renderer = go.GetComponent<Renderer>();
             if (renderer != null)
-                renderer.material.color = ballColors[i];
+                renderer.material = CreateLitMaterial(ballColors[i]);
 
             Vector3 startPos, endPos;
             BuildBallPath(cx, cy, halfW, halfH, i, out startPos, out endPos);
@@ -267,27 +267,6 @@ public class ObstacleGimmick : StageGimmick
         return Vector2.Distance(point, closest);
     }
 
-    public override void OnPickPhaseStart()
-    {
-        if (movingBalls.Count == 0) return;
-
-        var board = gameManager?.BoardTransform;
-        float cx = board != null ? board.position.x : 0f;
-        float cy = board != null ? board.position.y : 0f;
-        float halfW = 4.8f;
-        float halfH = 3.05f;
-
-        for (int i = 0; i < movingBalls.Count; i++)
-        {
-            if (movingBalls[i] == null) continue;
-            Vector3 newStart, newEnd;
-            BuildBallPath(cx, cy, halfW, halfH, i, out newStart, out newEnd);
-            movingBalls[i].startPos = newStart;
-            movingBalls[i].endPos = newEnd;
-        }
-        Debug.Log("[ObstacleGimmick] Ball paths refreshed for pick phase.");
-    }
-
     public override void OnStageEnd()
     {
         foreach (var go in obstacles)
@@ -298,5 +277,16 @@ public class ObstacleGimmick : StageGimmick
         obstacles.Clear();
         movingBalls.Clear();
         Debug.Log("[ObstacleGimmick] Stage ended: obstacles destroyed.");
+    }
+
+    // CreatePrimitive는 Built-in Standard 셰이더를 기본값으로 쓰는데, URP 빌드에서 strip되어 핑크로 렌더링됨.
+    // 런타임 생성 머테리얼은 URP Lit 셰이더로 명시 교체 필수.
+    private static Material CreateLitMaterial(Color color)
+    {
+        var shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null) shader = Shader.Find("Standard");
+        var mat = new Material(shader);
+        mat.color = color;
+        return mat;
     }
 }

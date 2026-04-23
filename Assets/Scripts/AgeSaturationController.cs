@@ -63,7 +63,7 @@ public class AgeSaturationController : MonoBehaviour
     public void UpdateSaturation(int age)
     {
         // v4: 10~40살은 거의 변화 없음, 45살+ 부터 급격히 채도 감소 (지수 커브)
-        float normalized = Mathf.Clamp01((age - 10f) / 45f); // 10살=0, 55살=1
+        float normalized = Mathf.Clamp01((age - 10f) / 50f); // 10살=0, 60살=1
         float curved = normalized * normalized * normalized;  // x³ → 후반부 집중
         float target = -curved * 80f;
         Debug.Log($"[AgeSaturation] UpdateSaturation(age={age}) → target={target}, colorAdj={colorAdjustments != null}");
