@@ -36,3 +36,7 @@ mac_cfs.app/
 cfs_proto_05/
 Assets/_Recovery/
 proto/
+mac_cfs.zip
+
+# Unity/mono 크래시 덤프 (아카이브는 ~/unity-crash-logs/ 로 이동)
+mono_crash.*.json
