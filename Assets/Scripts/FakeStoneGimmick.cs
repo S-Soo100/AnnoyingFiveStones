@@ -3,7 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// Stage 5 [30살] 분신 가짜 잡기 기믹.
-/// 뿌리기부터 20개 배치 (진짜 5개 인덱스 0~4, 가짜 15개 인덱스 5~19).
+/// 뿌리기부터 10개 배치 (진짜 5개 인덱스 0~4, 가짜 5개 인덱스 5~9).
 /// 가짜 돌을 집으면 즉시 실패.
 /// </summary>
 public class FakeStoneGimmick : StageGimmick
@@ -16,7 +16,7 @@ public class FakeStoneGimmick : StageGimmick
         var pool = StonePool.Instance;
         if (pool == null) return;
 
-        var active = pool.ActiveStones; // 20개 (StageConfig.TotalStones=20)
+        var active = pool.ActiveStones; // 10개 (StageConfig.TotalStones=10)
 
         revealers.Clear();
         completedRounds = 0;

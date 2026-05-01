@@ -34,7 +34,7 @@ public class StageConfig
         new StageConfig { StageNumber=2,  Age=15, StageName="색깔 선택",       Theme="호기심의 사춘기",                  StoryMent="세상에 색이 보이기 시작합니다.\n나에게 맞는 것을 골라야 해요.", Gimmick=GimmickType.ColorSelect, TotalStones=18 },
         new StageConfig { StageNumber=3,  Age=20, StageName="도망가는 공기",   Theme="통제하기 힘든 청춘",               StoryMent="잡으려 할수록 달아나는 것들.\n그래도 쫓아야 합니다.",          Gimmick=GimmickType.Flee,        TotalStones=5  },
         new StageConfig { StageNumber=4,  Age=25, StageName="순서대로 잡기",   Theme="사회 룰에 적응하는 초년생",        StoryMent="반이 지났습니다.\n남은 반은 더 빨리 갑니다.",                   Gimmick=GimmickType.Sequence,    TotalStones=5  },
-        new StageConfig { StageNumber=5,  Age=30, StageName="분신 가짜 잡기",  Theme="부딪혀봐야 본색을 드러내는 가짜들", StoryMent="겉보기엔 똑같아 보입니다.\n가까이 가야 진짜를 알 수 있어요.",  Gimmick=GimmickType.FakeStone,   TotalStones=20 },
+        new StageConfig { StageNumber=5,  Age=30, StageName="분신 가짜 잡기",  Theme="부딪혀봐야 본색을 드러내는 가짜들", StoryMent="겉보기엔 똑같아 보입니다.\n가까이 가야 진짜를 알 수 있어요.",  Gimmick=GimmickType.FakeStone,   TotalStones=10 },
         new StageConfig { StageNumber=6,  Age=35, StageName="움직이는 방해물", Theme="삶에 끼어드는 방해꾼",             StoryMent="손끝이 예전 같지 않습니다.\n그래도, 놓지 마세요.",              Gimmick=GimmickType.Obstacle,    TotalStones=5  },
         new StageConfig { StageNumber=7,  Age=40, StageName="중력 변화",       Theme="어깨를 짓누르는 삶의 무게",        StoryMent="무거워지는 것은 돌만이 아닙니다.",                              Gimmick=GimmickType.Gravity,     TotalStones=5  },
         new StageConfig { StageNumber=8,  Age=45, StageName="노화된 손",       Theme="몸이 안 따라주는",                StoryMent="마음은 앞서는데\n손이 따라오지 않습니다.",                      Gimmick=GimmickType.AgedHand,    TotalStones=5  },
