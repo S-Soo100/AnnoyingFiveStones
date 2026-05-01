@@ -64,26 +64,33 @@ public class AudioManager : MonoBehaviour
         }
         Instance = this;
 
-        sfxSource = gameObject.AddComponent<AudioSource>();
-        sfxSource.playOnAwake = false;
-
-        jingleSource = gameObject.AddComponent<AudioSource>();
-        jingleSource.playOnAwake = false;
-
-        // BGM AudioSource A/B
-        bgmSourceA = gameObject.AddComponent<AudioSource>();
-        bgmSourceA.playOnAwake = false;
-        bgmSourceA.loop = true;
-
-        bgmSourceB = gameObject.AddComponent<AudioSource>();
-        bgmSourceB.playOnAwake = false;
-        bgmSourceB.loop = true;
+        sfxSource    = CreateChildSource("SFX_Source",    loop: false);
+        jingleSource = CreateChildSource("Jingle_Source", loop: false);
+        bgmSourceA   = CreateChildSource("BGM_A_Source",  loop: true);
+        bgmSourceB   = CreateChildSource("BGM_B_Source",  loop: true);
 
         bgmVolume = GetBGMVolume();
 
         ApplyVolume(GetMasterVolume());
+    }
+
+    private IEnumerator Start()
+    {
+        if (Instance != this) yield break;  // 싱글톤 가드 — Destroy 예약된 중복 인스턴스 차단
+        yield return null;                  // 1프레임 대기 — AudioSource 초기화 + FMOD 출력 채널 안정화
         LoadAllClips();
         LoadBGMClips();
+    }
+
+    private AudioSource CreateChildSource(string name, bool loop)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(transform, false);
+        var src = go.AddComponent<AudioSource>();
+        src.playOnAwake = false;
+        src.loop = loop;
+        src.spatialBlend = 0f;  // 2D 사운드 고정
+        return src;
     }
 
     // ──────────────────────────────────────────────────────────────────
