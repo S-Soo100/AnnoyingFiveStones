@@ -417,6 +417,9 @@ public class GameManager : MonoBehaviour
         currentStage = stage;
         isAllClear = false;
 
+        // BGM: 나이 기반 트랙 선택 (같은 트랙이면 내부에서 no-op)
+        AudioManager.Instance?.PlayGameplayBGM(session?.CurrentAge ?? 10);
+
         // v4: 스테이지 설정 로드 + 기믹 생성
         currentStageConfig = StageConfig.Get(session != null ? session.CurrentLoop : 1);
         currentGimmick?.OnStageEnd(); // 이전 기믹 정리
@@ -732,6 +735,8 @@ public class GameManager : MonoBehaviour
         float clearTime = session != null ? session.ElapsedTime : 0f;
         int regressionCount = session != null ? session.RegressionCount : 0;
 
+        // BGM 페이드아웃 (all_clear 징글이 깔끔하게 들리도록)
+        AudioManager.Instance?.StopGameplayBGM(true);
         AudioManager.Instance?.PlayAllClear();
         GameUI.Instance?.ShowAllClear();
 
@@ -839,6 +844,9 @@ public class GameManager : MonoBehaviour
 
     public void RestartGame()
     {
+        // BGM 즉시 정지 (타이틀에서는 BGM 없음)
+        AudioManager.Instance?.StopGameplayBGM(false);
+
         isAllClear = false;
         isTransitioning = false;
         GameUI.Instance?.HideOverlay();
