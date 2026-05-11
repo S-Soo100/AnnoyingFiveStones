@@ -273,8 +273,11 @@ public class GameManager : MonoBehaviour
         {
             if (stone == null || !stone.gameObject.activeSelf) continue;
             var s = stone.CurrentState;
-            // 손에 잡혀있거나 받힌 돌은 제외 (의도적으로 매트 밖에 위치 가능)
-            if (s == Stone.State.InHand || s == Stone.State.Caught) continue;
+            // 손/받힌 돌 제외 (의도적으로 매트 밖 가능)
+            // InAir/Bouncing 제외 — 던진 돌의 상승 궤적이 매트 X 경계를 넘어가도 정상.
+            //   실패 판정은 CatchSystem(catch miss / bounce-grounded)에서 처리.
+            if (s == Stone.State.InHand || s == Stone.State.Caught
+                || s == Stone.State.InAir || s == Stone.State.Bouncing) continue;
 
             Vector2 p = new Vector2(stone.transform.position.x, stone.transform.position.y);
             if (BoardBounds.IsOutsideMat(p, marginAbsolute: 0.2f))
