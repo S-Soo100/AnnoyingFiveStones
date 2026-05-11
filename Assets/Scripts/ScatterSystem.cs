@@ -153,6 +153,11 @@ public class ScatterSystem : MonoBehaviour
         int stoneCount = stones.Length;
         float boardCenterY = boardTransform != null ? boardTransform.position.y : -5.25f;
 
+        // v7-3: 6단 난이도 파라미터 로드
+        var stageCfg = StageConfig.Get(GameManager.Instance.CurrentStage);
+        float dropHeightAdd = stageCfg.ScatterDropHeightAdd;
+        float spreadMul = stageCfg.ScatterSpreadMultiplier;
+
         // 돌 개수에 따라 최소 간격 + 세기 동적 조정
         float dynamicMinSeparation = stoneCount <= 5 ? minStoneSeparation : minStoneSeparation * 0.4f;
         // 많은 돌: 힘을 줄여 보드 밖 낙 방지 (5개=1.0, 18개=0.45, 20개=0.4)
@@ -175,7 +180,7 @@ public class ScatterSystem : MonoBehaviour
         for (int i = 0; i < stones.Length; i++)
         {
             float angle = (slotAngleStep * slots[i] + Random.Range(-10f, 10f)) * Mathf.Deg2Rad;
-            float radius = baseSpreadRadius * Random.Range(0.8f, 1.2f);
+            float radius = baseSpreadRadius * spreadMul * Random.Range(0.8f, 1.2f); // v7-3: spreadMul 배율 적용
             baseOffsets[i] = new Vector2(Mathf.Cos(angle) * ellipseRatio, Mathf.Sin(angle)) * radius;
         }
 
@@ -201,17 +206,46 @@ public class ScatterSystem : MonoBehaviour
             if (!adjusted) break;
         }
 
+        // v7-3: spread 1.5x 적용 시 매트 밖으로 나갈 수 있으므로 InnerRect로 클램프
+        if (spreadMul > 1f)
+        {
+            var inner = BoardBounds.InnerRect(0.05f);
+            for (int i = 0; i < stones.Length; i++)
+            {
+                float worldX = baseOffsets[i].x;
+                float worldY = boardCenterY + baseOffsets[i].y;
+                worldX = Mathf.Clamp(worldX, inner.xMin, inner.xMax);
+                worldY = Mathf.Clamp(worldY, inner.yMin, inner.yMax);
+                baseOffsets[i] = new Vector2(worldX, worldY - boardCenterY);
+            }
+        }
+
         for (int i = 0; i < stones.Length; i++)
         {
             var stone = stones[i];
-            stone.SetState(Stone.State.OnBoard);
 
-            // 보드 중앙 + 기본 오프셋에서 시작
-            stone.transform.position = new Vector3(
-                baseOffsets[i].x,
-                boardCenterY + baseOffsets[i].y,
-                0f
-            );
+            // v7-3: 6단(dropHeightAdd>0)은 InAir 상태로 위에서 낙하 시작. 나머지는 기존 OnBoard 즉시.
+            if (dropHeightAdd > 0f)
+            {
+                // +1.0m 위에서 InAir(중력 ON)로 시작
+                stone.SetState(Stone.State.InAir);
+                stone.transform.position = new Vector3(
+                    baseOffsets[i].x,
+                    boardCenterY + baseOffsets[i].y + dropHeightAdd,
+                    0f
+                );
+            }
+            else
+            {
+                // 기존 동작: OnBoard(중력 OFF) 즉시
+                stone.SetState(Stone.State.OnBoard);
+                stone.transform.position = new Vector3(
+                    baseOffsets[i].x,
+                    boardCenterY + baseOffsets[i].y,
+                    0f
+                );
+            }
+
             // Y축만 랜덤 회전 (X/Z 틸트는 물리가 자연스럽게 처리)
             // air_rock이 비대칭이라 Y 회전만으로도 다양한 모양
             stone.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
@@ -226,7 +260,9 @@ public class ScatterSystem : MonoBehaviour
             // X/Y 방향으로 퍼짐 + 기본 오프셋 방향으로 약간 밀어줌
             float scaledPower = power * forceScale;
             float spreadX = Random.Range(-1f, 1f) * scaledPower + baseOffsets[i].x * 0.5f * forceScale;
-            float spreadY = Random.Range(-0.6f, 0.6f) * scaledPower + baseOffsets[i].y * 0.5f * forceScale;
+            // v7-3: dropHeightAdd > 0이면 Y 임펄스 절반 (중력이 낙하를 담당)
+            float spreadYInput = dropHeightAdd > 0f ? 0.5f : 0.6f;
+            float spreadY = Random.Range(-spreadYInput, spreadYInput) * scaledPower + baseOffsets[i].y * 0.5f * forceScale;
 
             Vector3 force = new Vector3(spreadX, spreadY, 0f);
             stone.Rb.AddForce(force, ForceMode.Impulse);
@@ -247,6 +283,26 @@ public class ScatterSystem : MonoBehaviour
         {
             yield return new WaitForFixedUpdate();
             elapsed += Time.fixedDeltaTime;
+
+            // v7-3: 6단 InAir 돌이 보드 표면 근처에서 느려지면 OnBoard 전환
+            if (dropHeightAdd > 0f)
+            {
+                foreach (var stone in stones)
+                {
+                    if (stone.CurrentState == Stone.State.InAir)
+                    {
+                        bool nearSurface = stone.transform.position.y <= boardCenterY + 0.5f;
+                        bool slowEnough  = stone.Rb.linearVelocity.magnitude < 0.5f;
+                        if (nearSurface && slowEnough)
+                        {
+                            stone.SetState(Stone.State.OnBoard);
+                            stone.Rb.linearVelocity  = Vector3.zero;
+                            stone.Rb.angularVelocity = Vector3.zero;
+                            stone.Rb.Sleep();
+                        }
+                    }
+                }
+            }
 
             bool allSettled = true;
             foreach (var stone in stones)

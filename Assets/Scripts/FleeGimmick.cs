@@ -37,7 +37,7 @@ public class FleeGimmick : StageGimmick
             if (!s.gameObject.activeSelf) continue;
 
             var flee = s.gameObject.AddComponent<FleeMovement>();
-            flee.boardBounds = boardRect;
+            flee.boardBounds = BoardBounds.InnerRect(0.05f); // 5% 안쪽 마진 (SOT 사용)
             flee.Activate(delay);
             activeFleers.Add(flee);
             delay += 0.2f; // 0.2초 시간차

@@ -176,6 +176,10 @@ public class ObstacleGimmick : StageGimmick
     // ─── 굴러다니는 공 ×2 — Sphere, 보드 내부 왕복 ──────────────────────────
     private void SpawnBalls(float cx, float cy, float halfW, float halfH)
     {
+        // v7-3: 6단 BallSpeedMultiplier 적용 (다른 스테이지는 1.0으로 효과 없음)
+        var cfg = StageConfig.Get(GameManager.Instance.CurrentStage);
+        float ballSpeedMul = cfg.BallSpeedMultiplier;
+
         Color[] ballColors = {
             new Color(0.8f, 0.2f, 0.2f),
             new Color(0.2f, 0.4f, 0.8f),
@@ -203,7 +207,9 @@ public class ObstacleGimmick : StageGimmick
             obs.shape = ObstacleShape.Point;
             obs.startPos = startPos;
             obs.endPos = endPos;
-            obs.moveSpeed = Random.Range(0.6f, 1.0f);
+            // i=0(빨강·가로) ×2.0, i=1(파랑·세로) ×1.5
+            float fastBonus = (i == 1) ? 1.5f : 2.0f;
+            obs.moveSpeed = Random.Range(0.6f, 1.0f) * ballSpeedMul * fastBonus; // v7-3: 6단 1.4x 적용
             obs.hitRadius = 0.35f;
 
             movingBalls.Add(obs);

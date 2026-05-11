@@ -5,7 +5,7 @@ Shader "Custom/SpotlightOverlay"
         _SpotlightCenter ("Spotlight Center", Vector) = (0.5, 0.5, 0, 0)
         _SpotlightRadius ("Spotlight Radius", Float) = 0.15
         _SoftEdgeWidth ("Soft Edge Width", Float) = 0.04
-        _DarknessAlpha ("Darkness Alpha", Float) = 0.92
+        _DarknessAlpha ("Darkness Alpha", Float) = 0.98
         _AspectRatio ("Aspect Ratio", Float) = 1.7778
     }
     SubShader

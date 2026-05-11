@@ -13,7 +13,7 @@ public class SpotlightGimmick : StageGimmick
     private const float BrightDuration = 1.5f;    // scatter 후 밝은 시간
     private const float FadeInDuration = 1.0f;    // 어둠 페이드인 시간
     private const float SoftEdgeWidth = 0.04f;
-    private const float MaxDarknessAlpha = 0.92f;
+    private const float MaxDarknessAlpha = 1.0f;
 
     private GameObject overlayQuad;
     private Material overlayMaterial;

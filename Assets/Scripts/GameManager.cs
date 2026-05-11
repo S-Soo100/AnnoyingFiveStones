@@ -256,6 +256,37 @@ public class GameManager : MonoBehaviour
 #endif
     }
 
+    private void LateUpdate()
+    {
+        // 게임이 정상 진행 중일 때만 검사
+        if (isTransitioning || isAllClear || isInTitleScreen) return;
+        if (currentPhase == GamePhase.Failed || currentPhase == GamePhase.StageComplete) return;
+        if (currentPhase == GamePhase.Scatter) return; // ScatterSystem 자체 판정 사용
+
+        CheckMatBoundaryGlobal();
+    }
+
+    private void CheckMatBoundaryGlobal()
+    {
+        if (stones == null) return;
+        foreach (var stone in stones)
+        {
+            if (stone == null || !stone.gameObject.activeSelf) continue;
+            var s = stone.CurrentState;
+            // 손에 잡혀있거나 받힌 돌은 제외 (의도적으로 매트 밖에 위치 가능)
+            if (s == Stone.State.InHand || s == Stone.State.Caught) continue;
+
+            Vector2 p = new Vector2(stone.transform.position.x, stone.transform.position.y);
+            if (BoardBounds.IsOutsideMat(p, marginAbsolute: 0.2f))
+            {
+                Debug.Log($"[GameManager] Stone {stone.name} out of mat at {p}. Triggering Fail.");
+                SetFailReason("낙!");
+                SetPhase(GamePhase.Failed);
+                return;
+            }
+        }
+    }
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void DebugStageJump()
     {

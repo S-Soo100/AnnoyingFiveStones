@@ -27,6 +27,11 @@ public class StageConfig
     public GimmickType Gimmick;  // 기믹 타입
     public int TotalStones;      // 기본 5, 일부 스테이지 20
 
+    // v7-3 난이도 파라미터 (미지정 시 디폴트 = 효과 없음)
+    public float ScatterDropHeightAdd = 0f;      // ScatterSystem 시작 Y 가산 (m). 0=기존 동작
+    public float ScatterSpreadMultiplier = 1f;   // baseSpreadRadius 배율. 1=기존 동작
+    public float BallSpeedMultiplier = 1f;       // ObstacleGimmick.SpawnBalls 공 속도 배율. 1=기존 동작
+
     // 정적 데이터: 10개 스테이지 정의
     private static readonly StageConfig[] stages = new StageConfig[]
     {
@@ -35,7 +40,7 @@ public class StageConfig
         new StageConfig { StageNumber=3,  Age=20, StageName="도망가는 공기",   Theme="통제하기 힘든 청춘",               StoryMent="잡으려 할수록 달아나는 것들.\n그래도 쫓아야 합니다.",          Gimmick=GimmickType.Flee,        TotalStones=5  },
         new StageConfig { StageNumber=4,  Age=25, StageName="순서대로 잡기",   Theme="사회 룰에 적응하는 초년생",        StoryMent="반이 지났습니다.\n남은 반은 더 빨리 갑니다.",                   Gimmick=GimmickType.Sequence,    TotalStones=5  },
         new StageConfig { StageNumber=5,  Age=30, StageName="분신 가짜 잡기",  Theme="부딪혀봐야 본색을 드러내는 가짜들", StoryMent="겉보기엔 똑같아 보입니다.\n가까이 가야 진짜를 알 수 있어요.",  Gimmick=GimmickType.FakeStone,   TotalStones=10 },
-        new StageConfig { StageNumber=6,  Age=35, StageName="움직이는 방해물", Theme="삶에 끼어드는 방해꾼",             StoryMent="손끝이 예전 같지 않습니다.\n그래도, 놓지 마세요.",              Gimmick=GimmickType.Obstacle,    TotalStones=5  },
+        new StageConfig { StageNumber=6,  Age=35, StageName="움직이는 방해물", Theme="삶에 끼어드는 방해꾼",             StoryMent="손끝이 예전 같지 않습니다.\n그래도, 놓지 마세요.",              Gimmick=GimmickType.Obstacle,    TotalStones=5,  ScatterDropHeightAdd=1.0f, ScatterSpreadMultiplier=1.5f, BallSpeedMultiplier=1.4f },
         new StageConfig { StageNumber=7,  Age=40, StageName="중력 변화",       Theme="어깨를 짓누르는 삶의 무게",        StoryMent="무거워지는 것은 돌만이 아닙니다.",                              Gimmick=GimmickType.Gravity,     TotalStones=5  },
         new StageConfig { StageNumber=8,  Age=45, StageName="노화된 손",       Theme="몸이 안 따라주는",                StoryMent="마음은 앞서는데\n손이 따라오지 않습니다.",                      Gimmick=GimmickType.AgedHand,    TotalStones=5  },
         new StageConfig { StageNumber=9,  Age=50, StageName="시야 제한",       Theme="서서히 좁아지는 시야",             StoryMent="보이는 것이 줄어듭니다.\n그래도 손은 기억합니다.",              Gimmick=GimmickType.Spotlight,   TotalStones=5  },
