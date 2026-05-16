@@ -98,12 +98,14 @@ public class StageConfig
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.95f,0.95f,0.95f), Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(0.9f,0.6f,0.1f) },
             },
         },
-        // Stage 5 — Age 30, 어두운 파랑 (야근)
+        // Stage 5 — Age 30, 어두운 파랑 (야근, 직장인 책상)
+        // v8-1 swap: 메카닉=움직이는 방해물 (구 6단). 배경은 Age 기준 유지.
         new StageConfig
         {
-            StageNumber=5, Age=30, StageName="분신 가짜 잡기", Theme="부딪혀봐야 본색을 드러내는 가짜들",
-            StoryMent="겉보기엔 똑같아 보입니다.\n가까이 가야 진짜를 알 수 있어요.",
-            Gimmick=GimmickType.FakeStone, TotalStones=10,
+            StageNumber=5, Age=30, StageName="움직이는 방해물", Theme="삶에 끼어드는 방해꾼",
+            StoryMent="손끝이 예전 같지 않습니다.\n그래도, 놓지 마세요.",
+            Gimmick=GimmickType.Obstacle, TotalStones=5,
+            ScatterDropHeightAdd=1.0f, ScatterSpreadMultiplier=1.5f, BallSpeedMultiplier=1.4f,
             SkyBottom=new Color(0.2f,0.3f,0.55f), SkyTop=new Color(0.1f,0.15f,0.3f),
             TableColor=new Color(0.25f,0.35f,0.5f), ClothColor=new Color(0.6f,0.7f,0.85f),
             Props=new BackgroundProp[]
@@ -113,14 +115,14 @@ public class StageConfig
                 new BackgroundProp { Shape=BackgroundPropShape.Cylinder, Color=new Color(0.85f,0.25f,0.2f), Position=new Vector3(3.3f,0.5f,0.5f), Scale=new Vector3(0.35f,0.3f,0.35f) },
             },
         },
-        // Stage 6 — Age 35, 노을 주황
+        // Stage 6 — Age 35, 회보라 황혼 (분신술 = 흐릿한 톤)
+        // v8-1 swap: 메카닉=분신 가짜 잡기 (구 5단). Sky만 노을 주황→회보라로 보정.
         new StageConfig
         {
-            StageNumber=6, Age=35, StageName="움직이는 방해물", Theme="삶에 끼어드는 방해꾼",
-            StoryMent="손끝이 예전 같지 않습니다.\n그래도, 놓지 마세요.",
-            Gimmick=GimmickType.Obstacle, TotalStones=5,
-            ScatterDropHeightAdd=1.0f, ScatterSpreadMultiplier=1.5f, BallSpeedMultiplier=1.4f,
-            SkyBottom=new Color(1.0f,0.8f,0.5f), SkyTop=new Color(0.85f,0.55f,0.4f),
+            StageNumber=6, Age=35, StageName="분신 가짜 잡기", Theme="부딪혀봐야 본색을 드러내는 가짜들",
+            StoryMent="겉보기엔 똑같아 보입니다.\n가까이 가야 진짜를 알 수 있어요.",
+            Gimmick=GimmickType.FakeStone, TotalStones=10,
+            SkyBottom=new Color(0.55f,0.5f,0.65f), SkyTop=new Color(0.3f,0.25f,0.4f),
             TableColor=new Color(0.35f,0.25f,0.2f), ClothColor=new Color(0.25f,0.4f,0.25f),
             Props=new BackgroundProp[]
             {
