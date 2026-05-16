@@ -52,6 +52,11 @@ public class BackgroundManager : MonoBehaviour
             ApplyBgImage(config.BackgroundImage);
             if (skyGradient != null) skyGradient.gameObject.SetActive(false);
             ClearProps();
+
+            // 보드(Table)/매트(Cloth)는 Renderer만 끔 — 이미지에 그려진 매트/책상이 그대로 노출.
+            // GameObject는 active 유지 → BoardBounds(Cloth.Renderer.bounds) 캐시 정상.
+            if (tableRenderer != null) tableRenderer.enabled = false;
+            if (clothRenderer != null) clothRenderer.enabled = false;
         }
         else
         {
@@ -60,26 +65,30 @@ public class BackgroundManager : MonoBehaviour
             if (skyGradient != null) skyGradient.gameObject.SetActive(true);
             skyGradient?.ApplyColors(config.SkyBottom, config.SkyTop);
 
+            // 보드/매트 Renderer 복구
+            if (tableRenderer != null) tableRenderer.enabled = true;
+            if (clothRenderer != null) clothRenderer.enabled = true;
+
+            // 색상 갱신 (placeholder 모드에서만 의미 있음)
+            if (tableRenderer != null)
+            {
+                tableRenderer.GetPropertyBlock(tableBlock);
+                tableBlock.SetColor("_BaseColor", config.TableColor);
+                tableRenderer.SetPropertyBlock(tableBlock);
+            }
+            if (clothRenderer != null)
+            {
+                clothRenderer.GetPropertyBlock(clothBlock);
+                clothBlock.SetColor("_BaseColor", config.ClothColor);
+                clothRenderer.SetPropertyBlock(clothBlock);
+            }
+
             ClearProps();
             if (config.Props != null)
             {
                 foreach (var prop in config.Props)
                     SpawnProp(prop);
             }
-        }
-
-        // Table/Cloth 색은 양쪽 모드 공통 — 실제 매트는 게임 오브젝트라 이미지 위에 표시됨
-        if (tableRenderer != null)
-        {
-            tableRenderer.GetPropertyBlock(tableBlock);
-            tableBlock.SetColor("_BaseColor", config.TableColor);
-            tableRenderer.SetPropertyBlock(tableBlock);
-        }
-        if (clothRenderer != null)
-        {
-            clothRenderer.GetPropertyBlock(clothBlock);
-            clothBlock.SetColor("_BaseColor", config.ClothColor);
-            clothRenderer.SetPropertyBlock(clothBlock);
         }
     }
 
