@@ -17,6 +17,9 @@ public class BackgroundManager : MonoBehaviour
     private MaterialPropertyBlock tableBlock;
     private MaterialPropertyBlock clothBlock;
 
+    // v8-2b: 풀스크린 배경 이미지 quad (이미지가 지정된 stage에서만 활성)
+    private GameObject bgImageQuad;
+
     private void Awake()
     {
         // 씬 참조 자동 해결
@@ -41,32 +44,96 @@ public class BackgroundManager : MonoBehaviour
     {
         if (config == null) return;
 
-        // Sky 그라데이션 갱신
-        skyGradient?.ApplyColors(config.SkyBottom, config.SkyTop);
+        bool useImage = !string.IsNullOrEmpty(config.BackgroundImage);
 
-        // Table 색 갱신 (MaterialPropertyBlock — 머테리얼 인스턴스 생성 방지)
+        if (useImage)
+        {
+            // 풀스크린 이미지 사용 — Sky/Props 숨김 (이미지가 이미 다 그려진 풀배경)
+            ApplyBgImage(config.BackgroundImage);
+            if (skyGradient != null) skyGradient.gameObject.SetActive(false);
+            ClearProps();
+        }
+        else
+        {
+            // placeholder 모드 — 이미지 quad 숨기고 기존 색상/Props 사용
+            if (bgImageQuad != null) bgImageQuad.SetActive(false);
+            if (skyGradient != null) skyGradient.gameObject.SetActive(true);
+            skyGradient?.ApplyColors(config.SkyBottom, config.SkyTop);
+
+            ClearProps();
+            if (config.Props != null)
+            {
+                foreach (var prop in config.Props)
+                    SpawnProp(prop);
+            }
+        }
+
+        // Table/Cloth 색은 양쪽 모드 공통 — 실제 매트는 게임 오브젝트라 이미지 위에 표시됨
         if (tableRenderer != null)
         {
             tableRenderer.GetPropertyBlock(tableBlock);
             tableBlock.SetColor("_BaseColor", config.TableColor);
             tableRenderer.SetPropertyBlock(tableBlock);
         }
-
-        // Cloth 색 갱신
         if (clothRenderer != null)
         {
             clothRenderer.GetPropertyBlock(clothBlock);
             clothBlock.SetColor("_BaseColor", config.ClothColor);
             clothRenderer.SetPropertyBlock(clothBlock);
         }
+    }
 
-        // 이전 Props 제거 + 새 Props 스폰
-        ClearProps();
-        if (config.Props != null)
+    private void EnsureBgImageQuad()
+    {
+        if (bgImageQuad != null) return;
+        var cam = Camera.main;
+        if (cam == null || !cam.orthographic) return;
+
+        bgImageQuad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        bgImageQuad.name = "BgImageQuad";
+        var col = bgImageQuad.GetComponent<Collider>();
+        if (col != null) Object.Destroy(col);
+
+        // 카메라 자식 — 카메라 따라다닐 수 있도록. 매트(z=0)보다 멀리(z=50)에 배치.
+        bgImageQuad.transform.SetParent(cam.transform, false);
+        bgImageQuad.transform.localPosition = new Vector3(0f, 0f, 50f);
+        bgImageQuad.transform.localRotation = Quaternion.identity;
+
+        // 화면 채우기: orthographic 기준 (높이=2*size, 너비=높이*aspect)
+        float h = 2f * cam.orthographicSize;
+        float w = h * cam.aspect;
+        bgImageQuad.transform.localScale = new Vector3(w, h, 1f);
+
+        var rd = bgImageQuad.GetComponent<Renderer>();
+        var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.EnableKeyword("_EMISSION");
+        mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        rd.material = mat;
+
+        bgImageQuad.SetActive(false);
+    }
+
+    private void ApplyBgImage(string resourcePath)
+    {
+        EnsureBgImageQuad();
+        if (bgImageQuad == null) return;
+
+        var tex = Resources.Load<Texture2D>(resourcePath);
+        if (tex == null)
         {
-            foreach (var prop in config.Props)
-                SpawnProp(prop);
+            Debug.LogWarning($"[BackgroundManager] Background image not found: {resourcePath}");
+            bgImageQuad.SetActive(false);
+            return;
         }
+
+        var rd = bgImageQuad.GetComponent<Renderer>();
+        var mat = rd.material;
+        mat.SetTexture("_BaseMap", tex);
+        mat.SetColor("_BaseColor", Color.white);
+        mat.SetTexture("_EmissionMap", tex);
+        mat.SetColor("_EmissionColor", Color.white);
+
+        bgImageQuad.SetActive(true);
     }
 
     private void ClearProps()

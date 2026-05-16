@@ -41,6 +41,9 @@ public class StageConfig
     public Color ClothColor = Color.white;
     public BackgroundProp[] Props = System.Array.Empty<BackgroundProp>();
 
+    // v8-2b 풀스크린 배경 이미지 (Resources/{경로}). null/empty면 placeholder(Sky/Props) 사용.
+    public string BackgroundImage = null;
+
     // 정적 데이터: 10개 스테이지 정의
     private static readonly StageConfig[] stages = new StageConfig[]
     {
@@ -70,7 +73,7 @@ public class StageConfig
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.5f,0.5f,0.55f), Position=new Vector3(-3f,0.7f,0.5f), Scale=new Vector3(0.6f,0.8f,0.3f) },
             },
         },
-        // Stage 3 — Age 20, 연하늘 (야외)
+        // Stage 3 — Age 20, 대학 캠퍼스 (사용자 픽셀아트 이미지)
         new StageConfig
         {
             StageNumber=3, Age=20, StageName="도망가는 공기", Theme="통제하기 힘든 청춘",
@@ -78,6 +81,7 @@ public class StageConfig
             Gimmick=GimmickType.Flee, TotalStones=5,
             SkyBottom=new Color(0.7f,0.9f,1.0f), SkyTop=new Color(0.3f,0.65f,0.95f),
             TableColor=new Color(0.4f,0.7f,0.35f), ClothColor=new Color(0.4f,0.75f,0.7f),
+            BackgroundImage="StageBackgrounds/Stage03_Campus",
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cylinder, Color=new Color(0.25f,0.6f,0.3f), Position=new Vector3(-3.2f,1.0f,0.5f), Scale=new Vector3(0.4f,1.2f,0.4f) },
@@ -98,7 +102,7 @@ public class StageConfig
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.95f,0.95f,0.95f), Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(0.9f,0.6f,0.1f) },
             },
         },
-        // Stage 5 — Age 30, 어두운 파랑 (야근, 직장인 책상)
+        // Stage 5 — Age 30, 직장인 책상 (사용자 스케치 이미지)
         // v8-1 swap: 메카닉=움직이는 방해물 (구 6단). 배경은 Age 기준 유지.
         new StageConfig
         {
@@ -108,6 +112,7 @@ public class StageConfig
             ScatterDropHeightAdd=1.0f, ScatterSpreadMultiplier=1.5f, BallSpeedMultiplier=1.4f,
             SkyBottom=new Color(0.2f,0.3f,0.55f), SkyTop=new Color(0.1f,0.15f,0.3f),
             TableColor=new Color(0.25f,0.35f,0.5f), ClothColor=new Color(0.6f,0.7f,0.85f),
+            BackgroundImage="StageBackgrounds/Stage05_Office",
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube,     Color=new Color(0.3f,0.3f,0.35f),  Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(1.0f,0.7f,0.15f) },
