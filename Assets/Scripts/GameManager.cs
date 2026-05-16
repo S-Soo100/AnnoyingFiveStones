@@ -57,6 +57,9 @@ public class GameManager : MonoBehaviour
     private StageGimmick currentGimmick;
     private StageConfig currentStageConfig;
 
+    // v8-2: 배경 무드
+    private BackgroundManager backgroundManager;
+
     private int stage5Step; // 0 = 1차(손등받기), 1 = 2차(손바닥받기)
     private bool isTransitioning;
     private bool isAllClear;
@@ -156,6 +159,14 @@ public class GameManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        // v8-2: BackgroundManager 자동 생성
+        backgroundManager = FindFirstObjectByType<BackgroundManager>();
+        if (backgroundManager == null)
+        {
+            var go = new GameObject("BackgroundManager");
+            backgroundManager = go.AddComponent<BackgroundManager>();
+        }
     }
 
     private void Start()
@@ -475,6 +486,7 @@ public class GameManager : MonoBehaviour
 
         // 모든 돌 활성화 + 초기 상태 복원
         ResetAllStones();
+        backgroundManager?.ApplyStage(currentStageConfig); // v8-2: 배경 무드 갱신
         currentGimmick?.OnStageStart(stage); // ResetAllStones 이후 호출 — 색 배정이 리셋에 덮이지 않도록
 
         TestLogger.Instance?.LogStageChange(stage);
