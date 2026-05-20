@@ -20,6 +20,14 @@ public class BackgroundManager : MonoBehaviour
     // v8-2b: 풀스크린 배경 이미지 quad (이미지가 지정된 stage에서만 활성)
     private GameObject bgImageQuad;
 
+    // v8-2c: 라이브 튜닝 (Play 중 Inspector로 quad offset/scale 미세조정). 만족 시 값을 StageConfig에 옮긴다.
+    [Header("Live Tuning — Play 중 Inspector로 조정")]
+    [SerializeField] private bool liveTuningEnabled = false;
+    [SerializeField] private Vector2 liveOffset = Vector2.zero;
+    [SerializeField] private Vector2 liveScale  = Vector2.one;
+
+    private StageConfig lastImageConfig; // 최근 이미지 모드 stage 기록
+
     private void Awake()
     {
         // 씬 참조 자동 해결
@@ -49,7 +57,7 @@ public class BackgroundManager : MonoBehaviour
         if (useImage)
         {
             // 풀스크린 이미지 사용 — Sky/Props 숨김 (이미지가 이미 다 그려진 풀배경)
-            ApplyBgImage(config.BackgroundImage);
+            ApplyBgImage(config.BackgroundImage, config.BgImageOffset, config.BgImageScale);
             if (skyGradient != null) skyGradient.gameObject.SetActive(false);
             ClearProps();
 
@@ -57,11 +65,20 @@ public class BackgroundManager : MonoBehaviour
             // GameObject는 active 유지 → BoardBounds(Cloth.Renderer.bounds) 캐시 정상.
             if (tableRenderer != null) tableRenderer.enabled = false;
             if (clothRenderer != null) clothRenderer.enabled = false;
+
+            lastImageConfig = config;
+            // 라이브 튜닝 시작 값 = stage 기본값(편의)
+            if (Application.isPlaying)
+            {
+                liveOffset = config.BgImageOffset;
+                liveScale  = config.BgImageScale;
+            }
         }
         else
         {
             // placeholder 모드 — 이미지 quad 숨기고 기존 색상/Props 사용
             if (bgImageQuad != null) bgImageQuad.SetActive(false);
+            lastImageConfig = null;
             if (skyGradient != null) skyGradient.gameObject.SetActive(true);
             skyGradient?.ApplyColors(config.SkyBottom, config.SkyTop);
 
@@ -103,15 +120,10 @@ public class BackgroundManager : MonoBehaviour
         var col = bgImageQuad.GetComponent<Collider>();
         if (col != null) Object.Destroy(col);
 
-        // 카메라 자식 — 카메라 따라다닐 수 있도록. 매트(z=0)보다 멀리(z=50)에 배치.
+        // 카메라 자식 — 카메라 따라다닐 수 있도록.
         bgImageQuad.transform.SetParent(cam.transform, false);
-        bgImageQuad.transform.localPosition = new Vector3(0f, 0f, 50f);
         bgImageQuad.transform.localRotation = Quaternion.identity;
-
-        // 화면 채우기: orthographic 기준 (높이=2*size, 너비=높이*aspect)
-        float h = 2f * cam.orthographicSize;
-        float w = h * cam.aspect;
-        bgImageQuad.transform.localScale = new Vector3(w, h, 1f);
+        // 위치/스케일은 ApplyQuadTransform에서 stage별로 갱신.
 
         var rd = bgImageQuad.GetComponent<Renderer>();
         var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
@@ -122,10 +134,26 @@ public class BackgroundManager : MonoBehaviour
         bgImageQuad.SetActive(false);
     }
 
-    private void ApplyBgImage(string resourcePath)
+    /// <summary>quad 위치/스케일을 stage별 offset/scale로 갱신.</summary>
+    private void ApplyQuadTransform(Vector2 offset, Vector2 scale)
+    {
+        if (bgImageQuad == null) return;
+        var cam = Camera.main;
+        if (cam == null || !cam.orthographic) return;
+
+        float h = 2f * cam.orthographicSize;
+        float w = h * cam.aspect;
+        // 매트(z=0)보다 멀리(z=50)에 배치. offset.xy로 미세조정.
+        bgImageQuad.transform.localPosition = new Vector3(offset.x, offset.y, 50f);
+        bgImageQuad.transform.localScale = new Vector3(w * scale.x, h * scale.y, 1f);
+    }
+
+    private void ApplyBgImage(string resourcePath, Vector2 offset, Vector2 scale)
     {
         EnsureBgImageQuad();
         if (bgImageQuad == null) return;
+
+        ApplyQuadTransform(offset, scale);
 
         var tex = Resources.Load<Texture2D>(resourcePath);
         if (tex == null)
@@ -143,6 +171,15 @@ public class BackgroundManager : MonoBehaviour
         mat.SetColor("_EmissionColor", Color.white);
 
         bgImageQuad.SetActive(true);
+    }
+
+    // 라이브 튜닝: Play 중 Inspector에서 liveOffset/liveScale 바꾸면 즉시 quad에 반영.
+    private void OnValidate()
+    {
+        if (!Application.isPlaying) return;
+        if (!liveTuningEnabled) return;
+        if (lastImageConfig == null || bgImageQuad == null || !bgImageQuad.activeSelf) return;
+        ApplyQuadTransform(liveOffset, liveScale);
     }
 
     private void ClearProps()

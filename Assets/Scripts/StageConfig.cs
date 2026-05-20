@@ -43,6 +43,9 @@ public class StageConfig
 
     // v8-2b 풀스크린 배경 이미지 (Resources/{경로}). null/empty면 placeholder(Sky/Props) 사용.
     public string BackgroundImage = null;
+    // v8-2c 이미지 매트 정렬 미세조정. offset=quad localPos.xy 가산, scale=화면 채움 배율(1=정확히 화면).
+    public Vector2 BgImageOffset = Vector2.zero;
+    public Vector2 BgImageScale  = Vector2.one;
 
     // 정적 데이터: 10개 스테이지 정의
     private static readonly StageConfig[] stages = new StageConfig[]
