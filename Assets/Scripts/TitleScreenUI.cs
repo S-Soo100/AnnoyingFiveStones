@@ -789,11 +789,13 @@ public class TitleScreenUI : MonoBehaviour
 
     private void OnStartClicked()
     {
+        BootCurtain.Instance?.Raise(0.15f); // v10: 부드럽게 페이드인
         Hide(() => GameManager.Instance?.StartGameFromTitle());
     }
 
     private void OnModeSelected(bool isTestPlay)
     {
+        BootCurtain.Instance?.Raise(0.15f); // v10: 부드럽게 페이드인
         Hide(() =>
         {
             var session = GameSession.Instance;

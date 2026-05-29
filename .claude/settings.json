@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/caof-reminder.sh game image",
+            "statusMessage": "CAOF 체크 중..."
+          }
+        ]
+      }
+    ]
+  }
+}

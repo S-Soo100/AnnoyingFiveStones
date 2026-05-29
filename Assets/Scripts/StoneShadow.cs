@@ -19,15 +19,17 @@ public class StoneShadow : MonoBehaviour
     private MaterialPropertyBlock mpb;
 
     // 그림자 크기 범위 (높이 낮을수록 작고 진하게)
-    private const float ScaleAtGround  = 0.35f; // boardSurfaceY에서의 크기
+    private const float ScaleAtGround  = 0.35f; // shadowSurfaceY에서의 크기
     private const float ScaleAtPeak    = 0.9f;  // 최고점(10유닛 위)에서의 크기
-    private const float AlphaAtGround  = 0.60f; // boardSurfaceY에서의 불투명도
+    private const float AlphaAtGround  = 0.60f; // shadowSurfaceY에서의 불투명도
     private const float AlphaTtPeak    = 0.10f; // 최고점에서의 불투명도
     private const float HeightNormMax  = 10f;   // 정규화 기준 높이
 
     private const float ShadowZ        = -0.06f; // Cloth(Z=-0.05) 바로 앞 — 카메라(-10)에 더 가까워야 보임
 
-    private float boardSurfaceY = -8.2f; // Start에서 CatchSystem에서 가져옴
+    // v11-fix2: 그림자 Y는 매 프레임 돌 X 위치 기반 사다리꼴 내부 점으로 계산 (perspective 보정).
+    // BoardBounds.QuadPoint(u, 0.5) 사용 — v=0.5는 사다리꼴 중심 수평선.
+    // (필드 제거: 매 프레임 ComputeShadowY로 계산)
 
     private void Awake()
     {
@@ -73,13 +75,7 @@ public class StoneShadow : MonoBehaviour
         shadowObj.transform.rotation = Quaternion.identity;
     }
 
-    private void Start()
-    {
-        // CatchSystem에서 boardSurfaceY 가져오기
-        var catchSys = FindFirstObjectByType<CatchSystem>();
-        if (catchSys != null)
-            boardSurfaceY = catchSys.BoardSurfaceY;
-    }
+    // v11-fix2: Start 제거 — 매 프레임 LateUpdate에서 ComputeShadowY로 계산.
 
     private void OnDestroy()
     {
@@ -99,18 +95,22 @@ public class StoneShadow : MonoBehaviour
     {
         if (shadowObj == null || !shadowObj.activeSelf) return;
 
+        // v11-fix2: 돌 X 기반 perspective 보정 Y. 사다리꼴 내부 v=0.5 라인 (중심선).
+        float stoneX = transform.position.x;
+        float shadowY = ComputeShadowY(stoneX);
+
         float stoneY  = transform.position.y;
-        float heightAbove = stoneY - boardSurfaceY;
+        float heightAbove = stoneY - shadowY;
         float normalizedH = Mathf.Clamp01(heightAbove / HeightNormMax);
 
         // 크기: 높이 낮을수록 작게 (가까울수록 실제 그림자처럼 선명하고 작게)
         float scale = Mathf.Lerp(ScaleAtGround, ScaleAtPeak, normalizedH);
         shadowObj.transform.localScale = new Vector3(scale, scale, 1f);
 
-        // 위치: 돌 X 아래, 보드 표면 + 0.01f, Z = ShadowZ (돌보다 뒤)
+        // 위치: 돌 X, 사다리꼴 내부 Y + 0.01f, Z = ShadowZ (돌보다 뒤)
         shadowObj.transform.position = new Vector3(
-            transform.position.x,
-            boardSurfaceY + 0.01f,
+            stoneX,
+            shadowY + 0.01f,
             ShadowZ
         );
 
@@ -121,6 +121,23 @@ public class StoneShadow : MonoBehaviour
         // Unlit 셰이더의 경우 _Color 사용
         mpb.SetColor("_Color", new Color(0f, 0f, 0f, alpha));
         shadowRenderer.SetPropertyBlock(mpb);
+    }
+
+    /// <summary>돌 X를 사다리꼴 뒷변 x 범위에 매핑 후 v=0.5(중심선) 라인의 Y 반환.
+    /// quad 없으면 MatRect 중심선 fallback.</summary>
+    private static float ComputeShadowY(float stoneX)
+    {
+        var rect = BoardBounds.MatRect;
+        if (!BoardBounds.HasQuad)
+        {
+            // fallback: 단순 중심선
+            return (rect.yMin + rect.yMax) * 0.5f;
+        }
+        // u = stoneX의 [xMin, xMax] 내 정규화 위치 (사다리꼴 AABB 기준)
+        float u = Mathf.Clamp01(Mathf.InverseLerp(rect.xMin, rect.xMax, stoneX));
+        // QuadPoint(u, 0.5) — v=0.5는 사다리꼴 중심 수평선
+        Vector2 pt = BoardBounds.QuadPoint(u, 0.5f);
+        return pt.y;
     }
 
     /// <summary>중심 진하고 가장자리 투명한 원형 그라데이션 텍스처 생성</summary>

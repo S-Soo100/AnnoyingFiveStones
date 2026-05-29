@@ -31,5 +31,11 @@
 13. **게임 코드 수정은 3단계 강제** — 진단(콘솔+코드+diff) → 최소 수정(1~3줄 우선) → 자체 검수(흐름+엣지케이스). 검수 통과 전 "테스트해보세요" 금지.
 14. **AI 생성 기획 비판 검수** — Gemini 제련소 사례. 외부 AI 설계안은 톤/스코프/기존 시스템 정합성 검수 후 반영.
 
+## 🏗️ 빌드 진단
+
+15. **빌드 렌더링 이슈는 Player.log 먼저** — Mac은 `~/Library/Logs/{Company}/{Product}/Player.log`. `Shader not found` / `Unsupported` 메시지가 **없으면 셰이더 stripping이 원인이 아니다**. 가설 만들지 말고 다른 원인 의심(에셋 import, 런타임 머테리얼 생성, Editor 한정 등). 빌드 검증은 항상 **재현 → 로그 → 핀포인트 → 최소 수정** 순서. (2026-05-20 마젠타 헛다리 교훈: 빌드 로그 한 번도 안 본 채 stripping 가설로 12개 파일 변경 후 전부 롤백)
+16. **URP Strip Unused Variants 끄지 말 것** — `UniversalRenderPipelineGlobalSettings.asset`의 `m_StripUnusedVariants: 0` 설정은 빌드를 50배 이상 느리게 만들고 클린업도 어렵다. 셰이더 누락 의심 시 `GraphicsSettings.AlwaysIncludedShaders` 또는 `ShaderVariantCollection`으로 해결.
+17. **사용자 질문 의도 구분** — "빌드해도 돼?" / "버그 없어?" 는 **예방 점검** 요청이지 "지금 문제 있다"는 보고가 아니다. 사전 점검은 로그/git status/최근 빌드 결과 확인으로 답한다. 가설 만들어 대형 변경 들어가지 말 것. (같은 2026-05-20 사고에서 유발)
+
 ---
-**출처 메모리:** `feedback_unity_quest_guard`, `feedback_quest_advance`, `feedback_autowalk_pathfinding`, `feedback_content_not_system`, `feedback_map_redesign`, `feedback_unity_input_system`, `feedback_unity_tmp_font`, `feedback_parallel_agents`, `feedback_csharp_array_init`, `feedback_visual_check_asset_first`, `feedback_tree_rules`, `feedback_game_code_workflow`, `feedback_ai_design_review`
+**출처 메모리:** `feedback_unity_quest_guard`, `feedback_quest_advance`, `feedback_autowalk_pathfinding`, `feedback_content_not_system`, `feedback_map_redesign`, `feedback_unity_input_system`, `feedback_unity_tmp_font`, `feedback_parallel_agents`, `feedback_csharp_array_init`, `feedback_visual_check_asset_first`, `feedback_tree_rules`, `feedback_game_code_workflow`, `feedback_ai_design_review`, `feedback_build_diagnosis_log_first`

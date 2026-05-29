@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Stage 6 [35살] 방해물 기믹.
+/// Stage 5 방해물 기믹.
 /// 자(ruler) 1개 — 보드를 비스듬히 양단
 /// 볼펜 1개 — 가장자리에서 대각선 침범
 /// 지우개 2개 — 모서리에서 안쪽 침범
@@ -27,18 +27,33 @@ public class ObstacleGimmick : StageGimmick
 
     private void SpawnObstacles()
     {
-        var board = gameManager?.BoardTransform;
-        float cx = board != null ? board.position.x : 0f;
-        float cy = board != null ? board.position.y : 0f;
-        float halfW = 4.8f;
-        float halfH = 3.05f;
+        // v10: BoardBounds 기준으로 영역 계산 (구 하드코딩 halfW=4.8 halfH=3.05 교체)
+        // 중심: quad centroid. 폴백: BoardTransform
+        float cx, cy;
+        if (BoardBounds.HasQuad)
+        {
+            Vector2 c = BoardBounds.QuadPoint(0.5f, 0.5f);
+            cx = c.x; cy = c.y;
+        }
+        else
+        {
+            var board = gameManager?.BoardTransform;
+            cx = board != null ? board.position.x : 0f;
+            cy = board != null ? board.position.y : 0f;
+        }
+        // halfW: MatRect.width(=AABB 앞폭)를 그대로 쓰면 너무 넓으므로 0.65 근사
+        // 새 보드 앞폭 16.1 → MatRect.width*0.5*0.65 ≈ 5.23
+        Rect r = BoardBounds.MatRect;
+        float halfW = r.width  * 0.5f * 0.65f;
+        // halfH: MatRect.height(=깊이 3.15) * 0.5 * 0.85 ≈ 1.34
+        float halfH = r.height * 0.5f * 0.85f;
 
         SpawnRuler(cx, cy, halfW, halfH);
         SpawnPen(cx, cy, halfW, halfH);
         SpawnEraser(cx, cy, halfW, halfH);
         SpawnBalls(cx, cy, halfW, halfH);
 
-        Debug.Log("[ObstacleGimmick] Spawned ruler×1 + pen×1 + eraser×2 + ball×2.");
+        Debug.Log($"[ObstacleGimmick] Spawned ruler×1 + pen×1 + eraser×2 + ball×2. cx={cx:F2} cy={cy:F2} halfW={halfW:F2} halfH={halfH:F2}");
     }
 
     // ─── 자(ruler) ×1 — Cube, 보드를 비스듬히 양단 ──────────────────────────
@@ -46,7 +61,7 @@ public class ObstacleGimmick : StageGimmick
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         go.name = "Obstacle_Ruler";
-        go.transform.localScale = new Vector3(8f, 0.35f, 0.2f);
+        go.transform.localScale = new Vector3(halfW * 1.1f, 0.35f, 0.2f); // v10: 새 보드 halfW에 비례 (≈5.75)
 
         var col = go.GetComponent<Collider>();
         if (col != null) Object.Destroy(col);

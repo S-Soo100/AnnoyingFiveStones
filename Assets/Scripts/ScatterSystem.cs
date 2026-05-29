@@ -28,7 +28,6 @@ public class ScatterSystem : MonoBehaviour
     [SerializeField] private float currentGaugeValue;
     [SerializeField] private bool isGaugeActive;
 
-    private Transform boardTransform;
     private bool gaugeGoingUp = true;
     private InputAction pressAction;
 
@@ -50,7 +49,6 @@ public class ScatterSystem : MonoBehaviour
         pressAction.AddBinding("<Mouse>/leftButton");
         pressAction.AddBinding("<Touchscreen>/primaryTouch/press");
 
-        boardTransform = GameObject.Find("Cloth")?.transform;
     }
 
     private void OnEnable()
@@ -91,7 +89,7 @@ public class ScatterSystem : MonoBehaviour
     public void BeginScatter()
     {
         // 돌들을 보드 중앙에 모아놓기
-        float boardCenterY = boardTransform != null ? boardTransform.position.y : -5.25f;
+        float boardCenterY = BoardBounds.MatRect.center.y;
         var stones = GameManager.Instance.Stones;
         foreach (var stone in stones)
         {
@@ -151,7 +149,7 @@ public class ScatterSystem : MonoBehaviour
     {
         var stones = GameManager.Instance.Stones;
         int stoneCount = stones.Length;
-        float boardCenterY = boardTransform != null ? boardTransform.position.y : -5.25f;
+        float boardCenterY = BoardBounds.MatRect.center.y;
 
         // v7-3: 6단 난이도 파라미터 로드
         var stageCfg = StageConfig.Get(GameManager.Instance.CurrentStage);
@@ -175,13 +173,19 @@ public class ScatterSystem : MonoBehaviour
         }
 
         float slotAngleStep = 360f / slotCount;
-        float ellipseRatio = boardSize.x / boardSize.y; // 가로로 긴 타원형 (9.6/7 ≈ 1.37)
+        // v10: 사다리꼴 전체를 사용하는 InnerQuadPoint 방식 (구 고정 타원 교체)
+        const float scatterMargin = 0.12f;
+        Vector2 boardCenter = BoardBounds.QuadPoint(0.5f, 0.5f); // 사다리꼴 centroid (절대 월드좌표)
         Vector2[] baseOffsets = new Vector2[stones.Length];
         for (int i = 0; i < stones.Length; i++)
         {
             float angle = (slotAngleStep * slots[i] + Random.Range(-10f, 10f)) * Mathf.Deg2Rad;
-            float radius = baseSpreadRadius * spreadMul * Random.Range(0.8f, 1.2f); // v7-3: spreadMul 배율 적용
-            baseOffsets[i] = new Vector2(Mathf.Cos(angle) * ellipseRatio, Mathf.Sin(angle)) * radius;
+            // spreadMul 클수록 사다리꼴 안쪽 더 넓게 채움 (0.45~0.92)
+            float spreadGain = Mathf.Lerp(0.45f, 0.92f, Mathf.Clamp01(spreadMul - 1.0f));
+            float u = 0.5f + Mathf.Cos(angle) * spreadGain * 0.5f * Random.Range(0.8f, 1.2f);
+            float v = 0.5f + Mathf.Sin(angle) * spreadGain * 0.5f * Random.Range(0.8f, 1.2f);
+            // InnerQuadPoint → 사다리꼴 내부 절대 월드좌표
+            baseOffsets[i] = BoardBounds.InnerQuadPoint(u, v, scatterMargin);
         }
 
         // 최소 간격 보장: 너무 가까운 돌 쌍이 있으면 밀어냄
@@ -206,19 +210,7 @@ public class ScatterSystem : MonoBehaviour
             if (!adjusted) break;
         }
 
-        // v7-3: spread 1.5x 적용 시 매트 밖으로 나갈 수 있으므로 InnerRect로 클램프
-        if (spreadMul > 1f)
-        {
-            var inner = BoardBounds.InnerRect(0.05f);
-            for (int i = 0; i < stones.Length; i++)
-            {
-                float worldX = baseOffsets[i].x;
-                float worldY = boardCenterY + baseOffsets[i].y;
-                worldX = Mathf.Clamp(worldX, inner.xMin, inner.xMax);
-                worldY = Mathf.Clamp(worldY, inner.yMin, inner.yMax);
-                baseOffsets[i] = new Vector2(worldX, worldY - boardCenterY);
-            }
-        }
+        // v10: InnerQuadPoint이 scatterMargin으로 이미 사다리꼴 내부로 가두므로 AABB clamp 불필요.
 
         for (int i = 0; i < stones.Length; i++)
         {
@@ -231,7 +223,7 @@ public class ScatterSystem : MonoBehaviour
                 stone.SetState(Stone.State.InAir);
                 stone.transform.position = new Vector3(
                     baseOffsets[i].x,
-                    boardCenterY + baseOffsets[i].y + dropHeightAdd,
+                    baseOffsets[i].y + dropHeightAdd,  // v10: 절대 월드좌표
                     0f
                 );
             }
@@ -241,7 +233,7 @@ public class ScatterSystem : MonoBehaviour
                 stone.SetState(Stone.State.OnBoard);
                 stone.transform.position = new Vector3(
                     baseOffsets[i].x,
-                    boardCenterY + baseOffsets[i].y,
+                    baseOffsets[i].y,  // v10: 절대 월드좌표
                     0f
                 );
             }
@@ -258,11 +250,11 @@ public class ScatterSystem : MonoBehaviour
             stone.Rb.angularVelocity = Vector3.zero;
 
             // X/Y 방향으로 퍼짐 + 기본 오프셋 방향으로 약간 밀어줌
+            // v10: baseOffsets가 절대 월드좌표이므로 center 기준 상대 오프셋으로 변환
             float scaledPower = power * forceScale;
-            float spreadX = Random.Range(-1f, 1f) * scaledPower + baseOffsets[i].x * 0.5f * forceScale;
-            // v7-3: dropHeightAdd > 0이면 Y 임펄스 절반 (중력이 낙하를 담당)
-            float spreadYInput = dropHeightAdd > 0f ? 0.5f : 0.6f;
-            float spreadY = Random.Range(-spreadYInput, spreadYInput) * scaledPower + baseOffsets[i].y * 0.5f * forceScale;
+            float xRandomCoeff = dropHeightAdd > 0f ? 1.0f : 0.34f; // anisotropic: OnBoard는 사다리꼴 X 우세 보정
+            float spreadX = Random.Range(-xRandomCoeff, xRandomCoeff) * scaledPower + (baseOffsets[i].x - boardCenter.x) * 0.12f * forceScale;
+            float spreadY = Random.Range(-0.105f, 0.105f) * scaledPower + (baseOffsets[i].y - boardCenter.y) * 0.12f * forceScale;
 
             Vector3 force = new Vector3(spreadX, spreadY, 0f);
             stone.Rb.AddForce(force, ForceMode.Impulse);
@@ -316,6 +308,41 @@ public class ScatterSystem : MonoBehaviour
 
             if (allSettled && elapsed > 0.5f) // 최소 0.5초는 대기
                 break;
+        }
+
+        // v9 보강①: Stage 2 사다리꼴 전용 — SafeZone(직사각) 안이지만 사다리꼴 밖(뒷모서리 슬리버)에
+        // 안착한 돌을 centroid 쪽으로 당겨 내부로 보정. 줍기 단계 IsOutsideMat 낙(갑툭낙) 방지.
+        // SafeZone 밖 돌은 건드리지 않음 → 기존 관대한 scatter 낙 로직 그대로 유지.
+        // HasQuad 가드로 quad 없는 스테이지(1, 3~10)는 완전 비실행.
+        if (BoardBounds.HasQuad)
+        {
+            Vector2 centroid = BoardBounds.QuadPoint(0.5f, 0.5f);
+            foreach (var stone in stones)
+            {
+                Vector2 p = new Vector2(stone.transform.position.x, stone.transform.position.y);
+                // SafeZone 밖이면 보정하지 않음 (장외 = 기존 낙 로직 담당)
+                if (p.x < GameManager.SafeZoneMin.x || p.x > GameManager.SafeZoneMax.x ||
+                    p.y < GameManager.SafeZoneMin.y || p.y > GameManager.SafeZoneMax.y)
+                    continue;
+
+                // SafeZone 안인데 사다리꼴 밖 = 슬리버 → centroid로 단계적으로 당겨 내부로
+                Vector2 corrected = p;
+                int guard = 0;
+                while (BoardBounds.IsOutsideMat(corrected, 0.15f) && guard++ < 8)
+                    corrected = Vector2.Lerp(corrected, centroid, 0.25f);
+
+                if (corrected != p)
+                {
+                    // 텔레포트: Kinematic → 이동 → 속도 0 → 복원 (ColorSelectGimmick과 동일 패턴)
+                    var rb = stone.Rb;
+                    bool wasKinematic = rb.isKinematic;
+                    rb.isKinematic = true;
+                    stone.transform.position = new Vector3(corrected.x, corrected.y, stone.transform.position.z);
+                    rb.linearVelocity  = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                    rb.isKinematic = wasKinematic;
+                }
+            }
         }
 
         // 장외 체크 (2D 기준: X, Y만 비교) — SafeZone 기반

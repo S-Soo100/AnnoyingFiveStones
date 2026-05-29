@@ -434,7 +434,7 @@ public class GameManager : MonoBehaviour
                 HandCursorUI.Instance?.SetActive(false);
                 handController?.gameObject.SetActive(true);
                 StartStage(1);
-            });
+            }, showTitleSplash: true); // v10: 게임 첫 진입 시 "Catch Five Stones" 인트로
         }
         else
         {
@@ -487,6 +487,7 @@ public class GameManager : MonoBehaviour
         // 모든 돌 활성화 + 초기 상태 복원
         ResetAllStones();
         backgroundManager?.ApplyStage(currentStageConfig); // v8-2: 배경 무드 갱신
+        BootCurtain.Instance?.FadeOut(0.6f); // v10: 부드럽게 (SmoothStep + 0.6s)
         currentGimmick?.OnStageStart(stage); // ResetAllStones 이후 호출 — 색 배정이 리셋에 덮이지 않도록
 
         TestLogger.Instance?.LogStageChange(stage);

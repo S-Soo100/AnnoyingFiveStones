@@ -12,6 +12,7 @@ public class FleeMovement : MonoBehaviour
 
     [Header("Settings")]
     public Rect boardBounds; // FleeGimmick에서 설정
+    public bool useQuadContainment; // true면 BoardBounds 사다리꼴 판정 사용 (FleeGimmick이 설정)
 
     private FleeState state = FleeState.Idle;
     private Rigidbody rb;
@@ -78,16 +79,39 @@ public class FleeMovement : MonoBehaviour
                 Vector3 pos = transform.position;
                 Vector3 next = pos + (Vector3)(fleeDirection * fleeSpeed * Time.fixedDeltaTime);
 
-                if (next.x < boardBounds.xMin || next.x > boardBounds.xMax)
-                    fleeDirection.x = -fleeDirection.x;
-                if (next.y < boardBounds.yMin || next.y > boardBounds.yMax)
-                    fleeDirection.y = -fleeDirection.y;
+                Vector3 move;
+                if (useQuadContainment)
+                {
+                    // 사다리꼴 경계 판정 (BoardBounds SOT)
+                    Vector2 next2 = new Vector2(next.x, next.y);
+                    if (BoardBounds.IsOutsideMat(next2, 0f))
+                    {
+                        fleeDirection = -fleeDirection;                       // 튕겨 되돌림
+                        Vector2 corrected = next2;
+                        Vector2 centroid = BoardBounds.QuadPoint(0.5f, 0.5f); // 사다리꼴 중심
+                        int guard = 0;
+                        while (BoardBounds.IsOutsideMat(corrected, 0f) && guard++ < 8)
+                            corrected = Vector2.Lerp(corrected, centroid, 0.25f);
+                        move = new Vector3(corrected.x, corrected.y, 0f);
+                    }
+                    else
+                    {
+                        move = new Vector3(next.x, next.y, 0f);
+                    }
+                }
+                else
+                {
+                    // 기존 AABB 로직 (fallback — quad 없는 스테이지)
+                    if (next.x < boardBounds.xMin || next.x > boardBounds.xMax)
+                        fleeDirection.x = -fleeDirection.x;
+                    if (next.y < boardBounds.yMin || next.y > boardBounds.yMax)
+                        fleeDirection.y = -fleeDirection.y;
 
-                // 경계 클램프
-                Vector3 move = pos + (Vector3)(fleeDirection * fleeSpeed * Time.fixedDeltaTime);
-                move.x = Mathf.Clamp(move.x, boardBounds.xMin, boardBounds.xMax);
-                move.y = Mathf.Clamp(move.y, boardBounds.yMin, boardBounds.yMax);
-                move.z = 0f;
+                    move = pos + (Vector3)(fleeDirection * fleeSpeed * Time.fixedDeltaTime);
+                    move.x = Mathf.Clamp(move.x, boardBounds.xMin, boardBounds.xMax);
+                    move.y = Mathf.Clamp(move.y, boardBounds.yMin, boardBounds.yMax);
+                    move.z = 0f;
+                }
 
                 if (rb != null)
                     rb.MovePosition(move);

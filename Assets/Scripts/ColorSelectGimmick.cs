@@ -91,12 +91,10 @@ public class ColorSelectGimmick : StageGimmick
             ? activeStones[0].transform.position.z
             : 0f;
 
-        // 4) 위치 배치: InnerRect(0.1f) 안에서 그리드+jitter 방식
+        // 4) 위치 배치: InnerQuadPoint(u,v, margin=0.1) 기반 그리드+jitter 방식
         //    4×4=16 슬롯 중 13개 랜덤 선택, 기존 5개와 최소 거리 0.35f 체크
-        var inner = BoardBounds.InnerRect(0.1f);
         int cols = 4, rows = 4;
-        float cellW = inner.width  / cols;
-        float cellH = inner.height / rows;
+        const float gridMargin = 0.1f;
 
         // 슬롯 인덱스 셔플
         var slotIndices = new int[cols * rows];
@@ -115,9 +113,12 @@ public class ColorSelectGimmick : StageGimmick
             int col = slot % cols;
             int row = slot / cols;
 
-            // 셀 중심 + jitter
-            float x = inner.xMin + (col + 0.5f) * cellW + Random.Range(-cellW * 0.3f, cellW * 0.3f);
-            float y = inner.yMin + (row + 0.5f) * cellH + Random.Range(-cellH * 0.3f, cellH * 0.3f);
+            // bilinear 셀 중심 + jitter (사다리꼴 폭 자동 반영)
+            float u = (col + 0.5f) / cols + Random.Range(-0.5f / cols * 0.3f, 0.5f / cols * 0.3f);
+            float v = (row + 0.5f) / rows + Random.Range(-0.5f / rows * 0.3f, 0.5f / rows * 0.3f);
+            Vector2 cell = BoardBounds.InnerQuadPoint(u, v, gridMargin);
+            float x = cell.x;
+            float y = cell.y;
 
             // 기존 5개와 거리 체크
             bool tooClose = false;
@@ -147,8 +148,9 @@ public class ColorSelectGimmick : StageGimmick
             placed++;
         }
 
-        // 슬롯이 부족해 배치 못한 돌은 inner 중심에 fallback
-        Vector3 center = new Vector3(inner.x + inner.width * 0.5f, inner.y + inner.height * 0.5f, boardZ);
+        // 슬롯이 부족해 배치 못한 돌은 quad 중심에 fallback
+        Vector2 centerXY = BoardBounds.QuadPoint(0.5f, 0.5f);
+        Vector3 center = new Vector3(centerXY.x, centerXY.y, boardZ);
         for (int i = placed; i < added.Length; i++)
         {
             var stone = added[i];

@@ -47,6 +47,17 @@ public class StageConfig
     public Vector2 BgImageOffset = Vector2.zero;
     public Vector2 BgImageScale  = Vector2.one;
 
+    // v8-2e 매트(책상 상판) 별도 레이어. null/empty면 매트 레이어 미사용(기존 stage = 그대로).
+    public string MatImage = null;  // Resources 경로. 예: "StageBackgrounds/Stage02_Desk"
+    // v8-2f 매트/보드 분리 (책상 시각 ≠ 플레이 영역). Size=(0,0)이면 미설정 → 기존 동작 폴백.
+    public Vector2 MatCenter   = Vector2.zero;  // 책상 quad 월드 중심
+    public Vector2 MatSize     = Vector2.zero;  // 책상 quad 월드 크기(PNG 전체). (0,0)=미설정→Cloth.bounds 폴백
+    public Vector2 BoardCenter = Vector2.zero;  // 플레이 영역(BoardBounds) 월드 중심
+    public Vector2 BoardSize   = Vector2.zero;  // 플레이 영역 월드 크기. (0,0)=미설정→override 없음
+
+    // v9: 사다리꼴 플레이 영역 ([0]=BL, [1]=BR, [2]=FL, [3]=FR). null이면 BoardCenter/Size Rect 폴백.
+    public Vector2[] BoardQuad = null;
+
     // 정적 데이터: 10개 스테이지 정의
     private static readonly StageConfig[] stages = new StageConfig[]
     {
@@ -58,12 +69,21 @@ public class StageConfig
             Gimmick=GimmickType.None, TotalStones=5,
             SkyBottom=new Color(1.0f,0.95f,0.7f), SkyTop=new Color(0.55f,0.85f,1.0f),
             TableColor=new Color(0.95f,0.85f,0.7f), ClothColor=new Color(1.0f,0.5f,0.5f),
+            MatImage    = "StageBackgrounds/BasicBoard",
+            MatCenter   = new Vector2(-0.13f, -3.08f),
+            MatSize     = new Vector2(19.83f, 10.05f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Sphere, Color=new Color(1.0f,0.9f,0.2f), Position=new Vector3(-3f,1f,0.5f), Scale=new Vector3(0.5f,0.5f,0.5f) },
             },
         },
-        // Stage 2 — Age 15, 분홍 하늘
+        // Stage 2 — Age 15, 교실 배경 + 매트(책상) 레이어
         new StageConfig
         {
             StageNumber=2, Age=15, StageName="색깔 선택", Theme="호기심의 사춘기",
@@ -71,6 +91,18 @@ public class StageConfig
             Gimmick=GimmickType.ColorSelect, TotalStones=18,
             SkyBottom=new Color(1.0f,0.8f,0.85f), SkyTop=new Color(0.55f,0.7f,0.95f),
             TableColor=new Color(0.6f,0.5f,0.4f), ClothColor=new Color(0.6f,0.65f,0.75f),
+            BackgroundImage = "StageBackgrounds/Stage02_Classroom",
+            MatImage        = "StageBackgrounds/Stage02_Desk",
+            MatCenter       = new Vector2(-0.14f, -2.70f),
+            MatSize         = new Vector2(20.6f, 11.6f),
+            BoardCenter     = new Vector2(0f, -4.8f),
+            BoardSize       = new Vector2(10.6f, 3.8f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.5f,0.5f,0.55f), Position=new Vector3(-3f,0.7f,0.5f), Scale=new Vector3(0.6f,0.8f,0.3f) },
@@ -85,6 +117,12 @@ public class StageConfig
             SkyBottom=new Color(0.7f,0.9f,1.0f), SkyTop=new Color(0.3f,0.65f,0.95f),
             TableColor=new Color(0.4f,0.7f,0.35f), ClothColor=new Color(0.4f,0.75f,0.7f),
             BackgroundImage="StageBackgrounds/Stage03_Campus",
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cylinder, Color=new Color(0.25f,0.6f,0.3f), Position=new Vector3(-3.2f,1.0f,0.5f), Scale=new Vector3(0.4f,1.2f,0.4f) },
@@ -100,6 +138,15 @@ public class StageConfig
             Gimmick=GimmickType.Sequence, TotalStones=5,
             SkyBottom=new Color(0.7f,0.75f,0.8f), SkyTop=new Color(0.45f,0.5f,0.6f),
             TableColor=new Color(0.5f,0.45f,0.4f), ClothColor=new Color(0.85f,0.78f,0.65f),
+            MatImage    = "StageBackgrounds/BasicBoard",
+            MatCenter   = new Vector2(-0.13f, -3.08f),
+            MatSize     = new Vector2(19.83f, 10.05f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.95f,0.95f,0.95f), Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(0.9f,0.6f,0.1f) },
@@ -116,6 +163,12 @@ public class StageConfig
             SkyBottom=new Color(0.2f,0.3f,0.55f), SkyTop=new Color(0.1f,0.15f,0.3f),
             TableColor=new Color(0.25f,0.35f,0.5f), ClothColor=new Color(0.6f,0.7f,0.85f),
             BackgroundImage="StageBackgrounds/Stage05_Office",
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube,     Color=new Color(0.3f,0.3f,0.35f),  Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(1.0f,0.7f,0.15f) },
@@ -132,6 +185,15 @@ public class StageConfig
             Gimmick=GimmickType.FakeStone, TotalStones=10,
             SkyBottom=new Color(0.55f,0.5f,0.65f), SkyTop=new Color(0.3f,0.25f,0.4f),
             TableColor=new Color(0.35f,0.25f,0.2f), ClothColor=new Color(0.25f,0.4f,0.25f),
+            MatImage    = "StageBackgrounds/BasicBoard",
+            MatCenter   = new Vector2(-0.13f, -3.08f),
+            MatSize     = new Vector2(19.83f, 10.05f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.55f,0.4f,0.25f), Position=new Vector3(3f,0.6f,0.5f), Scale=new Vector3(0.5f,0.1f,0.7f) },
@@ -145,6 +207,15 @@ public class StageConfig
             Gimmick=GimmickType.Gravity, TotalStones=5,
             SkyBottom=new Color(1.0f,0.55f,0.3f), SkyTop=new Color(0.7f,0.3f,0.2f),
             TableColor=new Color(0.45f,0.25f,0.15f), ClothColor=new Color(0.55f,0.25f,0.2f),
+            MatImage    = "StageBackgrounds/BasicBoard",
+            MatCenter   = new Vector2(-0.13f, -3.08f),
+            MatSize     = new Vector2(19.83f, 10.05f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cylinder, Color=new Color(0.45f,0.3f,0.15f), Position=new Vector3(-3f,0.6f,0.5f), Scale=new Vector3(0.4f,0.5f,0.4f) },
@@ -158,6 +229,15 @@ public class StageConfig
             Gimmick=GimmickType.AgedHand, TotalStones=5,
             SkyBottom=new Color(0.65f,0.7f,0.75f), SkyTop=new Color(0.45f,0.5f,0.6f),
             TableColor=new Color(0.55f,0.5f,0.45f), ClothColor=new Color(0.75f,0.8f,0.85f),
+            MatImage    = "StageBackgrounds/BasicBoard",
+            MatCenter   = new Vector2(-0.13f, -3.08f),
+            MatSize     = new Vector2(19.83f, 10.05f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Sphere, Color=new Color(0.7f,0.7f,0.7f), Position=new Vector3(3f,0.8f,0.5f), Scale=new Vector3(0.3f,0.3f,0.3f) },
@@ -171,6 +251,15 @@ public class StageConfig
             Gimmick=GimmickType.Spotlight, TotalStones=5,
             SkyBottom=new Color(0.25f,0.1f,0.25f), SkyTop=new Color(0.05f,0.05f,0.1f),
             TableColor=new Color(0.2f,0.15f,0.1f), ClothColor=new Color(0.25f,0.15f,0.3f),
+            MatImage    = "StageBackgrounds/BasicBoard",
+            MatCenter   = new Vector2(-0.13f, -3.08f),
+            MatSize     = new Vector2(19.83f, 10.05f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.1f,0.1f,0.1f), Position=new Vector3(-3f,0.8f,0.5f), Scale=new Vector3(0.4f,0.4f,0.4f) },
@@ -184,6 +273,15 @@ public class StageConfig
             Gimmick=GimmickType.Monochrome, TotalStones=5,
             SkyBottom=new Color(0.7f,0.7f,0.7f), SkyTop=new Color(0.4f,0.4f,0.4f),
             TableColor=new Color(0.35f,0.35f,0.35f), ClothColor=new Color(0.65f,0.65f,0.65f),
+            MatImage    = "StageBackgrounds/BasicBoard",
+            MatCenter   = new Vector2(-0.13f, -3.08f),
+            MatSize     = new Vector2(19.83f, 10.05f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+            },
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Sphere, Color=new Color(0.55f,0.55f,0.55f), Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(0.4f,0.4f,0.4f) },

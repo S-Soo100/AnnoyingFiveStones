@@ -35,29 +35,18 @@ public class CatchSystem : MonoBehaviour
         CalculateBoardSurfaceY();
     }
 
+    public void RecalculateBoardSurface() => CalculateBoardSurfaceY();
+
     private void CalculateBoardSurfaceY()
     {
-        var cloth = GameObject.Find("Cloth");
-        if (cloth == null)
-        {
-            Debug.LogWarning("[CatchSystem] Cloth not found! Using fallback boardSurfaceY = -2.45");
-            boardSurfaceY = -2.45f;
-            return;
-        }
-
-        // Renderer.bounds.max.y를 우선 사용 (실제 메시 상단)
-        var renderer = cloth.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            boardSurfaceY = renderer.bounds.max.y;
-        }
-        else
-        {
-            // fallback: position.y + localScale.y * 0.5
-            boardSurfaceY = cloth.transform.position.y + cloth.transform.localScale.y * 0.5f;
-        }
-
-        Debug.Log($"[CatchSystem] boardSurfaceY = {boardSurfaceY:F2}");
+        // v11-fix3 후보강 (Codex 리뷰): boardSurfaceY = BoardBounds.SkyFloorY 단일 SOT.
+        //   - SetQuadOverride: SkyFloorY = quad backY
+        //   - SetOverride(Rect): SkyFloorY = rect.yMax
+        //   - ClearOverride: SkyFloorY = -3.95 (안전 폴백)
+        // 모든 경로에서 손 받기선과 낙 판정선이 자동 일치 → 1.5 unit 데드존 잠복 위험 제거.
+        // 이전 Cloth.Renderer.bounds 폴백은 시각적 사다리꼴(-3.95)과 매트 AABB(-2.35) 사이 갭이 원인이라 폐기.
+        boardSurfaceY = BoardBounds.SkyFloorY;
+        Debug.Log($"[CatchSystem] boardSurfaceY = {boardSurfaceY:F2} (SkyFloorY SOT)");
     }
 
     private void Update()

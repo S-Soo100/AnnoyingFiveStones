@@ -1,15 +1,15 @@
-# Annoying Five Stones (열받는 공기놀이) — Claude Code 규칙
+# Annoying Five Stones (열받는 공기놀이) — Codex 규칙
 
 ## 🚫 금지 규칙 (Donts)
 
-반복되는 실수를 막기 위한 하드 룰은 `.claude/rules/donts.md`에 정의되어 있다. (ideaBank 허브에서 복제, 2026-04-11)
-- 전역: [`.claude/rules/donts.md`](.claude/rules/donts.md)
-- 게임/Unity: [`.claude/rules/donts/game.md`](.claude/rules/donts/game.md)
-- 이미지/에셋: [`.claude/rules/donts/images.md`](.claude/rules/donts/images.md)
-- FlowForge/React/Supabase: [`.claude/rules/donts/flowforge.md`](.claude/rules/donts/flowforge.md)
-- 마케팅/콘텐츠: [`.claude/rules/donts/marketing.md`](.claude/rules/donts/marketing.md)
+반복되는 실수를 막기 위한 하드 룰은 `.Codex/rules/donts.md`에 정의되어 있다. (ideaBank 허브에서 복제, 2026-04-11)
+- 전역: [`.Codex/rules/donts.md`](.Codex/rules/donts.md)
+- 게임/Unity: [`.Codex/rules/donts/game.md`](.Codex/rules/donts/game.md)
+- 이미지/에셋: [`.Codex/rules/donts/images.md`](.Codex/rules/donts/images.md)
+- FlowForge/React/Supabase: [`.Codex/rules/donts/flowforge.md`](.Codex/rules/donts/flowforge.md)
+- 마케팅/콘텐츠: [`.Codex/rules/donts/marketing.md`](.Codex/rules/donts/marketing.md)
 
-**실전 검증 로그:** Standard 이상 트랙 작업을 마칠 때마다 [`.claude/donts-audit.md`](.claude/donts-audit.md)에 한 줄 추가(기능/참조/지킴/놓침/재발/메모). Three-Strike Rule 적용 — 같은 실수 3회 발생 시 이 프로젝트의 donts로 정식 승격.
+**실전 검증 로그:** Standard 이상 트랙 작업을 마칠 때마다 [`.Codex/donts-audit.md`](.Codex/donts-audit.md)에 한 줄 추가(기능/참조/지킴/놓침/재발/메모). Three-Strike Rule 적용 — 같은 실수 3회 발생 시 이 프로젝트의 donts로 정식 승격.
 
 ---
 
@@ -34,7 +34,7 @@
 
 ### 도구 (ideaBank, 절대경로로 실행)
 ```bash
-# 웹 리서치 — game-research.sh 사용 금지 (비용 문제). Claude WebSearch 사용.
+# 웹 리서치 — game-research.sh 사용 금지 (비용 문제). Codex WebSearch 사용.
 
 # 기획 보고서 생성 (Gemini, 무료)
 /Users/baek/ideaBank/tools/design-report.sh "주제" input1.md input2.md --output /Users/baek/ideaBank/game-dev/reports/주제.md
@@ -54,16 +54,16 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 
 도구 실행 시 작업 디렉토리 주의 — `.env`가 `/Users/baek/ideaBank/tools/`에 있으므로 절대경로 사용.
 
-## CAOF (Claude Agent Orchestration Framework)
+## CAOF (Codex Agent Orchestration Framework)
 
-이 프로젝트는 CAOF를 따른다. 원본: `/Users/baek/ideaBank/frameworks/claude-agent-orchestration.md`
+이 프로젝트는 CAOF를 따른다. 원본: `/Users/baek/ideaBank/frameworks/Codex-agent-orchestration.md`
 
 ### 역할 매핑
 - **Designer**: game-designer (범용, 엔진 무관)
 - **Implementer**: unity-unity-game-coder (Unity C# 전용)
 
 ### 사용자 안내 규칙
-게임 관련 작업 요청 시, 메인 Claude는 **트랙 판단 결과를 먼저 알려준다**:
+게임 관련 작업 요청 시, 메인 Codex는 **트랙 판단 결과를 먼저 알려준다**:
 ```
 📋 CAOF 트랙: [Trivial / Standard / Critical]
 이유: [1줄 근거]
@@ -91,18 +91,13 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 ├─ 새 시스템/기능 → Critical 트랙 (풀 GATE)
 ├─ 기존 기능 수정 → Standard 트랙 (Designer → Implementer)
 ├─ 오타/상수/로그 추가 → Trivial (unity-unity-game-coder 직행)
-└─ 단순 질문 → 메인 Claude 직접
+└─ 단순 질문 → 메인 Codex 직접
 ```
 
 ### 실패 에스컬레이션
-
-**먼저 실패 종류를 구분한다:**
-- **인프라성 실패** (`0 tokens` / `parse failure` / 빈 응답 / `tool params 누락` — 에이전트가 task를 *수행하기도 전에* 깨짐):
-  직접구현 폴백·중단 **전에 "최소 진단 스폰" 1회** 먼저 돌린다(사소한 Read+Grep 후 3줄 보고만 시키는 trivial 작업). 성공=브리지 정상(직전 실패는 transient) → **원래 작업을 서브에이전트로 재시도**. 진단도 실패 → 구조적 문제로 간주, 보고 후 에스컬레이션.
-- **내용성 실패** (에이전트가 수행했으나 분석/코드가 틀림):
-  1회 → 재시도 / 2회 → Designer 재분석 / 3회 → 즉시 중단 + 보고
-
-> 인프라성 실패를 내용성 실패로 오인해 파이프라인을 통째로 포기하지 말 것. (v9 교훈: 진단 스폰 1회면 복구됐을 것을 "직접 코딩 금지" 예외로 빠짐)
+```
+1회 실패 → 재시도 / 2회 실패 → Designer 재분석 / 3회 실패 → 즉시 중단 + 보고
+```
 
 ## 핵심 원칙
 
@@ -193,7 +188,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 > "승인", "바로 해", "구현해"는 스킵 승인이 아니다. "N단계 스킵 승인"만 스킵으로 인정한다.
 
 **GATE 1 — 리서치** (산출물: 리서치 결과 요약)
-- Claude WebSearch로 핵심 기술 키워드 리서치 (game-research.sh 사용 금지)
+- Codex WebSearch로 핵심 기술 키워드 리서치 (game-research.sh 사용 금지)
 - 특히 **Unity 버전별 차이, URP 특성, 플랫폼 제약**을 반드시 검색
 - "이미 알고 있다"는 리서치 스킵 사유가 아님 — **모르는 것을 모르는 상태**를 방지하는 것이 목적
 
@@ -267,7 +262,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 
 ### 3. 게임 기획 도구 자동 호출 (**절대 건너뛰지 않는다**)
 새 메카닉/시스템 설계 시 — 사용자가 명시적으로 스킵을 요청하지 않는 한 무조건 실행:
-1. Claude WebSearch로 웹 리서치 (백그라운드 subagent)
+1. Codex WebSearch로 웹 리서치 (백그라운드 subagent)
 2. Explore agent로 기존 기획 문서 수집 (병렬)
 3. 리서치 완료 후 `design-report.sh`로 보고서 생성
 4. **game-designer가 구현 계획서 작성** → 사용자 "승인" 대기
@@ -278,7 +273,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 ### 4. 활동 완료 시 기록
 마일스톤 완료 시:
 1. `/Users/baek/ideaBank/progress.md`에 기록 추가
-2. 커밋+푸시는 **Claude Hook(Stop)이 자동 처리** — 별도 확인 불필요
+2. 커밋+푸시는 **Codex Hook(Stop)이 자동 처리** — 별도 확인 불필요
 
 ### 5. New Input System 사용
 - 레거시 `Input.GetKey()` 사용 금지

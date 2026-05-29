@@ -20,6 +20,24 @@ public class BackgroundManager : MonoBehaviour
     // v8-2b: 풀스크린 배경 이미지 quad (이미지가 지정된 stage에서만 활성)
     private GameObject bgImageQuad;
 
+    // v8-2e: 매트(책상 상판) 별도 레이어 quad
+    private GameObject matImageQuad;
+    [SerializeField] private Vector2 liveMatOffset = Vector2.zero;
+    [SerializeField] private Vector2 liveMatScale  = Vector2.one;
+
+    // v8-2f: 매트(책상) base — config.MatCenter/MatSize. Size.zero면 Cloth.bounds 폴백.
+    private Vector2 matBaseCenter;
+    private Vector2 matBaseSize;
+    // v8-2f: 보드 영역 base — config.BoardCenter/BoardSize.
+    private Vector2 boardBaseCenter;
+    private Vector2 boardBaseSize;
+    // v9: 사다리꼴 보드 영역 base.
+    private Vector2[] boardBaseQuad;
+
+    [Header("Live Tuning — 보드(플레이 영역)")]
+    [SerializeField] private Vector2 liveBoardOffset = Vector2.zero; // 보드 중심 가산(월드)
+    [SerializeField] private Vector2 liveBoardScale  = Vector2.one;  // 보드 크기 배율
+
     // v8-2c: 라이브 튜닝 (Play 중 Inspector로 quad offset/scale 미세조정). 만족 시 값을 StageConfig에 옮긴다.
     [Header("Live Tuning — Play 중 Inspector로 조정")]
     [SerializeField] private bool liveTuningEnabled = false;
@@ -52,7 +70,16 @@ public class BackgroundManager : MonoBehaviour
     {
         if (config == null) return;
 
+        // v8-2f: 보드 영역 override (책상 wood = 플레이 영역). 미설정 stage는 Cloth.bounds 폴백.
+        boardBaseCenter = config.BoardCenter;
+        boardBaseSize   = config.BoardSize;
+        boardBaseQuad   = config.BoardQuad; // v9: 사다리꼴 캐시
+        if (Application.isPlaying) { liveBoardOffset = Vector2.zero; liveBoardScale = Vector2.one; }
+        ApplyBoardOverride();
+
         bool useImage = !string.IsNullOrEmpty(config.BackgroundImage);
+        bool hasMat = !string.IsNullOrEmpty(config.MatImage);
+        bool hideTableCloth = useImage || hasMat;
 
         if (useImage)
         {
@@ -61,13 +88,8 @@ public class BackgroundManager : MonoBehaviour
             if (skyGradient != null) skyGradient.gameObject.SetActive(false);
             ClearProps();
 
-            // 보드(Table)/매트(Cloth)는 Renderer만 끔 — 이미지에 그려진 매트/책상이 그대로 노출.
-            // GameObject는 active 유지 → BoardBounds(Cloth.Renderer.bounds) 캐시 정상.
-            if (tableRenderer != null) tableRenderer.enabled = false;
-            if (clothRenderer != null) clothRenderer.enabled = false;
-
             lastImageConfig = config;
-            // 라이브 튜닝 시작 값 = stage 기본값(편의)
+            // 라이브 튜닝 시작 값 = stage 기본값(편의). bg 이미지만. 매트는 공통 블록에서 처리.
             if (Application.isPlaying)
             {
                 liveOffset = config.BgImageOffset;
@@ -82,11 +104,7 @@ public class BackgroundManager : MonoBehaviour
             if (skyGradient != null) skyGradient.gameObject.SetActive(true);
             skyGradient?.ApplyColors(config.SkyBottom, config.SkyTop);
 
-            // 보드/매트 Renderer 복구
-            if (tableRenderer != null) tableRenderer.enabled = true;
-            if (clothRenderer != null) clothRenderer.enabled = true;
-
-            // 색상 갱신 (placeholder 모드에서만 의미 있음)
+            // 색상 갱신 (placeholder 모드에서만 의미 있음 — Renderer가 꺼져도 미래 대비 안전망으로 유지)
             if (tableRenderer != null)
             {
                 tableRenderer.GetPropertyBlock(tableBlock);
@@ -106,6 +124,22 @@ public class BackgroundManager : MonoBehaviour
                 foreach (var prop in config.Props)
                     SpawnProp(prop);
             }
+        }
+
+        // ── 공통: Cloth/Table Renderer 가시성 + 매트 레이어 ──
+        // MatImage가 있으면(또는 풀배경 이미지면) Cloth/Table Renderer를 끈다.
+        // GameObject는 active 유지 → BoardBounds(Cloth.bounds) 폴백 캐시 정상.
+        if (tableRenderer != null) tableRenderer.enabled = !hideTableCloth;
+        if (clothRenderer != null) clothRenderer.enabled = !hideTableCloth;
+
+        if (hasMat)
+        {
+            if (Application.isPlaying) { liveMatOffset = Vector2.zero; liveMatScale = Vector2.one; }
+            ApplyMatImage(config.MatImage, config.MatCenter, config.MatSize);
+        }
+        else if (matImageQuad != null)
+        {
+            matImageQuad.SetActive(false);
         }
     }
 
@@ -133,6 +167,131 @@ public class BackgroundManager : MonoBehaviour
 
         bgImageQuad.SetActive(false);
     }
+
+    // ── v8-2f 보드 영역 override ─────────────────────────────────────────────
+
+    /// <summary>boardBase + live델타로 BoardBounds override 설정. quad 있으면 quad 경로, Size.zero면 해제.</summary>
+    private void ApplyBoardOverride()
+    {
+        // v9: quad 경로 — 4꼭짓점을 centroid 기준 scale + offset
+        if (boardBaseQuad != null && boardBaseQuad.Length == 4)
+        {
+            Vector2 c = (boardBaseQuad[0] + boardBaseQuad[1] + boardBaseQuad[2] + boardBaseQuad[3]) * 0.25f;
+            Vector2[] q = new Vector2[4];
+            for (int i = 0; i < 4; i++)
+            {
+                Vector2 p = boardBaseQuad[i];
+                q[i] = new Vector2(
+                    (p.x - c.x) * liveBoardScale.x + c.x,
+                    (p.y - c.y) * liveBoardScale.y + c.y
+                ) + liveBoardOffset;
+            }
+            BoardBounds.SetQuadOverride(q);
+        }
+        else if (boardBaseSize == Vector2.zero)
+        {
+            BoardBounds.ClearOverride();
+        }
+        else
+        {
+            Vector2 center = boardBaseCenter + liveBoardOffset;
+            Vector2 s = new Vector2(boardBaseSize.x * liveBoardScale.x, boardBaseSize.y * liveBoardScale.y);
+            BoardBounds.SetOverride(new Rect(center.x - s.x * 0.5f, center.y - s.y * 0.5f, s.x, s.y));
+        }
+        // v11-fix3 보강 (Gemini 리뷰): 모든 경로 공통 — quad/Rect/Clear 후 CatchSystem 재계산
+        FindFirstObjectByType<CatchSystem>()?.RecalculateBoardSurface();
+    }
+
+    // ── v8-2e 매트 레이어 ─────────────────────────────────────────────────────
+
+    private void EnsureMatImageQuad()
+    {
+        if (matImageQuad != null) return;
+        var cam = Camera.main;
+        if (cam == null || !cam.orthographic) return;
+
+        matImageQuad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        matImageQuad.name = "MatImageQuad";
+        var col = matImageQuad.GetComponent<Collider>();
+        if (col != null) Object.Destroy(col);
+
+        // 카메라 자식 — 카메라 따라다닐 수 있도록
+        matImageQuad.transform.SetParent(cam.transform, false);
+        matImageQuad.transform.localRotation = Quaternion.identity; // Quad 노말 (0,0,-1) → 카메라(z=-10) 향함. 회전 금지.
+
+        // URP/Unlit Transparent — Stage02_Desk.png 투명 배경 처리 필수
+        var rd = matImageQuad.GetComponent<Renderer>();
+        var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.SetFloat("_Surface", 1f);   // 0=Opaque, 1=Transparent
+        mat.SetFloat("_Blend", 0f);     // 0=Alpha
+        mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetFloat("_ZWrite", 0f);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.DisableKeyword("_ALPHATEST_ON");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        // 밝기 일관성: bgImageQuad처럼 Emission 켜기
+        // Transparent에서 alpha=0인 영역은 emission rgb가 더해져도 블렌딩 기여 0 → 투명 정상 작동
+        mat.EnableKeyword("_EMISSION");
+        mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        rd.material = mat;
+
+        matImageQuad.SetActive(false);
+    }
+
+    /// <summary>매트 quad = base(matBaseCenter/Size, 월드) + live델타(offset 가산, scale 배율). matBaseSize.zero면 Cloth.bounds 폴백.</summary>
+    private void ApplyMatQuadTransform(Vector2 liveOffset, Vector2 liveScale)
+    {
+        if (matImageQuad == null) return;
+        var cam = Camera.main;
+        if (cam == null || !cam.orthographic) return;
+        Vector3 camPos = cam.transform.position;
+
+        Vector2 center, size;
+        if (matBaseSize == Vector2.zero)
+        {
+            // 폴백: 기존 Cloth.bounds 기반
+            if (clothRenderer == null) return;
+            Bounds b = clothRenderer.bounds;
+            center = new Vector2(b.center.x, b.center.y);
+            size   = new Vector2(b.size.x, b.size.y);
+        }
+        else { center = matBaseCenter; size = matBaseSize; }
+
+        float localX = center.x + liveOffset.x - camPos.x;
+        float localY = center.y + liveOffset.y - camPos.y;
+        matImageQuad.transform.localPosition = new Vector3(localX, localY, 10.03f); // world z=0.03: 돌(z=0) 뒤 + Sky(z=0.05) 앞
+        matImageQuad.transform.localScale    = new Vector3(size.x * liveScale.x, size.y * liveScale.y, 1f);
+    }
+
+    private void ApplyMatImage(string resourcePath, Vector2 baseCenter, Vector2 baseSize)
+    {
+        matBaseCenter = baseCenter;
+        matBaseSize   = baseSize;
+        EnsureMatImageQuad();
+        if (matImageQuad == null) return;
+
+        ApplyMatQuadTransform(liveMatOffset, liveMatScale);
+
+        var tex = Resources.Load<Texture2D>(resourcePath);
+        if (tex == null)
+        {
+            Debug.LogWarning($"[BackgroundManager] Mat image not found: {resourcePath}");
+            matImageQuad.SetActive(false);
+            return;
+        }
+
+        var rd = matImageQuad.GetComponent<Renderer>();
+        var mat = rd.material;
+        mat.SetTexture("_BaseMap", tex);
+        mat.SetColor("_BaseColor", Color.white);
+        mat.SetTexture("_EmissionMap", tex);
+        mat.SetColor("_EmissionColor", Color.white);
+
+        matImageQuad.SetActive(true);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>quad 위치/스케일을 stage별 offset/scale로 갱신.</summary>
     private void ApplyQuadTransform(Vector2 offset, Vector2 scale)
@@ -180,6 +339,14 @@ public class BackgroundManager : MonoBehaviour
         if (!liveTuningEnabled) return;
         if (lastImageConfig == null || bgImageQuad == null || !bgImageQuad.activeSelf) return;
         ApplyQuadTransform(liveOffset, liveScale);
+
+        // 매트 라이브 튜닝
+        if (lastImageConfig != null && !string.IsNullOrEmpty(lastImageConfig.MatImage)
+            && matImageQuad != null && matImageQuad.activeSelf)
+            ApplyMatQuadTransform(liveMatOffset, liveMatScale);
+
+        // 보드 override 라이브 갱신 (BoardBoundsDebugDrawer 빨간 박스가 즉시 반영)
+        ApplyBoardOverride();
     }
 
     private void ClearProps()

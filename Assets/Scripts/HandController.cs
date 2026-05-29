@@ -12,7 +12,7 @@ public class HandController : MonoBehaviour
 {
     [Header("Board Bounds")]
     [SerializeField] private Vector2 boardMin = new Vector2(-4f, -9f);
-    [SerializeField] private Vector2 boardMax = new Vector2(4f, -1f);
+    [SerializeField] private Vector2 boardMax = new Vector2(4f, -1f); // v11: y는 BoardBounds.SkyFloorY로 이전. x는 미사용.
 
     [Header("Throw Settings")]
     [SerializeField] private float throwPeakY = 8f;        // 최고점 Y (하늘 영역 상단)
@@ -132,7 +132,13 @@ public class HandController : MonoBehaviour
             // catch mode가 아닐 때만 위치 갱신 (catch mode는 LateUpdate에서 처리)
             if (!isCatchMode) UpdatePosition();
 
-            bool inSky = transform.position.y > boardMax.y;
+            // v11-fix2: 하늘 경계 = BoardBounds.SkyFloorY (=-2.45, 보드 메시 상단)
+            // 히스테리시스 0.2 unit: 한 번 catch 모드면 (SkyFloor - 0.2 = -2.65) 아래로 가야 해제 → chattering 방지
+            float skyEnter = BoardBounds.SkyFloorY;
+            float skyExit  = BoardBounds.SkyFloorY - 0.2f;
+            bool inSky = isCatchMode
+                ? transform.position.y > skyExit
+                : transform.position.y > skyEnter;
             if (inSky && !isCatchMode)
             {
                 SetCatchMode(true);
@@ -900,11 +906,19 @@ public class HandController : MonoBehaviour
                 float y = Mathf.Lerp(stoneStartY[i], landY - 1f, eased);
                 stones[i].transform.position = new Vector3(stoneX[i], y, 0f);
 
-                // 캐치 판정: catchAreaY 범위에 들어왔을 때 X 거리 체크
-                if (y <= catchAreaY + 0.5f && y >= catchAreaY - 0.8f)
+                // v11-fix5 (옵션 C): catch window를 손 위치(palmTopY) 기반으로 변경.
+                //   원인 (v11-fix4 진단 오류 후 재분석): 기존 절대 y(catchAreaY+0.5) 기준은 손이 어디 있든 돌이 y≤2.5에서 잡힘
+                //         → 손 안 올렸는데도 catch 발동 + 직후 SetParent 텔레포트(L924-925)로 "공중에서 받힘" 인지 발생.
+                //   해결: palmTopY = transform.position.y + 0.4 * localScale.y (Palm 시각 윗면, backhand 2x 스케일 자동 보정).
+                //         catchUpper = palmTopY + 0.3 (손등 위 ~30px 여유), catchLower = palmTopY - 0.5 (손 중심 살짝 아래).
+                //         손을 올리면 catch 영역도 같이 올라가서 "돌이 손등에 닿는 느낌" 구현 + 텔레포트 거리 자연 단축.
+                // handRaised: 보드 영역 진입 차단용 안전망 (옵션 C 본질은 palmTopY 자체에 있음).
+                float palmTopY = transform.position.y + 0.4f * transform.localScale.y;
+                if (y <= palmTopY + 0.3f && y >= palmTopY - 0.5f && y >= BoardBounds.SkyFloorY)
                 {
+                    bool handRaised = transform.position.y >= BoardBounds.SkyFloorY;
                     float distX = Mathf.Abs(stoneX[i] - transform.position.x);
-                    if (distX <= stage5CatchRadius)
+                    if (handRaised && distX <= stage5CatchRadius)
                     {
                         caught[i] = true;
                         caughtCount++;

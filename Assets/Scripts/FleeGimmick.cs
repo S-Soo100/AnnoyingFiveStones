@@ -37,7 +37,8 @@ public class FleeGimmick : StageGimmick
             if (!s.gameObject.activeSelf) continue;
 
             var flee = s.gameObject.AddComponent<FleeMovement>();
-            flee.boardBounds = BoardBounds.InnerRect(0.05f); // 5% 안쪽 마진 (SOT 사용)
+            flee.boardBounds = BoardBounds.InnerRect(0.05f); // 5% 안쪽 마진 (fallback용 — quad 없을 때만 사용)
+            flee.useQuadContainment = BoardBounds.HasQuad;   // 사다리꼴 quad 있으면 quad 판정 사용
             flee.Activate(delay);
             activeFleers.Add(flee);
             delay += 0.2f; // 0.2초 시간차
