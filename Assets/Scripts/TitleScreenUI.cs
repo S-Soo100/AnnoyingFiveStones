@@ -761,6 +761,7 @@ public class TitleScreenUI : MonoBehaviour
         // 3D 돌 + 카메라 활성화
         SetDecoStone3DActive(true);
         Debug.Log("[TitleScreenUI] Show.");
+        AudioManager.Instance?.PlayLobbyBGM();
     }
 
     public void Hide(System.Action onComplete = null)

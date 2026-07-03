@@ -84,13 +84,13 @@ public class FleeMovement : MonoBehaviour
                 {
                     // 사다리꼴 경계 판정 (BoardBounds SOT)
                     Vector2 next2 = new Vector2(next.x, next.y);
-                    if (BoardBounds.IsOutsideMat(next2, 0f))
+                    if (BoardBounds.IsOutsideMatStrict(next2, 0f))
                     {
                         fleeDirection = -fleeDirection;                       // 튕겨 되돌림
                         Vector2 corrected = next2;
                         Vector2 centroid = BoardBounds.QuadPoint(0.5f, 0.5f); // 사다리꼴 중심
                         int guard = 0;
-                        while (BoardBounds.IsOutsideMat(corrected, 0f) && guard++ < 8)
+                        while (BoardBounds.IsOutsideMatStrict(corrected, 0f) && guard++ < 8)
                             corrected = Vector2.Lerp(corrected, centroid, 0.25f);
                         move = new Vector3(corrected.x, corrected.y, 0f);
                     }

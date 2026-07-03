@@ -174,11 +174,17 @@ public class DebugHUD : MonoBehaviour
         GUI.backgroundColor = new Color(0.6f, 1f, 0.6f, 0.8f);
         if (GUI.Button(new Rect(x, y, btnW, btnH), "다음 스테이지로 (+5살)", btnStyle))
         {
-            for (int i = 0; i < 5; i++)
-                session.OnStageComplete(i + 1);
+            // 1~4단은 GameSession에만 반영 (부작용 없음)
+            for (int i = 1; i <= 4; i++)
+                session.OnStageComplete(i);
+            // 5단은 GameManager.DebugCompleteCurrentLoop() 경유 — IsGameClear 분기/전환 코루틴 정상 작동
+            // v12-fix: GameManager 측 메서드가 `#if UNITY_EDITOR || DEVELOPMENT_BUILD` 가드 안에 정의되므로
+            //          Release Player 빌드에서 stripping → 호출부도 동일 가드로 차단해 CS1061 회피.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            gm.DebugCompleteCurrentLoop();
+#endif
             SidePanelUI.Instance?.Refresh();
             AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
-            gm.StartStage(1);
         }
 
         GUI.backgroundColor = origBg;

@@ -37,5 +37,9 @@
 16. **URP Strip Unused Variants 끄지 말 것** — `UniversalRenderPipelineGlobalSettings.asset`의 `m_StripUnusedVariants: 0` 설정은 빌드를 50배 이상 느리게 만들고 클린업도 어렵다. 셰이더 누락 의심 시 `GraphicsSettings.AlwaysIncludedShaders` 또는 `ShaderVariantCollection`으로 해결.
 17. **사용자 질문 의도 구분** — "빌드해도 돼?" / "버그 없어?" 는 **예방 점검** 요청이지 "지금 문제 있다"는 보고가 아니다. 사전 점검은 로그/git status/최근 빌드 결과 확인으로 답한다. 가설 만들어 대형 변경 들어가지 말 것. (같은 2026-05-20 사고에서 유발)
 
+## 📐 SOT / 좌표 변경
+
+18. **SOT(공유 좌표/영역/임계값) 변경 시 다운스트림 전수 검토** — BoardBounds, SkyFloorY 등 여러 시스템이 공유하는 좌표/영역/임계값을 도입·수정할 때, 모든 소비자(CatchSystem, HandController, Flee, MonochromeGimmick 추가 배치 등)에 미치는 영향을 grep+Read로 사전 추적한다. **영역 축소 시에는** 손바닥 픽업 충돌·스폰 최소 간격·낙 판정선 race를 `BoardDebugLines`나 콘솔 로그로 시각화 검증 후 진행. (v9 Stage 2 quad↔Flee AABB / v11-fix3 SkyFloorY 미스매치 3사이클 / v12 Stage 10 quad 축소 → 손바닥 충돌 + IsOutsideMat SkyFloor 예외 Flee 적용 — 3회 누적 후 정식 룰화)
+
 ---
-**출처 메모리:** `feedback_unity_quest_guard`, `feedback_quest_advance`, `feedback_autowalk_pathfinding`, `feedback_content_not_system`, `feedback_map_redesign`, `feedback_unity_input_system`, `feedback_unity_tmp_font`, `feedback_parallel_agents`, `feedback_csharp_array_init`, `feedback_visual_check_asset_first`, `feedback_tree_rules`, `feedback_game_code_workflow`, `feedback_ai_design_review`, `feedback_build_diagnosis_log_first`
+**출처 메모리:** `feedback_unity_quest_guard`, `feedback_quest_advance`, `feedback_autowalk_pathfinding`, `feedback_content_not_system`, `feedback_map_redesign`, `feedback_unity_input_system`, `feedback_unity_tmp_font`, `feedback_parallel_agents`, `feedback_csharp_array_init`, `feedback_visual_check_asset_first`, `feedback_tree_rules`, `feedback_game_code_workflow`, `feedback_ai_design_review`, `feedback_build_diagnosis_log_first`, `feedback_verify_assumptions`

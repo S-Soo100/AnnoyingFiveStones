@@ -313,23 +313,74 @@ public class MonochromeGimmick : StageGimmick
         textLabels.Add(labelGo);
     }
 
-    /// <summary>추가 돌을 보드 범위 내 랜덤 배치</summary>
+    /// <summary>추가 돌을 보드 사다리꼴 내부 균등 샘플링으로 배치 (v12-fix: 최소 거리 보장 + fallback)</summary>
     private void PlaceAdditionalStones(Stone[] stones)
     {
-        Rect boardRect = GetBoardRect();
+        const float margin = 0.04f;     // v12-fix: 0.08 → 0.04 완화 (사용 가능 면적 ~8% 확장)
+        const float minDistance = 1.2f; // 손바닥 가로 1.0 + 돌 직경 0.3 + 여유 (동시 진입 방지)
+        const int maxAttempts = 30;     // 최소 거리 유지 재시도 한도
+
+        // 기존 활성 OnBoard 돌 위치 수집 (회피 대상)
+        var placedPositions = new List<Vector2>();
+        var allActive = GameManager.Instance?.Stones;
+        if (allActive != null)
+        {
+            foreach (var s in allActive)
+            {
+                if (s == null || !s.gameObject.activeSelf) continue;
+                if (s.CurrentState != Stone.State.OnBoard) continue;
+                placedPositions.Add(new Vector2(s.transform.position.x, s.transform.position.y));
+            }
+        }
 
         foreach (var stone in stones)
         {
-            // OnBoard 상태로 설정
             stone.SetState(Stone.State.OnBoard);
 
-            // 보드 범위 내 랜덤 위치
-            float x = Random.Range(boardRect.xMin + 0.5f, boardRect.xMax - 0.5f);
-            float y = Random.Range(boardRect.yMin + 0.5f, boardRect.yMax - 0.5f);
+            Vector2 pos = Vector2.zero;
+            Vector2 lastCandidate = Vector2.zero;
+            bool placed = false;
 
-            // Kinematic으로 텔레포트 후 복원
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                // 사다리꼴 내부 균등 샘플링
+                Vector2 candidate = BoardBounds.InnerQuadPoint(Random.value, Random.value, margin);
+
+                // SafeZone clamp: BoardQuad가 SafeZone보다 넓은 Stage(10 등)에서 즉시 fail 방지
+                candidate.x = Mathf.Clamp(candidate.x, GameManager.SafeZoneMin.x + 0.1f, GameManager.SafeZoneMax.x - 0.1f);
+                candidate.y = Mathf.Clamp(candidate.y, GameManager.SafeZoneMin.y + 0.1f, GameManager.SafeZoneMax.y - 0.1f);
+                lastCandidate = candidate;
+
+                bool tooClose = false;
+                foreach (var prev in placedPositions)
+                {
+                    if (Vector2.Distance(candidate, prev) < minDistance)
+                    {
+                        tooClose = true;
+                        break;
+                    }
+                }
+
+                if (!tooClose)
+                {
+                    pos = candidate;
+                    placed = true;
+                    break;
+                }
+            }
+
+            if (!placed)
+            {
+                // maxAttempts 소진 → 마지막 candidate 사용 (20개 확보 보장)
+                pos = lastCandidate;
+                Debug.LogWarning($"[MonochromeGimmick] Stone {stone.StoneIndex} placed with relaxed distance after {maxAttempts} attempts");
+            }
+
+            placedPositions.Add(pos);
+
+            // Kinematic 텔레포트 후 복원 (기존 패턴 유지)
             stone.Rb.isKinematic = true;
-            stone.transform.position = new Vector3(x, y, 0f);
+            stone.transform.position = new Vector3(pos.x, pos.y, 0f);
             stone.Rb.isKinematic = false;
             stone.Rb.useGravity = false;
             stone.Rb.linearDamping = 3f;

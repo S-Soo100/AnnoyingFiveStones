@@ -68,34 +68,56 @@ public static class BoardBounds
     {
         if (HasQuad)
         {
-            // 확장 quad: 각 꼭짓점을 centroid 기준으로 margin만큼 바깥으로 밀어냄
-            // (v9 보강: 매 호출 new Vector2[] 할당 제거 — 로컬 변수로 GC 부하 0, 동작 동일)
-            Vector2 centroid = (overrideQuad[0] + overrideQuad[1] + overrideQuad[2] + overrideQuad[3]) * 0.25f;
-            Vector2 e0 = ExpandCorner(overrideQuad[0], centroid, marginAbsolute); // BL
-            Vector2 e1 = ExpandCorner(overrideQuad[1], centroid, marginAbsolute); // BR
-            Vector2 e2 = ExpandCorner(overrideQuad[2], centroid, marginAbsolute); // FL
-            Vector2 e3 = ExpandCorner(overrideQuad[3], centroid, marginAbsolute); // FR
-
             // Y 상한: 사다리꼴 뒷변과 SkyFloor 중 위 값. 이 위는 "하늘"이라 outside 면제.
-            float backY = Mathf.Max(e0.y, e1.y);
+            Vector2 centroidForSky = (overrideQuad[0] + overrideQuad[1] + overrideQuad[2] + overrideQuad[3]) * 0.25f;
+            Vector2 e0s = ExpandCorner(overrideQuad[0], centroidForSky, marginAbsolute);
+            Vector2 e1s = ExpandCorner(overrideQuad[1], centroidForSky, marginAbsolute);
+            float backY = Mathf.Max(e0s.y, e1s.y);
             float skyFloor = Mathf.Max(backY, SkyFloorY);
             if (pos.y > skyFloor) return false; // 위로 올라간 돌 보호 (하늘 영역)
 
-            // 점-사각형 내부 판정: 둘레 순서 CCW BL→BR→FR→FL = e0→e1→e3→e2
-            float cross0 = CrossEdge(e0, e1, pos);
-            float cross1 = CrossEdge(e1, e3, pos);
-            float cross2 = CrossEdge(e3, e2, pos);
-            float cross3 = CrossEdge(e2, e0, pos);
-
-            // 모두 같은 부호면 내부
-            bool inside = (cross0 >= 0f && cross1 >= 0f && cross2 >= 0f && cross3 >= 0f)
-                       || (cross0 <= 0f && cross1 <= 0f && cross2 <= 0f && cross3 <= 0f);
-            return !inside;
+            return IsOutsideQuadInterior(pos, marginAbsolute);
         }
 
         var r = MatRect;
         return pos.x < r.xMin - marginAbsolute || pos.x > r.xMax + marginAbsolute
             || pos.y < r.yMin - marginAbsolute; // Y 상한은 무시 (던지기 중 위로 올라간 돌 보호)
+    }
+
+    /// <summary>매트 밖 엄격 판정 — SkyFloor 면제 없음. quad 있으면 사다리꼴 엄격 판정, 없으면 AABB(Y 상한 포함).
+    /// 보드 면 위 이동(예: Stage 3 FleeMovement)에서 +Y로 새는 것을 막기 위해 사용.
+    /// v12-fix: 던진 돌 보호용 SkyFloor 면제가 Flee 돌(보드 면 이동)에 잘못 적용되는 버그 차단.</summary>
+    public static bool IsOutsideMatStrict(Vector2 pos, float marginAbsolute = 0f)
+    {
+        if (HasQuad)
+            return IsOutsideQuadInterior(pos, marginAbsolute);
+
+        var r = MatRect;
+        return pos.x < r.xMin - marginAbsolute || pos.x > r.xMax + marginAbsolute
+            || pos.y < r.yMin - marginAbsolute || pos.y > r.yMax + marginAbsolute;
+    }
+
+    /// <summary>사다리꼴 내부 판정만 수행. SkyFloor 면제 없음.
+    /// 보드 면 위 이동(예: Flee)용 엄격 판정에 사용.</summary>
+    private static bool IsOutsideQuadInterior(Vector2 pos, float marginAbsolute)
+    {
+        // 확장 quad: 각 꼭짓점을 centroid 기준으로 margin만큼 바깥으로 밀어냄
+        Vector2 centroid = (overrideQuad[0] + overrideQuad[1] + overrideQuad[2] + overrideQuad[3]) * 0.25f;
+        Vector2 e0 = ExpandCorner(overrideQuad[0], centroid, marginAbsolute); // BL
+        Vector2 e1 = ExpandCorner(overrideQuad[1], centroid, marginAbsolute); // BR
+        Vector2 e2 = ExpandCorner(overrideQuad[2], centroid, marginAbsolute); // FL
+        Vector2 e3 = ExpandCorner(overrideQuad[3], centroid, marginAbsolute); // FR
+
+        // 점-사각형 내부 판정: 둘레 순서 CCW BL→BR→FR→FL = e0→e1→e3→e2
+        float cross0 = CrossEdge(e0, e1, pos);
+        float cross1 = CrossEdge(e1, e3, pos);
+        float cross2 = CrossEdge(e3, e2, pos);
+        float cross3 = CrossEdge(e2, e0, pos);
+
+        // 모두 같은 부호면 내부
+        bool inside = (cross0 >= 0f && cross1 >= 0f && cross2 >= 0f && cross3 >= 0f)
+                   || (cross0 <= 0f && cross1 <= 0f && cross2 <= 0f && cross3 <= 0f);
+        return !inside;
     }
 
     /// <summary>bilinear 매핑. u,v∈[0,1]. u=0,v=0→BL / u=1,v=0→BR / u=0,v=1→FL / u=1,v=1→FR.

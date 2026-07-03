@@ -69,28 +69,6 @@ public class StageConfig
             Gimmick=GimmickType.None, TotalStones=5,
             SkyBottom=new Color(1.0f,0.95f,0.7f), SkyTop=new Color(0.55f,0.85f,1.0f),
             TableColor=new Color(0.95f,0.85f,0.7f), ClothColor=new Color(1.0f,0.5f,0.5f),
-            MatImage    = "StageBackgrounds/BasicBoard",
-            MatCenter   = new Vector2(-0.13f, -3.08f),
-            MatSize     = new Vector2(19.83f, 10.05f),
-            BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
-            },
-            Props=new BackgroundProp[]
-            {
-                new BackgroundProp { Shape=BackgroundPropShape.Sphere, Color=new Color(1.0f,0.9f,0.2f), Position=new Vector3(-3f,1f,0.5f), Scale=new Vector3(0.5f,0.5f,0.5f) },
-            },
-        },
-        // Stage 2 — Age 15, 교실 배경 + 매트(책상) 레이어
-        new StageConfig
-        {
-            StageNumber=2, Age=15, StageName="색깔 선택", Theme="호기심의 사춘기",
-            StoryMent="세상에 색이 보이기 시작합니다.\n나에게 맞는 것을 골라야 해요.",
-            Gimmick=GimmickType.ColorSelect, TotalStones=18,
-            SkyBottom=new Color(1.0f,0.8f,0.85f), SkyTop=new Color(0.55f,0.7f,0.95f),
-            TableColor=new Color(0.6f,0.5f,0.4f), ClothColor=new Color(0.6f,0.65f,0.75f),
             BackgroundImage = "StageBackgrounds/Stage02_Classroom",
             MatImage        = "StageBackgrounds/Stage02_Desk",
             MatCenter       = new Vector2(-0.14f, -2.70f),
@@ -103,10 +81,28 @@ public class StageConfig
                 new Vector2(-8.05f, -7.10f),  // FL 앞-좌
                 new Vector2( 8.05f, -7.10f),  // FR 앞-우
             },
-            Props=new BackgroundProp[]
-            {
-                new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.5f,0.5f,0.55f), Position=new Vector3(-3f,0.7f,0.5f), Scale=new Vector3(0.6f,0.8f,0.3f) },
+            Props=System.Array.Empty<BackgroundProp>(),
+        },
+        // Stage 2 — Age 15, 교실 배경 + 매트(책상) 레이어
+        new StageConfig
+        {
+            StageNumber=2, Age=15, StageName="색깔 선택", Theme="호기심의 사춘기",
+            StoryMent="세상에 색이 보이기 시작합니다.\n나에게 맞는 것을 골라야 해요.",
+            Gimmick=GimmickType.ColorSelect, TotalStones=18,
+            SkyBottom=new Color(1.0f,0.8f,0.85f), SkyTop=new Color(0.55f,0.7f,0.95f),
+            TableColor=new Color(0.6f,0.5f,0.4f), ClothColor=new Color(0.6f,0.65f,0.75f),
+            MatImage        = "StageBackgrounds/Stage02_Desk",
+            MatCenter       = new Vector2(-0.14f, -2.70f),
+            MatSize         = new Vector2(20.6f, 11.6f),
+            BoardCenter     = new Vector2(0f, -4.8f),
+            BoardSize       = new Vector2(10.6f, 3.8f),
+            BoardQuad = new Vector2[] {
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
+                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
+                new Vector2( 8.05f, -7.10f),  // FR 앞-우
             },
+            Props=System.Array.Empty<BackgroundProp>(),
         },
         // Stage 3 — Age 20, 대학 캠퍼스 (사용자 픽셀아트 이미지)
         new StageConfig
@@ -118,10 +114,10 @@ public class StageConfig
             TableColor=new Color(0.4f,0.7f,0.35f), ClothColor=new Color(0.4f,0.75f,0.7f),
             BackgroundImage="StageBackgrounds/Stage03_Campus",
             BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌 (유지)
+                new Vector2( 4.48f, -3.95f),  // BR 뒤-우 (유지)
+                new Vector2(-5.20f, -7.10f),  // FL 앞-좌 (SafeZone x±5.3 내부, 0.1 margin)
+                new Vector2( 5.20f, -7.10f),  // FR 앞-우 (SafeZone x±5.3 내부, 0.1 margin)
             },
             Props=new BackgroundProp[]
             {
@@ -293,6 +289,10 @@ public class StageConfig
     /// <summary>stageNumber(1~10)로 설정 반환. 범위 초과 시 클램프.</summary>
     public static StageConfig Get(int stageNumber)
     {
+        if (stageNumber < 1 || stageNumber > stages.Length)
+        {
+            Debug.LogError($"[StageConfig] Get({stageNumber}) out of range [1..{stages.Length}]. Clamping.");
+        }
         int index = Mathf.Clamp(stageNumber - 1, 0, stages.Length - 1);
         return stages[index];
     }

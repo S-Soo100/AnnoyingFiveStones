@@ -688,6 +688,25 @@ public class GameManager : MonoBehaviour
         Debug.Log($"[GameManager] Stage 5 step advanced to {stage5Step}.");
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// 디버그 전용: 현재 루프의 5단 클리어 처리.
+    /// GameManager.OnStageComplete()와 동일한 흐름을 타도록 currentStage=5로 맞춘 뒤 호출.
+    /// IsGameClear 분기 및 전환 코루틴이 정상 작동한다.
+    /// v12-fix: 재진입 가드 — 전환 중 또는 ALL CLEAR 후 다중 클릭 시 코루틴 경합/age 중복 증가 방지.
+    /// </summary>
+    public void DebugCompleteCurrentLoop()
+    {
+        if (isTransitioning || transitionCoroutine != null || isAllClear)
+        {
+            Debug.Log("[GameManager] DebugCompleteCurrentLoop ignored — already transitioning or all-clear.");
+            return;
+        }
+        currentStage = 5;
+        OnStageComplete();
+    }
+#endif
+
     private void OnStageComplete()
     {
         TestLogger.Instance?.CompleteStageAttempt();
