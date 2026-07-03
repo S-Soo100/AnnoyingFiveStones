@@ -91,10 +91,10 @@ public class GaugeBarUI : MonoBehaviour
             canvas.sortingOrder = 99;
             canvas.worldCamera = Camera.main;
 
-            // World Space 위치: 보드 좌측 안쪽
-            // Cloth(보드) pos=(0, -5.8), scale(8, 6.4) → 좌측 X=-4
+            // World Space 위치: 사다리꼴 보드 좌측 바깥
+            // v10: BoardQuad 좌측 가장자리 y=-5.8 기준 X≈-6.54 → 살짝 바깥 X=-7.0
             var canvasRt = canvasGo.GetComponent<RectTransform>();
-            canvasRt.position = new Vector3(-3.2f, -5.8f, -0.1f);
+            canvasRt.position = new Vector3(-7.0f, -5.8f, -0.1f);
             canvasRt.sizeDelta = new Vector2(60f, 500f);
             canvasRt.localScale = new Vector3(0.01f, 0.01f, 0.01f); // 0.6 x 5.0 world units
         }

@@ -176,7 +176,7 @@ public class TitleScreenUI : MonoBehaviour
 
         // "설정" 버튼
         CreateMenuButton("설정", parent, new Vector2(0f, -160f), 26, () => {
-            PauseMenuUI.Instance?.Toggle();
+            SettingsPopupUI.EnsureInstance().Open();
         });
 
         // "나가기" — 우측 상단
@@ -761,6 +761,7 @@ public class TitleScreenUI : MonoBehaviour
         // 3D 돌 + 카메라 활성화
         SetDecoStone3DActive(true);
         Debug.Log("[TitleScreenUI] Show.");
+        AudioManager.Instance?.PlayLobbyBGM();
     }
 
     public void Hide(System.Action onComplete = null)
@@ -789,11 +790,13 @@ public class TitleScreenUI : MonoBehaviour
 
     private void OnStartClicked()
     {
+        BootCurtain.Instance?.Raise(0.15f); // v10: 부드럽게 페이드인
         Hide(() => GameManager.Instance?.StartGameFromTitle());
     }
 
     private void OnModeSelected(bool isTestPlay)
     {
+        BootCurtain.Instance?.Raise(0.15f); // v10: 부드럽게 페이드인
         Hide(() =>
         {
             var session = GameSession.Instance;

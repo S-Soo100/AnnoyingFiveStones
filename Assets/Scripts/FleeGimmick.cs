@@ -7,24 +7,24 @@ using UnityEngine;
 /// </summary>
 public class FleeGimmick : StageGimmick
 {
-    private bool firstPickDone = false;
+    private bool fleeTriggered = false;
     private List<FleeMovement> activeFleers = new List<FleeMovement>();
 
     public override void OnStageStart(int stageInLoop)
     {
-        firstPickDone = false;
+        fleeTriggered = false;
         activeFleers.Clear();
     }
 
-    public override void OnStonePicked(Stone stone)
+    public override void OnThrowStart(Stone thrownStone)
     {
-        if (firstPickDone) return;
-        firstPickDone = true;
+        if (fleeTriggered) return;
+        fleeTriggered = true;
 
         // 보드 경계 Rect 계산
         Rect boardRect = GetBoardRect();
 
-        // 나머지 OnBoard 돌에 FleeMovement 추가
+        // 던진 돌을 제외한 나머지 OnBoard 돌에 FleeMovement 추가
         var pool = StonePool.Instance;
         if (pool == null) return;
         var active = pool.ActiveStones;
@@ -32,19 +32,20 @@ public class FleeGimmick : StageGimmick
         float delay = 0f;
         foreach (var s in active)
         {
-            if (s == stone) continue;
+            if (s == thrownStone) continue;
             if (s.CurrentState != Stone.State.OnBoard) continue;
             if (!s.gameObject.activeSelf) continue;
 
             var flee = s.gameObject.AddComponent<FleeMovement>();
-            flee.boardBounds = boardRect;
+            flee.boardBounds = BoardBounds.InnerRect(0.05f); // 5% 안쪽 마진 (fallback용 — quad 없을 때만 사용)
+            flee.useQuadContainment = BoardBounds.HasQuad;   // 사다리꼴 quad 있으면 quad 판정 사용
             flee.Activate(delay);
             activeFleers.Add(flee);
             delay += 0.2f; // 0.2초 시간차
         }
 
         Debug.Log($"[FleeGimmick] {activeFleers.Count} stones started fleeing.");
-        TestLogger.Instance?.LogPhysics("flee_triggered", $"{activeFleers.Count} stones fleeing after first pick: {stone.StoneIndex}");
+        TestLogger.Instance?.LogPhysics("flee_triggered", $"{activeFleers.Count} stones fleeing after throw: {thrownStone.StoneIndex}");
     }
 
     public override void OnStageEnd()
@@ -56,18 +57,18 @@ public class FleeGimmick : StageGimmick
                 Object.Destroy(flee);
         }
         activeFleers.Clear();
-        firstPickDone = false;
+        fleeTriggered = false;
         Debug.Log("[FleeGimmick] Stage ended: FleeMovement components removed.");
     }
 
     private Rect GetBoardRect()
     {
         if (gameManager == null || gameManager.BoardTransform == null)
-            return new Rect(-4f, -12f, 8f, 6.4f);
+            return new Rect(-4.8f, -8.3f, 9.6f, 6.1f);
 
         var boardPos = gameManager.BoardTransform.position;
-        float halfW = 4f;
-        float halfH = 3.2f;
+        float halfW = 4.8f;
+        float halfH = 3.05f;
         return new Rect(
             boardPos.x - halfW,
             boardPos.y - halfH,

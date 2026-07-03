@@ -1,0 +1,3 @@
+[mcp_servers.mcp-unity]
+args = ["/Users/baek/unityProjects/mcp-unity/Server~/build/index.js"]
+command = "node"

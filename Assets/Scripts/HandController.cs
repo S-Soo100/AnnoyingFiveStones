@@ -12,12 +12,18 @@ public class HandController : MonoBehaviour
 {
     [Header("Board Bounds")]
     [SerializeField] private Vector2 boardMin = new Vector2(-4f, -9f);
-    [SerializeField] private Vector2 boardMax = new Vector2(4f, -1f);
+    [SerializeField] private Vector2 boardMax = new Vector2(4f, -1f); // v11: y는 BoardBounds.SkyFloorY로 이전. x는 미사용.
 
     [Header("Throw Settings")]
     [SerializeField] private float throwPeakY = 8f;        // 최고점 Y (하늘 영역 상단)
     [SerializeField] private float throwUpDuration = 0.8f;
     [SerializeField] private float throwDownDuration = 1.0f;
+    private float throwDownDurationOverride = -1f;
+    public enum ThrowDownCurveMode { EaseIn, Linear, EaseOut }
+    private ThrowDownCurveMode throwDownCurveMode = ThrowDownCurveMode.EaseIn;
+    private float maxMoveSpeed = -1f;      // 음수 = 무제한
+    private float moveSmoothFactor = -1f;  // 음수 = 즉시 추종
+    private HandGhostPool ghostPool;
 
     [Header("Catch Settings")]
     [SerializeField] private float catchAreaY = 2f;         // 받기 영역 Y (하늘/보드 경계)
@@ -45,6 +51,7 @@ public class HandController : MonoBehaviour
     private bool stage5ClickPending;
     private bool stage5CatchActive;                            // 슬라이드 인 완료 후 true — LateUpdate Y 고정 + X 추종 트리거
     private Coroutine stage5Coroutine;
+    private Coroutine throwCoroutine;
 
     [Header("Stage 5 Height Settings")]
     [SerializeField] private float stage5HeightStep = 0.4f;   // 돌 간 높이 간격 (부드럽게 모임)
@@ -65,6 +72,7 @@ public class HandController : MonoBehaviour
     public List<Stone> PickedStones => pickedStones;
     public Stone ThrowStone => throwStone;
     public bool IsOnBoard => isOnBoard;
+    public bool IsHolding => isHolding;
 
     private void Awake()
     {
@@ -124,7 +132,13 @@ public class HandController : MonoBehaviour
             // catch mode가 아닐 때만 위치 갱신 (catch mode는 LateUpdate에서 처리)
             if (!isCatchMode) UpdatePosition();
 
-            bool inSky = transform.position.y > boardMax.y;
+            // v11-fix2: 하늘 경계 = BoardBounds.SkyFloorY (=-2.45, 보드 메시 상단)
+            // 히스테리시스 0.2 unit: 한 번 catch 모드면 (SkyFloor - 0.2 = -2.65) 아래로 가야 해제 → chattering 방지
+            float skyEnter = BoardBounds.SkyFloorY;
+            float skyExit  = BoardBounds.SkyFloorY - 0.2f;
+            bool inSky = isCatchMode
+                ? transform.position.y > skyExit
+                : transform.position.y > skyEnter;
             if (inSky && !isCatchMode)
             {
                 SetCatchMode(true);
@@ -197,11 +211,19 @@ public class HandController : MonoBehaviour
     private void UpdatePosition()
     {
         Vector2 screenPos = pointerAction.ReadValue<Vector2>();
-        Vector3 worldPos = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
-        worldPos.z = -0.5f;
-        transform.position = worldPos;
-        // Hitbox 위치 동기화 (회전 독립)
-        handModel?.SyncHitboxPosition(worldPos);
+        Vector3 targetPos = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
+        targetPos.z = -0.5f;
+
+        Vector3 finalPos = targetPos;
+        if (moveSmoothFactor > 0f)
+            finalPos = Vector3.Lerp(transform.position, targetPos, moveSmoothFactor * Time.deltaTime);
+        if (maxMoveSpeed > 0f)
+            finalPos = Vector3.MoveTowards(transform.position, finalPos, maxMoveSpeed * Time.deltaTime);
+        finalPos.z = -0.5f;
+
+        transform.position = finalPos;
+        handModel?.SyncHitboxPosition(finalPos);
+        ghostPool?.OnHandMoved(finalPos);
     }
 
     // === Hold + Bounds 줍기 입력 ===
@@ -389,7 +411,7 @@ public class HandController : MonoBehaviour
 
         if (phase == GameManager.GamePhase.Throw && throwStone != null)
         {
-            StartCoroutine(DoThrow());
+            throwCoroutine = StartCoroutine(DoThrow());
         }
         else if (phase == GameManager.GamePhase.Stage5Catch)
         {
@@ -458,29 +480,52 @@ public class HandController : MonoBehaviour
         // === 내려오기 (EaseIn — 가속 낙하) ===
         // catchAreaY 위: 코루틴이 위치 직접 제어 (isKinematic=true)
         // catchAreaY 도달: isKinematic=false로 전환 → 물리 엔진이 위치 관리 → Collider 판정 가능
+        // v6-1: catchAreaY = 받기 모드 전환 기준선 (더 이상 물리 전환점 아님 → 실제론 여전히 물리 전환점, Collision 판정 필수)
+        float effectiveDownDuration = throwDownDurationOverride > 0f ? throwDownDurationOverride : throwDownDuration;
+
+        // v6-1: 낙하 목표 Y를 boardSurfaceY 기준으로 (코루틴 타임아웃 대신 CatchSystem이 판정)
+        float fallTargetY = catchSystem != null ? catchSystem.BoardSurfaceY : startY;
+
         elapsed = 0f;
-        while (elapsed < throwDownDuration)
+        while (elapsed < effectiveDownDuration)
         {
             if (catchSystem != null && !catchSystem.IsCatchPhase)
             {
-                Debug.Log("[Hand] Stone caught!");
+                Debug.Log("[Hand] Stone caught or fell (CatchSystem handled)!");
                 SetCatchMode(false);
                 handModel?.SetCollidersEnabled(false);
+                throwCoroutine = null;
                 yield break;
             }
 
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / throwDownDuration);
-            float eased = t * t;
-            float y = Mathf.Lerp(throwPeakY, startY, eased);
+            float t = Mathf.Clamp01(elapsed / effectiveDownDuration);
+            float eased = throwDownCurveMode switch
+            {
+                ThrowDownCurveMode.EaseIn  => t * t,
+                ThrowDownCurveMode.Linear  => t,
+                ThrowDownCurveMode.EaseOut => 1f - (1f - t) * (1f - t),
+                _ => t * t
+            };
+            // v6-1: Lerp 목표를 fallTargetY(보드 표면)로 변경
+            float y = Mathf.Lerp(throwPeakY, fallTargetY, eased);
 
             // catchAreaY 도달: 코루틴 제어에서 물리 낙하로 전환
+            // (Collision 판정을 위해 isKinematic=false 전환 유지)
             if (y <= catchAreaY && stone.Rb.isKinematic)
             {
                 stone.Rb.isKinematic = false;
                 stone.Rb.useGravity = true;
-                // 현재 코루틴 하강 속도 유지 (EaseIn t²에 의한 순간 속도)
-                float instantSpeed = (throwPeakY - startY) / throwDownDuration * 2f * t;
+                // 커브별 미분값으로 전환 순간 속도 계산 (속도 점프 방지)
+                // EaseIn: d/dt(t²) = 2t, Linear: d/dt(t) = 1, EaseOut: d/dt(1-(1-t)²) = 2(1-t)
+                float derivative = throwDownCurveMode switch
+                {
+                    ThrowDownCurveMode.EaseIn  => 2f * t,
+                    ThrowDownCurveMode.Linear  => 1f,
+                    ThrowDownCurveMode.EaseOut => 2f * (1f - t),
+                    _ => 2f * t
+                };
+                float instantSpeed = derivative / effectiveDownDuration * (throwPeakY - fallTargetY);
                 stone.Rb.linearVelocity = new Vector3(0f, -instantSpeed, 0f);
                 Debug.Log($"[Hand] Stone {stone.StoneIndex} switched to physics at y={y:F2}, speed={instantSpeed:F2}");
             }
@@ -495,7 +540,17 @@ public class HandController : MonoBehaviour
             yield return null;
         }
 
-        // 못 받음 → 실패
+        // 코루틴 타임아웃: CatchSystem이 이미 처리했을 수도 있음 (중복 방지)
+        if (catchSystem != null && !catchSystem.IsCatchPhase)
+        {
+            // CatchSystem이 이미 실패/성공 처리 완료 — 중복 호출 방지
+            SetCatchMode(false);
+            handModel?.SetCollidersEnabled(false);
+            throwCoroutine = null;
+            yield break;
+        }
+
+        // 못 받음 → 실패 (CatchSystem이 미처 감지 못한 경우 fallback)
         AudioManager.Instance?.PlayCatchFail();
         if (catchSystem != null) catchSystem.StopCatch();
         SetCatchMode(false);
@@ -507,6 +562,7 @@ public class HandController : MonoBehaviour
         stone.SetState(Stone.State.OnBoard);
         TestLogger.Instance?.LogFailure("catch_missed_landing");
         GameManager.Instance.SetFailReason("돌을 놓쳤다!");
+        throwCoroutine = null;
         GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
     }
 
@@ -529,13 +585,26 @@ public class HandController : MonoBehaviour
 
         // 1~4단 받기: X/Y 모두 커서 추종, Y 하한 = boardMin.y
         Vector2 screenPos2 = pointerAction.ReadValue<Vector2>();
-        Vector3 worldPos2 = mainCamera.ScreenToWorldPoint(new Vector3(screenPos2.x, screenPos2.y, 10f));
-        float clampedY = Mathf.Max(worldPos2.y, boardMin.y);
-        transform.position = new Vector3(worldPos2.x, clampedY, -0.5f);
-        handModel?.SyncHitboxPosition(transform.position);
+        Vector3 targetPos2 = mainCamera.ScreenToWorldPoint(new Vector3(screenPos2.x, screenPos2.y, 10f));
+        float clampedY = Mathf.Max(targetPos2.y, boardMin.y);
+        Vector3 targetCatch = new Vector3(targetPos2.x, clampedY, -0.5f);
+
+        Vector3 finalCatch = targetCatch;
+        if (moveSmoothFactor > 0f)
+            finalCatch = Vector3.Lerp(transform.position, targetCatch, moveSmoothFactor * Time.deltaTime);
+        if (maxMoveSpeed > 0f)
+            finalCatch = Vector3.MoveTowards(transform.position, finalCatch, maxMoveSpeed * Time.deltaTime);
+        finalCatch.z = -0.5f;
+
+        transform.position = finalCatch;
+        handModel?.SyncHitboxPosition(finalCatch);
+        ghostPool?.OnHandMoved(finalCatch);
     }
 
     // === 5단 꺾기 ===
+
+    // v6-1: 5단 내 boardSurfaceY (DoStage5Sequence 시작 시 캐시)
+    private float stage5BoardSurfaceY = -8.2f;
 
     /// <summary>
     /// GameManager에서 호출: 5단 시퀀스 시작 (코루틴이 이미 실행 중이면 중복 시작 방지)
@@ -556,6 +625,10 @@ public class HandController : MonoBehaviour
         var gm = GameManager.Instance;
         var allStones = gm.Stones;
         int count = allStones.Length;
+
+        // v6-1: boardSurfaceY 캐시 (DoStage5Catch/FistGrab에서 멤버 변수로 참조)
+        var catchSys = FindFirstObjectByType<CatchSystem>();
+        stage5BoardSurfaceY = catchSys != null ? catchSys.BoardSurfaceY : -8.2f;
 
         // ============ [1단계] 손바닥 던지기 ============
         // SetPhase(Stage5Throw)는 GameManager.DoStageIntro에서 이미 호출됨
@@ -814,7 +887,8 @@ public class HandController : MonoBehaviour
             Debug.Log($"[Stage5] Stone {stones[i].StoneIndex}: startY={stoneStartY[i]:F1}, normalizedH={normalizedH:F2}, downDuration={downDuration[i]:F2}s");
         }
 
-        float landY = catchAreaY - stage5MissThreshold; // 이 아래로 가면 놓침
+        // v6-1: landY를 boardSurfaceY 기준으로 통일 (기존: catchAreaY - stage5MissThreshold)
+        float landY = stage5BoardSurfaceY; // 보드 표면까지 내려오면 놓침
 
         // === 독립 낙하 루프 (EaseIn — 가속) ===
         float globalElapsed = 0f;
@@ -832,11 +906,19 @@ public class HandController : MonoBehaviour
                 float y = Mathf.Lerp(stoneStartY[i], landY - 1f, eased);
                 stones[i].transform.position = new Vector3(stoneX[i], y, 0f);
 
-                // 캐치 판정: catchAreaY 범위에 들어왔을 때 X 거리 체크
-                if (y <= catchAreaY + 0.5f && y >= catchAreaY - 0.8f)
+                // v11-fix5 (옵션 C): catch window를 손 위치(palmTopY) 기반으로 변경.
+                //   원인 (v11-fix4 진단 오류 후 재분석): 기존 절대 y(catchAreaY+0.5) 기준은 손이 어디 있든 돌이 y≤2.5에서 잡힘
+                //         → 손 안 올렸는데도 catch 발동 + 직후 SetParent 텔레포트(L924-925)로 "공중에서 받힘" 인지 발생.
+                //   해결: palmTopY = transform.position.y + 0.4 * localScale.y (Palm 시각 윗면, backhand 2x 스케일 자동 보정).
+                //         catchUpper = palmTopY + 0.3 (손등 위 ~30px 여유), catchLower = palmTopY - 0.5 (손 중심 살짝 아래).
+                //         손을 올리면 catch 영역도 같이 올라가서 "돌이 손등에 닿는 느낌" 구현 + 텔레포트 거리 자연 단축.
+                // handRaised: 보드 영역 진입 차단용 안전망 (옵션 C 본질은 palmTopY 자체에 있음).
+                float palmTopY = transform.position.y + 0.4f * transform.localScale.y;
+                if (y <= palmTopY + 0.3f && y >= palmTopY - 0.5f && y >= BoardBounds.SkyFloorY)
                 {
+                    bool handRaised = transform.position.y >= BoardBounds.SkyFloorY;
                     float distX = Mathf.Abs(stoneX[i] - transform.position.x);
-                    if (distX <= stage5CatchRadius)
+                    if (handRaised && distX <= stage5CatchRadius)
                     {
                         caught[i] = true;
                         caughtCount++;
@@ -978,7 +1060,8 @@ public class HandController : MonoBehaviour
             downDuration[i] = baseFallDuration * (1f + normalizedH);
         }
 
-        float landY = catchAreaY - 3.5f;
+        // v6-1: landY를 boardSurfaceY 기준으로 통일 (기존: catchAreaY - 3.5f)
+        float landY = stage5BoardSurfaceY;
         float maxDownDuration = baseFallDuration * 3f;
         float globalElapsed = 0f;
         bool isGrabbing = false; // 홀드 중 (한붓그리기 활성)
@@ -1355,6 +1438,33 @@ public class HandController : MonoBehaviour
     /// <summary>
     /// 전체 리셋 (실패/새 스테이지 시작 시)
     /// </summary>
+    /// <summary>기믹용: 던지기 낙하 시간 오버라이드. 음수면 기본값 사용.</summary>
+    public void SetThrowDownDurationOverride(float value) { throwDownDurationOverride = value; }
+
+    /// <summary>기믹용: 낙하 커브 모드 오버라이드. EaseIn=기본(무거움), Linear=중간, EaseOut=가벼움.</summary>
+    public void SetThrowDownCurveMode(ThrowDownCurveMode mode) { throwDownCurveMode = mode; }
+
+    /// <summary>기믹용: 손 최대 이동 속도 오버라이드. 음수면 무제한.</summary>
+    public void SetMoveSpeedOverride(float speed) { maxMoveSpeed = speed; }
+    /// <summary>기믹용: 손 이동 감쇠 계수 오버라이드. 음수면 즉시 추종.</summary>
+    public void SetMoveSmoothOverride(float factor) { moveSmoothFactor = factor; }
+    /// <summary>기믹용: 잔상 풀 연결. null이면 잔상 없음.</summary>
+    public void SetGhostPool(HandGhostPool pool) { ghostPool = pool; }
+
+    /// <summary>모든 기믹 오버라이드 해제. 스테이지 완료/재시작 시 호출.</summary>
+    public void ClearAllOverrides()
+    {
+        throwDownDurationOverride = -1f;
+        throwDownCurveMode = ThrowDownCurveMode.EaseIn;
+        maxMoveSpeed = -1f;
+        moveSmoothFactor = -1f;
+        if (ghostPool != null)
+        {
+            ghostPool.Cleanup();
+            ghostPool = null;
+        }
+    }
+
     public void ResetHand()
     {
         // 5단 코루틴이 실행 중이면 중단
@@ -1362,6 +1472,12 @@ public class HandController : MonoBehaviour
         {
             StopCoroutine(stage5Coroutine);
             stage5Coroutine = null;
+        }
+        // 던지기 코루틴이 실행 중이면 중단
+        if (throwCoroutine != null)
+        {
+            StopCoroutine(throwCoroutine);
+            throwCoroutine = null;
         }
         stage5ClickPending = false;
         stage5CatchActive = false;

@@ -62,9 +62,10 @@ public class AgeSaturationController : MonoBehaviour
     /// </summary>
     public void UpdateSaturation(int age)
     {
-        // v4: 10살~55살. 10살=0(풀컬러), 55살=-80(거의 흑백)
-        float normalized = Mathf.Clamp01((age - 10f) / 45f); // 10살=0, 55살=1
-        float target = -normalized * 80f;
+        // v4: 10~40살은 거의 변화 없음, 45살+ 부터 급격히 채도 감소 (지수 커브)
+        float normalized = Mathf.Clamp01((age - 10f) / 50f); // 10살=0, 60살=1
+        float curved = normalized * normalized * normalized;  // x³ → 후반부 집중
+        float target = -curved * 80f;
         Debug.Log($"[AgeSaturation] UpdateSaturation(age={age}) → target={target}, colorAdj={colorAdjustments != null}");
         if (colorAdjustments == null) return;
         if (lerpCoroutine != null) StopCoroutine(lerpCoroutine);
@@ -81,6 +82,33 @@ public class AgeSaturationController : MonoBehaviour
         currentSaturation = 0f;
         if (colorAdjustments != null)
             colorAdjustments.saturation.Override(0f);
+    }
+
+    /// <summary>
+    /// Stage 10 전용: 완전 흑백 전환 (saturation → -100, 0.3초 페이드)
+    /// </summary>
+    public void SetFullMonochrome()
+    {
+        if (colorAdjustments == null) return;
+        if (lerpCoroutine != null) StopCoroutine(lerpCoroutine);
+        lerpCoroutine = StartCoroutine(LerpSaturation(currentSaturation, -100f, 0.3f));
+    }
+
+    /// <summary>
+    /// Stage 10 전용: 모노톤 해제 → 현재 나이 기반 채도로 즉시 복귀
+    /// </summary>
+    public void RestoreFromMonochrome(int age)
+    {
+        if (colorAdjustments == null) return;
+        if (lerpCoroutine != null) StopCoroutine(lerpCoroutine);
+        lerpCoroutine = null;
+
+        // 나이 기반 목표 채도 재계산 (UpdateSaturation 로직과 동일)
+        float normalized = Mathf.Clamp01((age - 10f) / 45f);
+        float curved = normalized * normalized * normalized;
+        float target = -curved * 80f;
+        currentSaturation = target;
+        colorAdjustments.saturation.Override(target);
     }
 
     private IEnumerator LerpSaturation(float from, float to, float duration)

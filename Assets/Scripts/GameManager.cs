@@ -26,7 +26,13 @@ public class GameManager : MonoBehaviour
 
     // 3단 서브라운드: 첫 줍기 결과에 따라 다음 필요 수량 결정
     // -1 = 아직 첫 줍기 안 함, 1 or 3 = 첫 줍기에서 주운 수
+    // stage3FirstPickCount: "stageInLoop=3의 첫 줍기 개수" — Loop 3(Flee), Loop 4(Sequence) 모두 적용
     private int stage3FirstPickCount = -1;
+
+    // 낙 판정 세이프존: board(X±4.8, Y[-8.3,-2.2]) + 여유분 0.5 world
+    // Y상한 -2는 테이블 상단 경계 (메모리 설계). X/Y하한은 "흰 테이블 살짝만 벗어나도 낙" 유저 피드백 반영 (2026-04-18 재조정)
+    public static readonly Vector2 SafeZoneMin = new Vector2(-5.3f, -8.8f);
+    public static readonly Vector2 SafeZoneMax = new Vector2( 5.3f, -2f);
 
     [Header("References (auto-resolved at runtime)")]
     private Stone[] stones;
@@ -50,6 +56,9 @@ public class GameManager : MonoBehaviour
     // v4: 기믹 필드
     private StageGimmick currentGimmick;
     private StageConfig currentStageConfig;
+
+    // v8-2: 배경 무드
+    private BackgroundManager backgroundManager;
 
     private int stage5Step; // 0 = 1차(손등받기), 1 = 2차(손바닥받기)
     private bool isTransitioning;
@@ -150,6 +159,14 @@ public class GameManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        // v8-2: BackgroundManager 자동 생성
+        backgroundManager = FindFirstObjectByType<BackgroundManager>();
+        if (backgroundManager == null)
+        {
+            var go = new GameObject("BackgroundManager");
+            backgroundManager = go.AddComponent<BackgroundManager>();
+        }
     }
 
     private void Start()
@@ -250,6 +267,40 @@ public class GameManager : MonoBehaviour
 #endif
     }
 
+    private void LateUpdate()
+    {
+        // 게임이 정상 진행 중일 때만 검사
+        if (isTransitioning || isAllClear || isInTitleScreen) return;
+        if (currentPhase == GamePhase.Failed || currentPhase == GamePhase.StageComplete) return;
+        if (currentPhase == GamePhase.Scatter) return; // ScatterSystem 자체 판정 사용
+
+        CheckMatBoundaryGlobal();
+    }
+
+    private void CheckMatBoundaryGlobal()
+    {
+        if (stones == null) return;
+        foreach (var stone in stones)
+        {
+            if (stone == null || !stone.gameObject.activeSelf) continue;
+            var s = stone.CurrentState;
+            // 손/받힌 돌 제외 (의도적으로 매트 밖 가능)
+            // InAir/Bouncing 제외 — 던진 돌의 상승 궤적이 매트 X 경계를 넘어가도 정상.
+            //   실패 판정은 CatchSystem(catch miss / bounce-grounded)에서 처리.
+            if (s == Stone.State.InHand || s == Stone.State.Caught
+                || s == Stone.State.InAir || s == Stone.State.Bouncing) continue;
+
+            Vector2 p = new Vector2(stone.transform.position.x, stone.transform.position.y);
+            if (BoardBounds.IsOutsideMat(p, marginAbsolute: 0.2f))
+            {
+                Debug.Log($"[GameManager] Stone {stone.name} out of mat at {p}. Triggering Fail.");
+                SetFailReason("낙!");
+                SetPhase(GamePhase.Failed);
+                return;
+            }
+        }
+    }
+
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void DebugStageJump()
     {
@@ -316,17 +367,14 @@ public class GameManager : MonoBehaviour
     private void CheckOnBoardStonesOutOfBounds()
     {
         if (stones == null) return;
-        Vector2 boardCenter = new Vector2(boardTransform.position.x, boardTransform.position.y);
-        Vector2 halfSize = new Vector2(4f, 3.2f); // boardSize / 2
-
         foreach (var stone in stones)
         {
             if (stone.CurrentState != Stone.State.OnBoard) continue;
             if (!stone.gameObject.activeSelf) continue;
 
             Vector2 pos = new Vector2(stone.transform.position.x, stone.transform.position.y);
-            bool outX = pos.x < boardCenter.x - halfSize.x - 0.5f || pos.x > boardCenter.x + halfSize.x + 0.5f;
-            bool outY = pos.y < boardCenter.y - halfSize.y - 0.5f || pos.y > boardCenter.y + halfSize.y + 0.5f;
+            bool outX = pos.x < SafeZoneMin.x || pos.x > SafeZoneMax.x;
+            bool outY = pos.y < SafeZoneMin.y || pos.y > SafeZoneMax.y;
 
             if (outX || outY)
             {
@@ -386,7 +434,7 @@ public class GameManager : MonoBehaviour
                 HandCursorUI.Instance?.SetActive(false);
                 handController?.gameObject.SetActive(true);
                 StartStage(1);
-            });
+            }, showTitleSplash: true); // v10: 게임 첫 진입 시 "Catch Five Stones" 인트로
         }
         else
         {
@@ -414,6 +462,9 @@ public class GameManager : MonoBehaviour
         currentStage = stage;
         isAllClear = false;
 
+        // BGM: 나이 기반 트랙 선택 (같은 트랙이면 내부에서 no-op)
+        AudioManager.Instance?.PlayGameplayBGM(session?.CurrentAge ?? 10);
+
         // v4: 스테이지 설정 로드 + 기믹 생성
         currentStageConfig = StageConfig.Get(session != null ? session.CurrentLoop : 1);
         currentGimmick?.OnStageEnd(); // 이전 기믹 정리
@@ -422,7 +473,6 @@ public class GameManager : MonoBehaviour
             currentGimmick = null;
         else
             currentGimmick = StageGimmick.Create(currentStageConfig.Gimmick, this);
-        currentGimmick?.OnStageStart(stage);
 
         stage3FirstPickCount = -1; // 3단 서브라운드 리셋
 
@@ -436,6 +486,9 @@ public class GameManager : MonoBehaviour
 
         // 모든 돌 활성화 + 초기 상태 복원
         ResetAllStones();
+        backgroundManager?.ApplyStage(currentStageConfig); // v8-2: 배경 무드 갱신
+        BootCurtain.Instance?.FadeOut(0.6f); // v10: 부드럽게 (SmoothStep + 0.6s)
+        currentGimmick?.OnStageStart(stage); // ResetAllStones 이후 호출 — 색 배정이 리셋에 덮이지 않도록
 
         TestLogger.Instance?.LogStageChange(stage);
         TestLogger.Instance?.BeginStageAttempt(stage);
@@ -464,7 +517,7 @@ public class GameManager : MonoBehaviour
         transitionCoroutine = null;
 
         // 실제 게임 시작
-        if (stage <= 4)
+        if (stage != 5)
         {
             SetPhase(GamePhase.Scatter);
         }
@@ -560,6 +613,7 @@ public class GameManager : MonoBehaviour
     private void OnFailed()
     {
         if (isAllClear) return; // ALL CLEAR 이후 실패 무시
+        if (isTransitioning) return; // 이미 실패 전환 중이면 중복 실패 무시
         Debug.Log("[GameManager] FAILED! Resetting to Stage 1.");
 
         // [P1] 세션: 해당 루프 1단으로 리셋 (나이/루프 유지)
@@ -595,12 +649,12 @@ public class GameManager : MonoBehaviour
         if (boardTransform == null) return;
 
         float boardCenterX = boardTransform.position.x;
-        float boardBottomY = boardTransform.position.y - 3.2f; // boardSize.y / 2
+        float boardBottomY = boardTransform.position.y - 3.05f; // boardSize.y / 2
 
         var wallGo = new GameObject("BoardBottomWall");
         wallGo.transform.position = new Vector3(boardCenterX, boardBottomY - 0.25f, 0f);
         var col = wallGo.AddComponent<BoxCollider>();
-        col.size = new Vector3(10f, 0.5f, 2f); // 넓고 얇은 벽
+        col.size = new Vector3(12f, 0.5f, 2f); // 넓고 얇은 벽
         // Rigidbody 없음 = Static Collider (움직이지 않음)
     }
 
@@ -634,6 +688,25 @@ public class GameManager : MonoBehaviour
         Debug.Log($"[GameManager] Stage 5 step advanced to {stage5Step}.");
     }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// 디버그 전용: 현재 루프의 5단 클리어 처리.
+    /// GameManager.OnStageComplete()와 동일한 흐름을 타도록 currentStage=5로 맞춘 뒤 호출.
+    /// IsGameClear 분기 및 전환 코루틴이 정상 작동한다.
+    /// v12-fix: 재진입 가드 — 전환 중 또는 ALL CLEAR 후 다중 클릭 시 코루틴 경합/age 중복 증가 방지.
+    /// </summary>
+    public void DebugCompleteCurrentLoop()
+    {
+        if (isTransitioning || transitionCoroutine != null || isAllClear)
+        {
+            Debug.Log("[GameManager] DebugCompleteCurrentLoop ignored — already transitioning or all-clear.");
+            return;
+        }
+        currentStage = 5;
+        OnStageComplete();
+    }
+#endif
+
     private void OnStageComplete()
     {
         TestLogger.Instance?.CompleteStageAttempt();
@@ -645,14 +718,16 @@ public class GameManager : MonoBehaviour
         SidePanelUI.Instance?.Refresh();
 
         currentGimmick?.OnStageEnd(); // v4: 기믹 정리
+        // 5단 꺾기 후에는 currentGimmick==null이므로 잔여 override 직접 정리
+        handController?.ClearAllOverrides();
 
         int nextStage = currentStage + 1;
         if (nextStage > 5)
         {
-            // v4: 55살(10스테이지 5단) 완료 시 게임 클리어
+            // v4: 60살(10스테이지 5단 완료 후) 도달 시 게임 클리어
             if (session != null && session.IsGameClear)
             {
-                Debug.Log("[GameManager] GAME CLEAR! Age 55 reached!");
+                Debug.Log("[GameManager] GAME CLEAR! Age 60 reached!");
                 transitionCoroutine = StartCoroutine(DoAllClearTransition());
                 return;
             }
@@ -726,6 +801,8 @@ public class GameManager : MonoBehaviour
         float clearTime = session != null ? session.ElapsedTime : 0f;
         int regressionCount = session != null ? session.RegressionCount : 0;
 
+        // BGM 페이드아웃 (all_clear 징글이 깔끔하게 들리도록)
+        AudioManager.Instance?.StopGameplayBGM(true);
         AudioManager.Instance?.PlayAllClear();
         GameUI.Instance?.ShowAllClear();
 
@@ -833,6 +910,9 @@ public class GameManager : MonoBehaviour
 
     public void RestartGame()
     {
+        // BGM 즉시 정지 (타이틀에서는 BGM 없음)
+        AudioManager.Instance?.StopGameplayBGM(false);
+
         isAllClear = false;
         isTransitioning = false;
         GameUI.Instance?.HideOverlay();
@@ -843,6 +923,11 @@ public class GameManager : MonoBehaviour
         }
 
         GraveyardUI.Instance?.Hide();
+
+        // 기믹 정리 (방해물/도망/가짜돌 등 씬 잔여물 제거)
+        currentGimmick?.OnStageEnd();
+        currentGimmick = null;
+        handController?.ClearAllOverrides();
 
         // 세션 전체 초기화 (이름 입력은 엔딩 후)
         session?.ResetAll();

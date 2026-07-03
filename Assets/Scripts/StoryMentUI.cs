@@ -17,6 +17,7 @@ public class StoryMentUI : MonoBehaviour
     private CanvasGroup rootGroup;
     private TextMeshProUGUI mentText;
     private TextMeshProUGUI hintText;
+    private TextMeshProUGUI titleSplashText; // v10: 게임 첫 진입 시 "Catch Five Stones" 인트로
 
     private string currentMessage;
     private Action pendingCallback;
@@ -44,15 +45,19 @@ public class StoryMentUI : MonoBehaviour
         canvasGo.transform.SetParent(transform);
 
         canvas = canvasGo.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        canvas.sortingOrder = 110;
+        // v10: BootCurtain(Overlay,200) 위로 보이게 Overlay+sortingOrder=220
+        // (Unity 렌더 순서: Overlay > WorldSpace, sortingOrder는 같은 렌더모드끼리만 비교됨)
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 220;
 
         canvasGo.AddComponent<GraphicRaycaster>();
 
         var rt = canvasGo.GetComponent<RectTransform>();
-        rt.position = new Vector3(0f, -1.5f, -1f);
-        rt.sizeDelta = new Vector2(2500f, 1400f);
-        rt.localScale = new Vector3(0.01f, 0.01f, 0.01f);
+        // v10: Overlay 모드 — 풀스크린 anchor (자식들은 이미 anchor 비율 기반이라 비례 확장)
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
 
         // --- CanvasGroup (rootGroup) ---
         rootGroup = canvasGo.AddComponent<CanvasGroup>();
@@ -114,6 +119,26 @@ public class StoryMentUI : MonoBehaviour
         // 초기에는 힌트 숨김
         hintText.alpha = 0f;
 
+        // --- 게임 인트로 splash ("Catch Five Stones") ---
+        var splashGo = new GameObject("TitleSplash");
+        splashGo.transform.SetParent(canvasGo.transform, false);
+        titleSplashText = splashGo.AddComponent<TextMeshProUGUI>();
+        titleSplashText.fontSize = 72;
+        titleSplashText.color = Color.white;
+        titleSplashText.alignment = TextAlignmentOptions.Center;
+        titleSplashText.text = "Catch Five Stones";
+        titleSplashText.alpha = 0f;
+        if (koreanFont != null)
+        {
+            titleSplashText.font = koreanFont;
+        }
+
+        var splashRt = splashGo.GetComponent<RectTransform>();
+        splashRt.anchorMin = new Vector2(0.1f, 0.4f);
+        splashRt.anchorMax = new Vector2(0.9f, 0.6f);
+        splashRt.offsetMin = Vector2.zero;
+        splashRt.offsetMax = Vector2.zero;
+
         IsShowing = false;
     }
 
@@ -135,18 +160,26 @@ public class StoryMentUI : MonoBehaviour
         }
     }
 
-    public void Show(string message, Action onComplete = null)
+    public void Show(string message, Action onComplete = null, bool showTitleSplash = false)
     {
         pendingCallback = onComplete;
         currentMessage = message;
         skipRequested = false;
         hintText.alpha = 0f;
 
+        // v10: 페이드인 동안 풀텍스트 잔상 방지 — 즉시 비움
+        mentText.maxVisibleCharacters = 0;
+        mentText.text = "";
+        titleSplashText.alpha = 0f;
+
         IsShowing = true;
         rootGroup.blocksRaycasts = true;
 
         StopAllCoroutines();
-        StartCoroutine(DoFadeIn());
+        if (showTitleSplash)
+            StartCoroutine(DoSplashThenTyping());
+        else
+            StartCoroutine(DoFadeIn());
     }
 
     public void Hide()
@@ -169,13 +202,53 @@ public class StoryMentUI : MonoBehaviour
         StartCoroutine(DoTyping());
     }
 
+    /// <summary>
+    /// v10: 게임 첫 진입 시 인트로 — "Catch Five Stones" splash → 빈 검은화면 → 타이핑.
+    /// 순서: rootGroup+splash 페이드인 0.3s → splash 1.2s 노출 → splash 페이드아웃 0.4s → 빈 화면 0.3s → DoTyping
+    /// </summary>
+    private IEnumerator DoSplashThenTyping()
+    {
+        // 1) rootGroup + splash 동시 페이드인 (SmoothStep)
+        float elapsed = 0f;
+        while (elapsed < 0.3f)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / 0.3f);
+            rootGroup.alpha = t;
+            titleSplashText.alpha = t;
+            yield return null;
+        }
+        rootGroup.alpha = 1f;
+        titleSplashText.alpha = 1f;
+
+        // 2) splash 노출 유지
+        yield return new WaitForSeconds(1.2f);
+
+        // 3) splash 페이드아웃 (SmoothStep)
+        elapsed = 0f;
+        while (elapsed < 0.4f)
+        {
+            elapsed += Time.deltaTime;
+            titleSplashText.alpha = Mathf.SmoothStep(1f, 0f, elapsed / 0.4f);
+            yield return null;
+        }
+        titleSplashText.alpha = 0f;
+
+        // 4) 빈 검은화면 (호흡)
+        yield return new WaitForSeconds(0.3f);
+
+        // 5) 기존 타이핑 시작
+        StartCoroutine(DoTyping());
+    }
+
     private IEnumerator DoTyping()
     {
         state = MentState.Typing;
+        // v10: 잔상 방지 — 0 먼저, 그 다음 text 세팅
+        mentText.maxVisibleCharacters = 0;
         mentText.text = currentMessage;
         mentText.ForceMeshUpdate();
         int totalChars = mentText.textInfo.characterCount;
-        mentText.maxVisibleCharacters = 0;
 
         for (int i = 0; i < totalChars; i++)
         {

@@ -53,8 +53,8 @@ public class GameSession : MonoBehaviour
 
     public int RegressionCount => regressionCount;
 
-    /// <summary>55살 도달 시 게임 클리어</summary>
-    public bool IsGameClear => currentAge >= 55;
+    /// <summary>60살 도달 시 게임 클리어 (Stage 10 Monochrome 완료 후)</summary>
+    public bool IsGameClear => currentAge >= 60;
 
     private void Awake()
     {
@@ -81,7 +81,7 @@ public class GameSession : MonoBehaviour
         if (completedStage == 5) currentAge += 5;
         currentStageInLoop = completedStage;
 
-        // IsGameClear (age >= 50) 이면 루프/단계 변경 없음 (게임 종료)
+        // IsGameClear (age >= 60) 이면 루프/단계 변경 없음 (게임 종료)
         if (!IsGameClear && completedStage == 5)
         {
             currentLoop++;

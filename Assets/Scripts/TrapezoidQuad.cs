@@ -7,8 +7,8 @@ using UnityEngine;
 [RequireComponent(typeof(MeshFilter))]
 public class TrapezoidQuad : MonoBehaviour
 {
-    [SerializeField, Range(0f, 0.3f)]
-    private float topNarrow = 0.08f; // 윗변 좁힘 비율 (8% = 살짝)
+    [SerializeField, Range(0f, 0.5f)]
+    private float topNarrow = 0.38f; // 윗변 좁힘 비율 (38% = v8-2d, 이미지 모드 매트 perspective와 톤 맞춤)
 
     private void Start()
     {
