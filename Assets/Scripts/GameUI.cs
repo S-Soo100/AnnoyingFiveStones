@@ -582,24 +582,17 @@ public class GameUI : MonoBehaviour
     private IEnumerator DoAllClear()
     {
         overlayBg.color = new Color(0, 0, 0, 0.7f);
-        overlayMainText.text = "천수를 다하셨습니다";
+        overlayMainText.text = "이번 생은 여기까지 입니다";
         overlayMainText.fontSize = 80;
 
-        // 조선시대 평균수명 놀림 메시지
-        string[] quips = new string[]
-        {
-            "조선시대 평균수명이 40대라던데…\n60살이면 꽤 오래 사신 겁니다. 축하드려요!",
-            "칠순잔치는 못 했지만\n환갑까지 누리셨으니 충분히 호사로우셨습니다.",
-            "60살까지 공기놀이만 하셨군요.\n후회는 없으신가요?",
-            "어르신, 편히 쉬세요.\n공깃돌은 다음 생에서 또 만나요.",
-        };
         // [Online] 클리어 시간 표시
         float clearTime = GameSession.Instance != null ? GameSession.Instance.ElapsedTime : 0f;
         int mins = (int)(clearTime / 60);
         int secs = (int)(clearTime % 60);
         string timeStr = $"{mins:00}:{secs:00}";
 
-        overlaySubText.text = quips[Random.Range(0, quips.Length)] + $"\n\n<size=80%>기록: {timeStr}</size>\n<size=70%>탭하여 다시 시작</size>";
+        // v9(260703): 조선시대 놀림 톤 → 진지한 위로. "이번 생은 여기까지 입니다 / 수고하셨습니다"
+        overlaySubText.text = $"수고하셨습니다\n\n<size=80%>기록: {timeStr}</size>\n<size=70%>탭하여 다시 시작</size>";
         overlaySubText.enableAutoSizing = false;
         overlaySubText.fontSize = 36;
         overlaySubText.textWrappingMode = TextWrappingModes.Normal;
