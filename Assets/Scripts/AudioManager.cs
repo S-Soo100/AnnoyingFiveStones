@@ -50,7 +50,11 @@ public class AudioManager : MonoBehaviour
     private float       currentDuckMult      = 1f; // duck 코루틴이 관리 (0~1)
     private bool        isBgmFadingOut       = false; // StopGameplayBGM(fade=true) 진행 중 플래그
 
-    private AudioClip[] bgmClips = new AudioClip[4]; // 0=youth, 1=adult, 2=middle, 3=late
+    private AudioClip[] bgmClips = new AudioClip[5]; // 0=age10, 1=age20, 2=age30, 3=age40, 4=age50
+
+    // v12-fix: 콜드 부팅 큐 — LoadBGMClips 완료 전 들어온 PlayGameplayBGM(age) 호출을 보관했다가 로드 후 재생.
+    // (TitleScreenUI.Show()가 AudioManager.Start()의 1프레임 yield보다 먼저 실행되는 케이스)
+    private int pendingBgmAge = -1; // -1 = 큐잉된 요청 없음
 
     private Coroutine bgmCoroutine;           // 크로스페이드/페이드인/아웃 전용
     private Coroutine duckCoroutine;          // duck 전용 (bgmCoroutine과 독립)
@@ -158,9 +162,13 @@ public class AudioManager : MonoBehaviour
 
         if (bgmClips[targetTrack] == null)
         {
-            Debug.LogWarning($"[AudioManager] BGM clip for track {targetTrack} not loaded. Skipping.");
+            // v12-fix: 콜드 부팅 시 LoadBGMClips() 완료 전 호출 — age 큐잉 후 로드 완료 시 재시도.
+            // (TitleScreenUI.Show() → PlayLobbyBGM이 AudioManager.Start()의 1프레임 yield보다 먼저 실행되는 케이스)
+            pendingBgmAge = age;
+            Debug.LogWarning($"[AudioManager] BGM clip for track {targetTrack} not loaded yet. Queuing age={age}.");
             return;
         }
+        pendingBgmAge = -1; // 정상 재생 진입 — 큐 클리어
 
         // 첫 시작 (currentTrack == -1 or 재생 소스 없음)
         if (currentTrack == -1)
@@ -187,6 +195,9 @@ public class AudioManager : MonoBehaviour
         // 다른 트랙 — 크로스페이드
         StartCrossfadeTo(targetTrack);
     }
+
+    /// <summary>로비(타이틀) BGM. 1단(age=10)과 같은 트랙을 재생. 게임 진입 시 no-op으로 무중단.</summary>
+    public void PlayLobbyBGM() => PlayGameplayBGM(10);
 
     /// <summary>BGM 정지. fade=true면 bgmFadeOutDuration 동안 페이드아웃, false면 즉시.</summary>
     public void StopGameplayBGM(bool fade = true)
@@ -244,10 +255,11 @@ public class AudioManager : MonoBehaviour
 
     private int AgeToTrackIndex(int age)
     {
-        if (age < 20) return 0;   // bgm_youth  (10, 15)
-        if (age < 35) return 1;   // bgm_adult  (20, 25, 30)
-        if (age < 50) return 2;   // bgm_middle (35, 40, 45)
-        return 3;                 // bgm_late   (50, 55, 60+)
+        if (age < 20) return 0;   // bgm_age10 (10, 15)
+        if (age < 30) return 1;   // bgm_age20 (20, 25) — 임시 공유, 추후 20.m4a 분리
+        if (age < 40) return 2;   // bgm_age30 (30, 35)
+        if (age < 50) return 3;   // bgm_age40 (40, 45)
+        return 4;                 // bgm_age50 (50, 55, 60+)
     }
 
     private AudioSource GetActiveSource()   => activeBgm == 0 ? bgmSourceA : bgmSourceB;
@@ -385,10 +397,11 @@ public class AudioManager : MonoBehaviour
         {
             switch (clip.name)
             {
-                case "bgm_youth":  bgmClips[0] = clip; break;
-                case "bgm_adult":  bgmClips[1] = clip; break;
-                case "bgm_middle": bgmClips[2] = clip; break;
-                case "bgm_late":   bgmClips[3] = clip; break;
+                case "bgm_age10": bgmClips[0] = clip; break;
+                case "bgm_age20": bgmClips[1] = clip; break;
+                case "bgm_age30": bgmClips[2] = clip; break;
+                case "bgm_age40": bgmClips[3] = clip; break;
+                case "bgm_age50": bgmClips[4] = clip; break;
             }
         }
         Debug.Log($"[AudioManager] Loaded {loaded.Length} BGM clips.");
@@ -396,6 +409,15 @@ public class AudioManager : MonoBehaviour
         {
             if (bgmClips[i] == null)
                 Debug.LogWarning($"[AudioManager] BGM clip index {i} is null — check Resources/BGM/ folder.");
+        }
+
+        // v12-fix: 콜드 부팅 큐잉된 BGM 요청 재생 (PlayGameplayBGM이 clip null로 스킵됐을 때 보관됐던 age)
+        if (pendingBgmAge >= 0)
+        {
+            int age = pendingBgmAge;
+            pendingBgmAge = -1; // 재시도 전에 클리어 (재시도가 또 실패해도 무한 재귀 차단)
+            Debug.Log($"[AudioManager] Retrying queued BGM after LoadBGMClips: age={age}");
+            PlayGameplayBGM(age);
         }
     }
 
