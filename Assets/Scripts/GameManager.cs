@@ -480,6 +480,7 @@ public class GameManager : MonoBehaviour
         if (session != null)
             session.CurrentStageInLoop = stage;
         SidePanelUI.Instance?.Refresh();
+        GameUI.Instance?.UpdateProgressDots(currentStage); // v9(260703): 단계 프로그레스 갱신
 
         // 게이지 강제 리셋 (스킵 등으로 Scatter 중간에 전환 시)
         scatterSystem.ResetGauge();
@@ -604,7 +605,9 @@ public class GameManager : MonoBehaviour
             _ => null
         };
 
-        if (guide != null)
+        // v9(260703): 기본 조작 자막은 10살(첫 삶)에만 표시. 15살+는 이미 조작을 익혔으므로 숨김.
+        bool showBasicGuide = session != null && session.CurrentAge == 10;
+        if (guide != null && showBasicGuide)
             GameUI.Instance.UpdateGuideText(guide);
         else
             GameUI.Instance.HideGuideText();
