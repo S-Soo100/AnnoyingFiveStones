@@ -40,8 +40,7 @@ public class SidePanelUI : MonoBehaviour
         if (session == null) return;
         if (ageLabel != null)
         {
-            var config = StageConfig.Get(session.CurrentLoop);
-            ageLabel.text = $"{session.CurrentAge}살 [{config?.StageName ?? ""}]";
+            ageLabel.text = $"{session.CurrentAge}살"; // v9(260703): 스테이지명 제거
         }
         if (regressionLabel != null) regressionLabel.text = $"회귀: {session.RegressionCount}번";
     }

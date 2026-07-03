@@ -78,7 +78,7 @@ public class GameUI : MonoBehaviour
                 canvas = CreateCanvas();
         }
 
-        // CreateProgressDots(); — 진행도 도트 삭제 (N단 안내 제거)
+        CreateProgressDots(); // v9(260703): 단계 프로그레스 도트 부활
         CreateGuideText();
         CreateOverlay();
         CreatePauseButton();
