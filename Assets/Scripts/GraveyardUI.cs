@@ -495,8 +495,10 @@ public class GraveyardUI : MonoBehaviour
 
     private static string FormatTime(float seconds)
     {
-        int mins = (int)(seconds / 60);
-        int secs = (int)(seconds % 60);
-        return $"{mins:00}:{secs:00}";
+        // v10: 기획 형식 00:00:00 (HH:MM:SS)
+        int h = (int)(seconds / 3600);
+        int m = (int)((seconds % 3600) / 60);
+        int s = (int)(seconds % 60);
+        return $"{h:00}:{m:00}:{s:00}";
     }
 }

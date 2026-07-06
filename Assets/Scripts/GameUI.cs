@@ -595,12 +595,14 @@ public class GameUI : MonoBehaviour
 
         // [Online] 클리어 시간 표시
         float clearTime = GameSession.Instance != null ? GameSession.Instance.ElapsedTime : 0f;
-        int mins = (int)(clearTime / 60);
-        int secs = (int)(clearTime % 60);
-        string timeStr = $"{mins:00}:{secs:00}";
+        // v10: 기획 형식 00:00:00 (HH:MM:SS)
+        int ch = (int)(clearTime / 3600);
+        int cm = (int)((clearTime % 3600) / 60);
+        int cs = (int)(clearTime % 60);
+        string timeStr = $"{ch:00}:{cm:00}:{cs:00}";
 
         // v9(260703): 조선시대 놀림 톤 → 진지한 위로. "이번 생은 여기까지 입니다 / 수고하셨습니다"
-        overlaySubText.text = $"수고하셨습니다\n\n<size=80%>기록: {timeStr}</size>\n<size=70%>탭하여 다시 시작</size>";
+        overlaySubText.text = $"수고하셨습니다\n\n<size=80%>기록: {timeStr}</size>";
         overlaySubText.enableAutoSizing = false;
         overlaySubText.fontSize = 36;
         overlaySubText.textWrappingMode = TextWrappingModes.Normal;

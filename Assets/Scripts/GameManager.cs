@@ -839,7 +839,7 @@ public class GameManager : MonoBehaviour
 
         // 이름 입력 팝업 → 이름 확정 후 레코드 저장 → 묘지 파노라마
         bool nameConfirmed = false;
-        NameInputUI.Instance?.Show((name, isTestPlay) =>
+        NameInputUI.Instance?.Show(clearTime, (name, isTestPlay) =>
         {
             session.PlayerName = name;
             session.IsTestPlay = isTestPlay;
@@ -924,6 +924,10 @@ public class GameManager : MonoBehaviour
         if (isInTitleScreen) return;
         if (!isAllClear) return;
         if (isPaused) return; // [P4] 일시정지 중 클릭 무시
+
+        // v10: 엔딩 시퀀스(멘트→주마등→Credit→이름입력) 중 클릭 차단 — DoAllClearTransition이 내내 isTransitioning=true 유지
+        if (isTransitioning) return;
+        if (NameInputUI.Instance != null && NameInputUI.Instance.IsOpen) return;
 
         // [Phase B] 멘트 표시 중 클릭 무시
         if (StoryMentUI.Instance != null && StoryMentUI.Instance.IsShowing) return;

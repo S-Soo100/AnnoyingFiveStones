@@ -424,7 +424,7 @@ public class PauseMenuUI : MonoBehaviour
         msgRect.sizeDelta = new Vector2(320f, 70f);
 
         var msgTmp = msgGo.AddComponent<TextMeshProUGUI>();
-        msgTmp.text = "정말 종료?\n자신없어요?";
+        msgTmp.text = LocalizationManager.L("quit.message"); // v10: 확정문 + 다국어 첫 소비자
         msgTmp.fontSize = 36f;
         msgTmp.color = Color.white;
         msgTmp.alignment = TextAlignmentOptions.Center;

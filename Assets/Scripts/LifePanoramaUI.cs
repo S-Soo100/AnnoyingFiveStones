@@ -13,14 +13,22 @@ public class LifePanoramaUI : MonoBehaviour
     public static LifePanoramaUI Instance { get; private set; }
 
     // 인생 순서대로 흘려보낼 배경 (Resources 경로). 학창 → 청년 → 중년.
+    // v10: 나이대별 배경 10장 (5년 단위, figma-export → Resources/StageBackgrounds/Life/)
     private static readonly string[] bgPaths = new string[]
     {
-        "StageBackgrounds/Stage02_Classroom",
-        "StageBackgrounds/Stage03_Campus",
-        "StageBackgrounds/Stage05_Office",
+        "StageBackgrounds/Life/age10",
+        "StageBackgrounds/Life/age15",
+        "StageBackgrounds/Life/age20",
+        "StageBackgrounds/Life/age25",
+        "StageBackgrounds/Life/age30",
+        "StageBackgrounds/Life/age35",
+        "StageBackgrounds/Life/age40",
+        "StageBackgrounds/Life/age45",
+        "StageBackgrounds/Life/age50",
+        "StageBackgrounds/Life/age55",
     };
 
-    private const float PerImageSeconds = 2.5f; // 이미지당 흐름 시간
+    private const float PerImageSeconds = 1.4f; // 이미지당 흐름 시간 (10장 → 총 ~12.6초)
     private const float FadeSeconds     = 0.5f;
 
     private Canvas canvas;
