@@ -152,7 +152,6 @@ public class PauseMenuUI : MonoBehaviour
 
         // 버튼 3개
         CreateButton("게임 재개", boxGo.transform, OnResume);
-        CreateButton("게임 초기화", boxGo.transform, OnReset);
         CreateButton("게임 종료", boxGo.transform, OnQuit);
 
         return panelGo;
@@ -586,21 +585,6 @@ public class PauseMenuUI : MonoBehaviour
     private void OnResume()
     {
         Close();
-    }
-
-    private void OnReset()
-    {
-        // timeScale 복원 먼저 — 이후 StartStage 코루틴이 WaitForSeconds를 제대로 소화
-        Close();
-
-        // 연습/기록 모드 플래그는 초기화 후에도 유지 (ResetAll이 false로 되돌려버리므로 백업/복원).
-        // 이유: "게임 초기화"는 세션 진행도만 리셋해야 하고 유저가 타이틀에서 선택한 모드는 건드리지 않아야 함.
-        bool prevTestPlay = GameSession.Instance != null && GameSession.Instance.IsTestPlay;
-        GameSession.Instance?.ResetAll();
-        if (GameSession.Instance != null) GameSession.Instance.IsTestPlay = prevTestPlay;
-
-        SidePanelUI.Instance?.Refresh();
-        GameManager.Instance?.StartStage(1);
     }
 
     private void OnQuit()

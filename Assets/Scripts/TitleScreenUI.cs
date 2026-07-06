@@ -168,16 +168,21 @@ public class TitleScreenUI : MonoBehaviour
         // 말풍선 장식
         CreateSpeechBubbles(parent);
 
-        // "기록 모드" 버튼
-        CreateMenuButton("기록 모드", parent, new Vector2(0f, -40f), 34, () => OnModeSelected(false));
-
-        // "연습 모드" 버튼
-        CreateMenuButton("연습 모드", parent, new Vector2(0f, -100f), 30, () => OnModeSelected(true));
+        // v9(260703): 게임 시작 단일 버튼 (기록/연습 통합 — 연습 진입은 DebugHUD로 대체)
+        CreateMenuButton("게임 시작", parent, new Vector2(0f, -50f), 34, () => OnModeSelected(false));
 
         // "설정" 버튼
-        CreateMenuButton("설정", parent, new Vector2(0f, -160f), 26, () => {
+        CreateMenuButton("설정", parent, new Vector2(0f, -110f), 26, () => {
             SettingsPopupUI.EnsureInstance().Open();
         });
+
+        // v9(260703): 묘지(Cemetery) — 엔딩(완주) 기록이 있는 유저만 표시. 관람 모드(내 비석 생략).
+        if (PlayerPrefs.GetInt("EndingSeen", 0) == 1)
+        {
+            CreateMenuButton("묘지", parent, new Vector2(0f, -170f), 26, () => {
+                GraveyardUI.Instance?.Show(0f, "", 0, true);
+            });
+        }
 
         // "나가기" — 우측 상단
         var exitGo = new GameObject("ExitText");

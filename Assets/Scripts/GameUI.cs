@@ -370,6 +370,14 @@ public class GameUI : MonoBehaviour
         overlayCoroutine = StartCoroutine(DoAllClear());
     }
 
+    /// <summary>v9(260703): Credit 롤 (역할×4). 완료 후 onComplete 호출.</summary>
+    public void ShowCredit(System.Action onComplete)
+    {
+        HideGuideText();
+        StopOverlay();
+        overlayCoroutine = StartCoroutine(DoCredit(onComplete));
+    }
+
     /// <summary>회귀 연출: Fade Out → "인생을 다시 시작합니다" → Fade In</summary>
     public void ShowRegressionTransition()
     {
@@ -610,6 +618,55 @@ public class GameUI : MonoBehaviour
             overlaySubText.color = new Color(1f, 1f, 1f, blink);
             yield return null;
         }
+    }
+
+    private IEnumerator DoCredit(System.Action onComplete)
+    {
+        StopOverlay();
+        overlayBg.color = new Color(0f, 0f, 0f, 1f); // 암전
+        overlayGroup.alpha = 1f;
+
+        overlayMainText.text = "Credit";
+        overlayMainText.enableAutoSizing = false;
+        overlayMainText.fontSize = 64;
+        overlayMainText.color = new Color(1f, 1f, 1f, 0f);
+
+        // v9(260703): 역할×4. 실제 이름은 추후 교체(placeholder).
+        overlaySubText.text = "Game Design    ___\nArt            ___\nProgramming    ___\nSound          ___";
+        overlaySubText.enableAutoSizing = false;
+        overlaySubText.fontSize = 30;
+        overlaySubText.textWrappingMode = TextWrappingModes.Normal;
+        overlaySubText.color = new Color(0.9f, 0.9f, 0.9f, 0f);
+
+        // 페이드인
+        float t = 0f;
+        while (t < 0.6f)
+        {
+            t += Time.deltaTime;
+            float a = Mathf.Clamp01(t / 0.6f);
+            overlayMainText.color = new Color(1f, 1f, 1f, a);
+            overlaySubText.color = new Color(0.9f, 0.9f, 0.9f, a);
+            yield return null;
+        }
+
+        yield return new WaitForSeconds(3f);
+
+        // 페이드아웃
+        t = 0f;
+        while (t < 0.6f)
+        {
+            t += Time.deltaTime;
+            float a = 1f - Mathf.Clamp01(t / 0.6f);
+            overlayMainText.color = new Color(1f, 1f, 1f, a);
+            overlaySubText.color = new Color(0.9f, 0.9f, 0.9f, a);
+            yield return null;
+        }
+
+        overlayGroup.alpha = 0f;
+        overlayBg.color = new Color(0f, 0f, 0f, 0f);
+        overlayMainText.enableAutoSizing = true; // 원복 (다음 연출 대비)
+        overlayCoroutine = null;
+        onComplete?.Invoke();
     }
 
     // ==========================================================

@@ -198,6 +198,9 @@ public class GameManager : MonoBehaviour
         if (SidePanelUI.Instance == null)
             new GameObject("SidePanelUI").AddComponent<SidePanelUI>();
 
+        // v9(260703): 로컬라이제이션 초기화 (UI 생성 전)
+        LocalizationManager.Init();
+
         // [v4] ScreenManager 자동 생성
         if (ScreenManager.Instance == null)
             new GameObject("ScreenManager").AddComponent<ScreenManager>();
@@ -213,6 +216,8 @@ public class GameManager : MonoBehaviour
             new GameObject("NameInputUI").AddComponent<NameInputUI>();
         if (GraveyardUI.Instance == null)
             new GameObject("GraveyardUI").AddComponent<GraveyardUI>();
+        if (LifePanoramaUI.Instance == null)
+            new GameObject("LifePanoramaUI").AddComponent<LifePanoramaUI>();
 
         // [Phase B] AgeSaturationController 자동 생성
         if (AgeSaturationController.Instance == null)
@@ -799,6 +804,8 @@ public class GameManager : MonoBehaviour
     {
         isTransitioning = true;
         isAllClear = true;
+        PlayerPrefs.SetInt("EndingSeen", 1); // v9(260703): 홈화면 묘지 버튼 활성화 조건
+        PlayerPrefs.Save();
 
         // 값을 즉시 캡처 (이후 session이 리셋되어도 안전)
         float clearTime = session != null ? session.ElapsedTime : 0f;
@@ -813,6 +820,22 @@ public class GameManager : MonoBehaviour
         yield return new WaitForSeconds(5f);
 
         GameUI.Instance?.HideOverlay();
+
+        // v9(260703): 주마등 — 인생 스테이지 배경을 오른쪽→왼쪽으로 흘려보냄
+        if (LifePanoramaUI.Instance != null)
+        {
+            bool panoramaDone = false;
+            LifePanoramaUI.Instance.Show(() => panoramaDone = true);
+            yield return new WaitUntil(() => panoramaDone);
+        }
+
+        // v9(260703): Credit (역할×4)
+        if (GameUI.Instance != null)
+        {
+            bool creditDone = false;
+            GameUI.Instance.ShowCredit(() => creditDone = true);
+            yield return new WaitUntil(() => creditDone);
+        }
 
         // 이름 입력 팝업 → 이름 확정 후 레코드 저장 → 묘지 파노라마
         bool nameConfirmed = false;
@@ -911,7 +934,10 @@ public class GameManager : MonoBehaviour
         RestartGame();
     }
 
-    public void RestartGame()
+    public void RestartGame() => RestartGame(true);
+
+    /// <summary>게임 리셋. returnToTitle=true → 타이틀 복귀(Go Home), false → 바로 첫 스테이지 재시작(Play Again).</summary>
+    public void RestartGame(bool returnToTitle)
     {
         // BGM 즉시 정지 (타이틀에서는 BGM 없음)
         AudioManager.Instance?.StopGameplayBGM(false);
@@ -938,9 +964,17 @@ public class GameManager : MonoBehaviour
         AgeSaturationController.Instance?.ResetSaturation();
         SidePanelUI.Instance?.Refresh();
 
-        isInTitleScreen = true;
-        handController?.gameObject.SetActive(false);
-        HandCursorUI.Instance?.SetActive(true);
-        TitleScreenUI.Instance?.Show();
+        if (returnToTitle)
+        {
+            isInTitleScreen = true;
+            handController?.gameObject.SetActive(false);
+            HandCursorUI.Instance?.SetActive(true);
+            TitleScreenUI.Instance?.Show();
+        }
+        else
+        {
+            // v9(260703) Play Again: 타이틀을 거치지 않고 바로 첫 스테이지부터
+            StartGameFromTitle();
+        }
     }
 }
