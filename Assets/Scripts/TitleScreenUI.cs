@@ -9,6 +9,9 @@ using TMPro;
 public class TitleScreenUI : MonoBehaviour
 {
     public static TitleScreenUI Instance { get; private set; }
+
+    // v10: 언어 전환 시 갱신할 (TMP, key) 목록
+    private readonly System.Collections.Generic.List<(TextMeshProUGUI tmp, string key)> localizedTexts = new();
     public bool IsShowing { get; private set; }
 
     private CanvasGroup rootGroup;
@@ -168,20 +171,20 @@ public class TitleScreenUI : MonoBehaviour
         // 말풍선 장식
         CreateSpeechBubbles(parent);
 
-        // v9(260703): 게임 시작 단일 버튼 (기록/연습 통합 — 연습 진입은 DebugHUD로 대체)
-        CreateMenuButton("게임 시작", parent, new Vector2(0f, -50f), 34, () => OnModeSelected(false));
+        // v9(260703): 게임 시작 단일 버튼. v10: 로컬라이즈
+        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.play"), parent, new Vector2(0f, -50f), 34, () => OnModeSelected(false)), "home.play");
 
         // "설정" 버튼
-        CreateMenuButton("설정", parent, new Vector2(0f, -110f), 26, () => {
+        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.settings"), parent, new Vector2(0f, -110f), 26, () => {
             SettingsPopupUI.EnsureInstance().Open();
-        });
+        }), "home.settings");
 
-        // v9(260703): 묘지(Cemetery) — 엔딩(완주) 기록이 있는 유저만 표시. 관람 모드(내 비석 생략).
+        // v9(260703): 묘지(Cemetery) — 엔딩 기록 유저만. 관람 모드.
         if (PlayerPrefs.GetInt("EndingSeen", 0) == 1)
         {
-            CreateMenuButton("묘지", parent, new Vector2(0f, -170f), 26, () => {
+            RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.cemetery"), parent, new Vector2(0f, -170f), 26, () => {
                 GraveyardUI.Instance?.Show(0f, "", 0, true);
-            });
+            }), "home.cemetery");
         }
 
         // "나가기" — 우측 상단
@@ -218,11 +221,12 @@ public class TitleScreenUI : MonoBehaviour
         exitLabelRect.offsetMax = Vector2.zero;
 
         var exitTmp = exitLabel.AddComponent<TextMeshProUGUI>();
-        exitTmp.text = "나가기";
+        exitTmp.text = LocalizationManager.L("home.exit");
         exitTmp.fontSize = 24f;
         exitTmp.color = new Color(1f, 1f, 1f, 0.6f);
         exitTmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) exitTmp.font = koreanFont;
+        RegisterLocalized(exitTmp, "home.exit");
 
         // 토스트 메시지 (하단, 처음엔 숨김)
         CreateToast(parent);
@@ -581,7 +585,7 @@ public class TitleScreenUI : MonoBehaviour
         }
     }
 
-    private void CreateMenuButton(string text, Transform parent, Vector2 pos, int fontSize, UnityEngine.Events.UnityAction onClick)
+    private TextMeshProUGUI CreateMenuButton(string text, Transform parent, Vector2 pos, int fontSize, UnityEngine.Events.UnityAction onClick)
     {
         var btnGo = new GameObject($"Btn_{text}");
         btnGo.transform.SetParent(parent, false);
@@ -623,7 +627,23 @@ public class TitleScreenUI : MonoBehaviour
         tmp.color = Color.white;
         tmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) tmp.font = koreanFont;
+        return tmp;
     }
+
+    // v10: 로컬라이즈 텍스트 등록/갱신
+    private void RegisterLocalized(TextMeshProUGUI tmp, string key)
+    {
+        if (tmp != null) localizedTexts.Add((tmp, key));
+    }
+
+    private void RefreshLocalizedTexts()
+    {
+        foreach (var (tmp, key) in localizedTexts)
+            if (tmp != null) tmp.text = LocalizationManager.L(key);
+    }
+
+    private void OnEnable()  { LocalizationManager.OnLanguageChanged += RefreshLocalizedTexts; }
+    private void OnDisable() { LocalizationManager.OnLanguageChanged -= RefreshLocalizedTexts; }
 
     // === 장식 돌 애니메이션 ===
 

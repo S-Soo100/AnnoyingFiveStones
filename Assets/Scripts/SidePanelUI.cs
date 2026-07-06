@@ -33,16 +33,19 @@ public class SidePanelUI : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
+    // v10: 언어 전환 시 나이/회귀 갱신
+    private void OnEnable()  { LocalizationManager.OnLanguageChanged += Refresh; }
+    private void OnDisable() { LocalizationManager.OnLanguageChanged -= Refresh; }
+
     /// <summary>GameSession 데이터를 읽어 나이/회귀 갱신.</summary>
     public void Refresh()
     {
         var session = GameSession.Instance;
         if (session == null) return;
         if (ageLabel != null)
-        {
-            ageLabel.text = $"{session.CurrentAge}살"; // v9(260703): 스테이지명 제거
-        }
-        if (regressionLabel != null) regressionLabel.text = $"회귀: {session.RegressionCount}번";
+            ageLabel.text = LocalizationManager.LF("hud.age", session.CurrentAge);
+        if (regressionLabel != null)
+            regressionLabel.text = LocalizationManager.LF("hud.regression", session.RegressionCount);
     }
 
     private void CreateUI()
