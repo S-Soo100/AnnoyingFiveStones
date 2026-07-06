@@ -15,6 +15,9 @@ public class SettingsPopupUI : MonoBehaviour
     private CanvasGroup rootGroup;
     private TMP_FontAsset koreanFont;
     private TextMeshProUGUI volumeLabel;
+    private TextMeshProUGUI titleLabel;
+    private TextMeshProUGUI closeLabel;
+    private TextMeshProUGUI languageLabel;
     private AnnoyingSlider volumeSlider;  // Open()에서 값 갱신하기 위한 참조
     private bool isOpen;
 
@@ -111,7 +114,7 @@ public class SettingsPopupUI : MonoBehaviour
         boxRect.anchorMin = new Vector2(0.5f, 0.5f);
         boxRect.anchorMax = new Vector2(0.5f, 0.5f);
         boxRect.pivot = new Vector2(0.5f, 0.5f);
-        boxRect.sizeDelta = new Vector2(380f, 260f);
+        boxRect.sizeDelta = new Vector2(380f, 320f);
         boxRect.anchoredPosition = Vector2.zero;
 
         var boxImg = boxGo.AddComponent<Image>();
@@ -134,18 +137,21 @@ public class SettingsPopupUI : MonoBehaviour
         titleGo.transform.SetParent(boxGo.transform, false);
         titleGo.AddComponent<RectTransform>();
 
-        var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
-        titleTmp.text = "설정";
-        titleTmp.fontSize = 40f;
-        titleTmp.color = Color.white;
-        titleTmp.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) titleTmp.font = koreanFont;
+        titleLabel = titleGo.AddComponent<TextMeshProUGUI>();
+        titleLabel.text = LocalizationManager.L("settings.title");
+        titleLabel.fontSize = 40f;
+        titleLabel.color = Color.white;
+        titleLabel.alignment = TextAlignmentOptions.Center;
+        if (koreanFont != null) titleLabel.font = koreanFont;
 
         var titleLE = titleGo.AddComponent<LayoutElement>();
         titleLE.preferredHeight = 50f;
 
         // 음량 슬라이더
         CreateVolumeSlider(boxGo.transform);
+
+        // v9(260703): 언어 토글
+        CreateLanguageRow(boxGo.transform);
 
         // 닫기 버튼
         CreateCloseButton(boxGo.transform);
@@ -254,7 +260,7 @@ public class SettingsPopupUI : MonoBehaviour
     private void UpdateVolumeLabel(float v)
     {
         if (volumeLabel != null)
-            volumeLabel.text = $"음량 {Mathf.RoundToInt(v * 100f)}%";
+            volumeLabel.text = LocalizationManager.LF("settings.volume", Mathf.RoundToInt(v * 100f));
     }
 
     private void CreateCloseButton(Transform parent)
@@ -288,12 +294,12 @@ public class SettingsPopupUI : MonoBehaviour
         labelRect.offsetMin = Vector2.zero;
         labelRect.offsetMax = Vector2.zero;
 
-        var tmp = labelGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = "닫기";
-        tmp.fontSize = 30f;
-        tmp.color = Color.white;
-        tmp.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) tmp.font = koreanFont;
+        closeLabel = labelGo.AddComponent<TextMeshProUGUI>();
+        closeLabel.text = LocalizationManager.L("settings.close");
+        closeLabel.fontSize = 30f;
+        closeLabel.color = Color.white;
+        closeLabel.alignment = TextAlignmentOptions.Center;
+        if (koreanFont != null) closeLabel.font = koreanFont;
 
         var le = btnGo.AddComponent<LayoutElement>();
         le.preferredWidth = 200f;
@@ -327,4 +333,53 @@ public class SettingsPopupUI : MonoBehaviour
         if (isOpen) Close();
         else Open();
     }
+
+    // v9(260703): 언어 토글 버튼
+    private void CreateLanguageRow(Transform parent)
+    {
+        var btnGo = new GameObject("LanguageBtn");
+        btnGo.transform.SetParent(parent, false);
+        btnGo.AddComponent<RectTransform>();
+        var img = btnGo.AddComponent<Image>();
+        img.color = new Color(0.25f, 0.28f, 0.32f, 0.9f);
+        var btn = btnGo.AddComponent<Button>();
+        btn.targetGraphic = img;
+        btn.onClick.AddListener(() => LocalizationManager.Toggle());
+        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointIndex;
+
+        var labelGo = new GameObject("Label");
+        labelGo.transform.SetParent(btnGo.transform, false);
+        var labelRect = labelGo.AddComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero; labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero; labelRect.offsetMax = Vector2.zero;
+        languageLabel = labelGo.AddComponent<TextMeshProUGUI>();
+        languageLabel.fontSize = 24f;
+        languageLabel.color = Color.white;
+        languageLabel.alignment = TextAlignmentOptions.Center;
+        if (koreanFont != null) languageLabel.font = koreanFont;
+        UpdateLanguageLabel();
+
+        var le = btnGo.AddComponent<LayoutElement>();
+        le.preferredWidth = 320f;
+        le.preferredHeight = 48f;
+    }
+
+    private void UpdateLanguageLabel()
+    {
+        if (languageLabel != null)
+            languageLabel.text = LocalizationManager.L("settings.language") + ": " +
+                (LocalizationManager.IsKorean ? "한국어" : "English");
+    }
+
+    private void RefreshTexts()
+    {
+        if (titleLabel != null) titleLabel.text = LocalizationManager.L("settings.title");
+        if (closeLabel != null) closeLabel.text = LocalizationManager.L("settings.close");
+        UpdateLanguageLabel();
+        if (volumeSlider != null) UpdateVolumeLabel(volumeSlider.value);
+    }
+
+    private void OnEnable()  { LocalizationManager.OnLanguageChanged += RefreshTexts; }
+    private void OnDisable() { LocalizationManager.OnLanguageChanged -= RefreshTexts; }
 }

@@ -18,7 +18,6 @@ public class GraveyardUI : MonoBehaviour
     private ScrollRect scrollRect;
     private RectTransform content;
     private TextMeshProUGUI statusText;
-    private TextMeshProUGUI restartHintText;
     private GameObject restartHintWrapper;
     private TMP_FontAsset koreanFont;
 
@@ -127,10 +126,7 @@ public class GraveyardUI : MonoBehaviour
             }
             scrollCoroutine = StartCoroutine(CoSkipScroll());
         }
-        else
-        {
-            GameManager.Instance?.RestartGame();
-        }
+        // v9(260703): 스크롤 완료 후에는 화면 버튼(Play Again/Go Home)으로 처리 — 탭 재시작 제거
     }
 
     // ------------------------------------------------------------------
@@ -243,14 +239,9 @@ public class GraveyardUI : MonoBehaviour
 
     private IEnumerator CoBlinkHint()
     {
+        // v9(260703): 스크롤 완료 → Play Again / Go Home 버튼 표시
         restartHintWrapper.SetActive(true);
-        while (true)
-        {
-            restartHintText.alpha = 1f;
-            yield return new WaitForSecondsRealtime(0.6f);
-            restartHintText.alpha = 0f;
-            yield return new WaitForSecondsRealtime(0.4f);
-        }
+        yield break;
     }
 
     // ------------------------------------------------------------------
@@ -444,39 +435,26 @@ public class GraveyardUI : MonoBehaviour
         statusText.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) statusText.font = koreanFont;
 
-        // RestartHintText — 하단 중앙 (호버 감지용 래퍼 + 텍스트)
-        restartHintWrapper = new GameObject("RestartHintWrapper", typeof(RectTransform));
-        var hintWrapperGo = restartHintWrapper;
-        hintWrapperGo.transform.SetParent(canvasGo.transform, false);
-        var wrapperRt = hintWrapperGo.GetComponent<RectTransform>();
-        wrapperRt.anchorMin = new Vector2(0.2f, 0.02f);
-        wrapperRt.anchorMax = new Vector2(0.8f, 0.12f);
-        wrapperRt.offsetMin = Vector2.zero;
-        wrapperRt.offsetMax = Vector2.zero;
+        // v9(260703): Play Again / Go Home 버튼 (하단 중앙)
+        restartHintWrapper = new GameObject("EndButtons", typeof(RectTransform));
+        restartHintWrapper.transform.SetParent(canvasGo.transform, false);
+        var btnsRt = restartHintWrapper.GetComponent<RectTransform>();
+        btnsRt.anchorMin = new Vector2(0.5f, 0.03f);
+        btnsRt.anchorMax = new Vector2(0.5f, 0.13f);
+        btnsRt.pivot = new Vector2(0.5f, 0f);
+        btnsRt.sizeDelta = new Vector2(460f, 72f);
+        btnsRt.anchoredPosition = Vector2.zero;
 
-        // 투명 Image로 호버 감지 (IPointerEnterHandler 동작에 Graphic 필요)
-        var wrapperImg = hintWrapperGo.AddComponent<Image>();
-        wrapperImg.color = new Color(0f, 0f, 0f, 0f);
-        var hover = hintWrapperGo.AddComponent<HandCursorHoverTrigger>();
-        hover.HoverPose = HandPose.PointIndex;
+        var hlgBtns = restartHintWrapper.AddComponent<HorizontalLayoutGroup>();
+        hlgBtns.spacing = 40f;
+        hlgBtns.childAlignment = TextAnchor.MiddleCenter;
+        hlgBtns.childForceExpandWidth = false;
+        hlgBtns.childForceExpandHeight = false;
 
-        // 텍스트는 래퍼의 자식
-        var hintGo = new GameObject("RestartHintText", typeof(RectTransform));
-        hintGo.transform.SetParent(hintWrapperGo.transform, false);
-        var hintRt = hintGo.GetComponent<RectTransform>();
-        hintRt.anchorMin = Vector2.zero;
-        hintRt.anchorMax = Vector2.one;
-        hintRt.offsetMin = Vector2.zero;
-        hintRt.offsetMax = Vector2.zero;
-        restartHintText = hintGo.AddComponent<TextMeshProUGUI>();
-        restartHintText.text = "탭하여 다시 시작";
-        restartHintText.fontSize = 18f;
-        restartHintText.color = Color.white;
-        restartHintText.alignment = TextAlignmentOptions.Center;
-        restartHintText.raycastTarget = false;
-        if (koreanFont != null) restartHintText.font = koreanFont;
+        CreateEndButton("Play Again", () => GameManager.Instance?.RestartGame(false));
+        CreateEndButton("Go Home", () => GameManager.Instance?.RestartGame(true));
 
-        hintWrapperGo.SetActive(false);
+        restartHintWrapper.SetActive(false);
 
         // 초기 비활성화
         canvasGo.SetActive(false);
@@ -485,6 +463,35 @@ public class GraveyardUI : MonoBehaviour
     // ------------------------------------------------------------------
     // 유틸리티
     // ------------------------------------------------------------------
+
+    private void CreateEndButton(string label, UnityEngine.Events.UnityAction onClick)
+    {
+        var btnGo = new GameObject($"Btn_{label}", typeof(RectTransform));
+        btnGo.transform.SetParent(restartHintWrapper.transform, false);
+        var le = btnGo.AddComponent<LayoutElement>();
+        le.preferredWidth = 200f;
+        le.preferredHeight = 64f;
+
+        var img = btnGo.AddComponent<Image>();
+        img.color = new Color(0.2f, 0.22f, 0.25f, 0.95f);
+        var btn = btnGo.AddComponent<Button>();
+        btn.targetGraphic = img;
+        btn.onClick.AddListener(onClick);
+        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
+        hover.HoverPose = HandPose.PointIndex;
+
+        var txtGo = new GameObject("Label", typeof(RectTransform));
+        txtGo.transform.SetParent(btnGo.transform, false);
+        var txtRt = txtGo.GetComponent<RectTransform>();
+        txtRt.anchorMin = Vector2.zero; txtRt.anchorMax = Vector2.one;
+        txtRt.offsetMin = Vector2.zero; txtRt.offsetMax = Vector2.zero;
+        var tmp = txtGo.AddComponent<TextMeshProUGUI>();
+        tmp.text = label;
+        tmp.fontSize = 22f;
+        tmp.color = Color.white;
+        tmp.alignment = TextAlignmentOptions.Center;
+        if (koreanFont != null) tmp.font = koreanFont;
+    }
 
     private static string FormatTime(float seconds)
     {
