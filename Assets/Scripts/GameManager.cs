@@ -588,24 +588,25 @@ public class GameManager : MonoBehaviour
     {
         if (GameUI.Instance == null) return;
 
+        // v10 다국어: 조작 가이드 자막 → 로컬라이제이션 키 (push 시점 현재 언어로 조회)
         string guide = phase switch
         {
-            GamePhase.Scatter => "[ 꾹 눌러서 게이지 조절, 놓으면 뿌리기 ]",
-            GamePhase.PickThrowStone => "[ 커서를 돌 위로 이동 ]",
-            GamePhase.Throw => "[ 클릭하여 던지기 ]",
-            GamePhase.PickStones => "[ 돌을 단계에 맞게 주우세요 ]",
-            GamePhase.Catch => "[ 커서를 움직여 돌을 받으세요! ]",
+            GamePhase.Scatter => LocalizationManager.L("guide.scatter"),
+            GamePhase.PickThrowStone => LocalizationManager.L("guide.pick_throw"),
+            GamePhase.Throw => LocalizationManager.L("guide.throw"),
+            GamePhase.PickStones => LocalizationManager.L("guide.pick_stones"),
+            GamePhase.Catch => LocalizationManager.L("guide.catch"),
             GamePhase.Stage5Throw => stage5Step switch
             {
-                0 => "[ 게이지에 맞춰 클릭! 손바닥 던지기 ]",
-                2 => "[ 게이지에 맞춰 클릭! 손등 던지기 ]",
-                _ => "[ 클릭하여 던지기! ]"
+                0 => LocalizationManager.L("guide.s5_throw_palm"),
+                2 => LocalizationManager.L("guide.s5_throw_back"),
+                _ => LocalizationManager.L("guide.s5_throw_default")
             },
             GamePhase.Stage5Catch => stage5Step switch
             {
-                1 => "[ 손등으로 5개 모두 받기! ]",
-                3 => "[ 타이밍에 맞춰 클릭! 낚아채기! ]",
-                _ => "[ 돌을 받으세요! ]"
+                1 => LocalizationManager.L("guide.s5_catch_back"),
+                3 => LocalizationManager.L("guide.s5_catch_snatch"),
+                _ => LocalizationManager.L("guide.s5_catch_default")
             },
             _ => null
         };

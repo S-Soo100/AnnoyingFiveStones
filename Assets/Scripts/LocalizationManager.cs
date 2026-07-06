@@ -7,6 +7,14 @@ using UnityEngine;
 /// 런타임 코드 생성 UI에 맞춰 Dictionary 기반 — L("key")로 현재 언어 문자열 조회.
 /// 언어 전환 시 OnLanguageChanged 이벤트 → 각 UI가 텍스트 재설정.
 /// static 유틸이라 인스턴스 불필요. GameManager 부팅 시 Init() 1회 호출.
+///
+/// ⚠️ 갱신 전략 불변식 (2026-07-06 교차검수):
+///  - **언어 토글 진입점은 SettingsPopupUI 단 하나이며, 이 팝업은 타이틀 화면에서만 열린다.**
+///  - 따라서 토글 순간 화면에 보이는 건 Title+Settings뿐 → 이 둘만 OnLanguageChanged 구독으로 라이브 갱신.
+///  - 그 외 화면(Pause/Graveyard/NameInput/StoryMent/Tutorial/게임플레이 가이드)은
+///    "열릴 때/표시될 때" 재설정하거나 코루틴 실행 시점에 L() 조회 → 재진입 시 항상 최신 언어.
+///  - 이 불변식이 깨지면(예: Pause에 언어 토글 추가, 엔딩 위 Settings 오버레이) 재설정형 화면이
+///    stale로 남을 수 있으니, 그때는 해당 화면에도 OnLanguageChanged 구독을 얹어야 한다.
 /// </summary>
 public static class LocalizationManager
 {
@@ -115,6 +123,19 @@ public static class LocalizationManager
         // === 스테이지 인트로 ===
         ["stage.ready"]    = ("준비하세요.", "Get ready."),
         ["stage.fold"]     = ("꺾기", "Flip"), // 공기놀이 꺾기 (임시 번역, 2026-07-06 승인)
+
+        // === 게임플레이 조작 가이드 자막 (10살 전용, 영어 임시 번역 2026-07-06 승인) ===
+        ["guide.scatter"]          = ("[ 꾹 눌러서 게이지 조절, 놓으면 뿌리기 ]", "[ Hold to set the gauge, release to scatter ]"),
+        ["guide.pick_throw"]       = ("[ 커서를 돌 위로 이동 ]", "[ Move the cursor over a stone ]"),
+        ["guide.throw"]            = ("[ 클릭하여 던지기 ]", "[ Click to throw ]"),
+        ["guide.pick_stones"]      = ("[ 돌을 단계에 맞게 주우세요 ]", "[ Pick up the stones in order ]"),
+        ["guide.catch"]            = ("[ 커서를 움직여 돌을 받으세요! ]", "[ Move the cursor to catch the stone! ]"),
+        ["guide.s5_throw_palm"]    = ("[ 게이지에 맞춰 클릭! 손바닥 던지기 ]", "[ Click on the gauge! Palm toss ]"),
+        ["guide.s5_throw_back"]    = ("[ 게이지에 맞춰 클릭! 손등 던지기 ]", "[ Click on the gauge! Back-hand toss ]"),
+        ["guide.s5_throw_default"] = ("[ 클릭하여 던지기! ]", "[ Click to throw! ]"),
+        ["guide.s5_catch_back"]    = ("[ 손등으로 5개 모두 받기! ]", "[ Catch all 5 on the back of your hand! ]"),
+        ["guide.s5_catch_snatch"]  = ("[ 타이밍에 맞춰 클릭! 낚아채기! ]", "[ Click on time! Snatch! ]"),
+        ["guide.s5_catch_default"] = ("[ 돌을 받으세요! ]", "[ Catch the stones! ]"),
 
         // === 튜토리얼 (10살) — 영어 확정 (2026-07-06 사용자 승인) ===
         ["tutorial.slide1"] = ("꾹 눌러서 게이지를 조절하세요.\n놓으면 돌이 퍼집니다.",
