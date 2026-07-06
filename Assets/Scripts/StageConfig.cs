@@ -24,6 +24,7 @@ public class StageConfig
     public int StageNumber;      // 1~10
     public int Age;              // 10, 15, 20, 25, 30, 35, 40, 45, 50, 55
     public string StageName;     // "기본 공기", "색깔 선택" 등
+    public string StageNameEn;   // v10 다국어: 영어 스테이지명 (임시 번역, 2026-07-06 승인). 비면 StageName 폴백
     public string Theme;         // "단순한 시작", "호기심의 사춘기" 등
     public string StoryMent;     // 스테이지 시작 멘트 (한국어)
     public string StoryMentEn;   // v10 다국어: 영어 내레이션 (260703 사용자 제공). 비면 StoryMent 폴백
@@ -33,6 +34,10 @@ public class StageConfig
     /// <summary>현재 언어에 맞는 스토리멘트. 영어 미지정 시 한국어 폴백.</summary>
     public string LocalizedStoryMent =>
         LocalizationManager.IsKorean || string.IsNullOrEmpty(StoryMentEn) ? StoryMent : StoryMentEn;
+
+    /// <summary>현재 언어에 맞는 스테이지명. 영어 미지정 시 한국어 폴백.</summary>
+    public string LocalizedStageName =>
+        LocalizationManager.IsKorean || string.IsNullOrEmpty(StageNameEn) ? StageName : StageNameEn;
 
     // v7-3 난이도 파라미터 (미지정 시 디폴트 = 효과 없음)
     public float ScatterDropHeightAdd = 0f;      // ScatterSystem 시작 Y 가산 (m). 0=기존 동작
@@ -69,7 +74,7 @@ public class StageConfig
         // Stage 1 — Age 10, 연노랑 하늘
         new StageConfig
         {
-            StageNumber=1, Age=10, StageName="기본 공기", Theme="단순한 시작",
+            StageNumber=1, Age=10, StageName="기본 공기", StageNameEn="Basic Play", Theme="단순한 시작",
             StoryMent="자 시작합니다.\n한 판 놀아볼까요?",
             StoryMentEn="Let's begin.\nShall we play a game?",
             Gimmick=GimmickType.None, TotalStones=5,
@@ -92,7 +97,7 @@ public class StageConfig
         // Stage 2 — Age 15, 교실 배경 + 매트(책상) 레이어
         new StageConfig
         {
-            StageNumber=2, Age=15, StageName="색깔 선택", Theme="호기심의 사춘기",
+            StageNumber=2, Age=15, StageName="색깔 선택", StageNameEn="Color Select", Theme="호기심의 사춘기",
             StoryMent="세상이 온통 색깔로 가득합니다.\n하지만 다 가질 수는 없습니다.",
             StoryMentEn="The world is full of colors.\nBut you cannot have them all.",
             Gimmick=GimmickType.ColorSelect, TotalStones=18,
@@ -114,7 +119,7 @@ public class StageConfig
         // Stage 3 — Age 20, 대학 캠퍼스 (사용자 픽셀아트 이미지)
         new StageConfig
         {
-            StageNumber=3, Age=20, StageName="도망가는 공기", Theme="통제하기 힘든 청춘",
+            StageNumber=3, Age=20, StageName="도망가는 공기", StageNameEn="Fleeing Stones", Theme="통제하기 힘든 청춘",
             StoryMent="잡으려 할수록 달아납니다.\n쉴 새 없이 쫓으세요.",
             StoryMentEn="The more you try to catch it, the more it slips away.\nChase it without rest.",
             Gimmick=GimmickType.Flee, TotalStones=5,
@@ -137,7 +142,7 @@ public class StageConfig
         // Stage 4 — Age 25, 흐린 회청
         new StageConfig
         {
-            StageNumber=4, Age=25, StageName="순서대로 잡기", Theme="사회 룰에 적응하는 초년생",
+            StageNumber=4, Age=25, StageName="순서대로 잡기", StageNameEn="Catch in Order", Theme="사회 룰에 적응하는 초년생",
             StoryMent="세상이 정한 순서를\n따라야 할 때입니다.",
             StoryMentEn="It is time to follow\nthe rules set by the world.",
             Gimmick=GimmickType.Sequence, TotalStones=5,
@@ -161,7 +166,7 @@ public class StageConfig
         // v8-1 swap: 메카닉=움직이는 방해물 (구 6단). 배경은 Age 기준 유지.
         new StageConfig
         {
-            StageNumber=5, Age=30, StageName="움직이는 방해물", Theme="삶에 끼어드는 방해꾼",
+            StageNumber=5, Age=30, StageName="움직이는 방해물", StageNameEn="Moving Obstacles", Theme="삶에 끼어드는 방해꾼",
             StoryMent="사방이 방해꾼입니다.\n부딪히지 않게 피하세요.",
             StoryMentEn="Obstacles are everywhere.\nAvoid them and do not crash.",
             Gimmick=GimmickType.Obstacle, TotalStones=5,
@@ -186,7 +191,7 @@ public class StageConfig
         // v8-1 swap: 메카닉=분신 가짜 잡기 (구 5단). Sky만 노을 주황→회보라로 보정.
         new StageConfig
         {
-            StageNumber=6, Age=35, StageName="분신 가짜 잡기", Theme="부딪혀봐야 본색을 드러내는 가짜들",
+            StageNumber=6, Age=35, StageName="분신 가짜 잡기", StageNameEn="Spot the Fakes", Theme="부딪혀봐야 본색을 드러내는 가짜들",
             StoryMent="주변이 온통 가짜 같습니다.\n속지 말고 진짜를 찾으세요.",
             StoryMentEn="Everything around you feels fake.\nDon't be fooled, find what's real.",
             Gimmick=GimmickType.FakeStone, TotalStones=10,
@@ -209,7 +214,7 @@ public class StageConfig
         // Stage 7 — Age 40, 진노을 적갈
         new StageConfig
         {
-            StageNumber=7, Age=40, StageName="중력 변화", Theme="어깨를 짓누르는 삶의 무게",
+            StageNumber=7, Age=40, StageName="중력 변화", StageNameEn="Gravity Shift", Theme="어깨를 짓누르는 삶의 무게",
             StoryMent="어깨가 점점 무거워집니다.\n돌마저도 무겁게 느껴지네요.",
             StoryMentEn="My shoulders feel heavier by the day.\nEven the stones feel heavy now.",
             Gimmick=GimmickType.Gravity, TotalStones=5,
@@ -232,7 +237,7 @@ public class StageConfig
         // Stage 8 — Age 45, 그늘 회청
         new StageConfig
         {
-            StageNumber=8, Age=45, StageName="노화된 손", Theme="몸이 안 따라주는",
+            StageNumber=8, Age=45, StageName="노화된 손", StageNameEn="Aging Hands", Theme="몸이 안 따라주는",
             StoryMent="마음은 앞서는데,\n손이 따라오지 않습니다.",
             StoryMentEn="My heart races ahead,\nbut my hands cannot keep up.",
             Gimmick=GimmickType.AgedHand, TotalStones=5,
@@ -255,7 +260,7 @@ public class StageConfig
         // Stage 9 — Age 50, 짙은 자주
         new StageConfig
         {
-            StageNumber=9, Age=50, StageName="시야 제한", Theme="서서히 좁아지는 시야",
+            StageNumber=9, Age=50, StageName="시야 제한", StageNameEn="Narrowing Sight", Theme="서서히 좁아지는 시야",
             StoryMent="서서히 시야가 좁아집니다.\n좁아진 세상 속에서 찾아내야 합니다.",
             StoryMentEn="Slowly, my vision narrows.\nYou must find it within this shrinking world.",
             Gimmick=GimmickType.Spotlight, TotalStones=5,
@@ -278,7 +283,7 @@ public class StageConfig
         // Stage 10 — Age 55, 회색
         new StageConfig
         {
-            StageNumber=10, Age=55, StageName="모노톤", Theme="색이 바랜 노년",
+            StageNumber=10, Age=55, StageName="모노톤", StageNameEn="Monochrome", Theme="색이 바랜 노년",
             StoryMent="온통 흑백뿐인 세상.\n이제 마칠 시간입니다.",
             StoryMentEn="A world washed in monochrome.\nIt is time to finish.",
             Gimmick=GimmickType.Monochrome, TotalStones=5,

@@ -498,8 +498,8 @@ public class GameUI : MonoBehaviour
             if (config != null)
             {
                 subText = isStage5
-                    ? $"[{config.StageName}] 꺾기"
-                    : $"[{config.StageName}]";
+                    ? $"[{config.LocalizedStageName}] {LocalizationManager.L("stage.fold")}"
+                    : $"[{config.LocalizedStageName}]";
             }
         }
 

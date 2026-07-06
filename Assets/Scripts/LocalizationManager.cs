@@ -114,6 +114,7 @@ public static class LocalizationManager
 
         // === 스테이지 인트로 ===
         ["stage.ready"]    = ("준비하세요.", "Get ready."),
+        ["stage.fold"]     = ("꺾기", "Flip"), // 공기놀이 꺾기 (임시 번역, 2026-07-06 승인)
 
         // === 튜토리얼 (10살) — 영어 확정 (2026-07-06 사용자 승인) ===
         ["tutorial.slide1"] = ("꾹 눌러서 게이지를 조절하세요.\n놓으면 돌이 퍼집니다.",
