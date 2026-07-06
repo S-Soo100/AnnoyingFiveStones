@@ -91,14 +91,14 @@ public class TutorialUI : MonoBehaviour
         slideRt.offsetMin = Vector2.zero;
         slideRt.offsetMax = Vector2.zero;
 
-        // --- "탭하여 계속" 힌트 ---
+        // --- "클릭하여 계속" 힌트 ---
         var hintGo = new GameObject("HintText");
         hintGo.transform.SetParent(canvasGo.transform, false);
         hintText = hintGo.AddComponent<TextMeshProUGUI>();
         hintText.fontSize = 18;
         hintText.color = new Color(1f, 1f, 1f, 0.4f);
         hintText.alignment = TextAlignmentOptions.Center;
-        hintText.text = LocalizationManager.L("common.tap_continue");
+        hintText.text = LocalizationManager.L("common.click_continue");
 
         if (koreanFont != null)
             hintText.font = koreanFont;
@@ -135,7 +135,7 @@ public class TutorialUI : MonoBehaviour
         pendingCallback = onComplete;
         currentSlide = 0;
         slideText.text = LocalizationManager.L(slideKeys[currentSlide]);
-        hintText.text = LocalizationManager.L("common.tap_continue"); // v10 다국어
+        hintText.text = LocalizationManager.L("common.click_continue"); // v10 다국어
         IsShowing = true;
         rootGroup.blocksRaycasts = true;
 

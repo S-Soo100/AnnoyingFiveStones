@@ -64,7 +64,7 @@ public static class LocalizationManager
         // === 홈화면 ===
         ["home.play"]      = ("게임 시작", "Play"),
         ["home.settings"]  = ("설정", "Settings"),
-        ["home.exit"]      = ("나가기", "Exit"),
+        ["home.exit"]      = ("게임 종료", "Exit"), // 260703 스펙 일치 (구: "나가기")
         ["home.cemetery"]  = ("묘지", "Cemetery"),
 
         // === 설정창 ===
@@ -123,8 +123,8 @@ public static class LocalizationManager
         ["tutorial.slide3"] = ("하늘에서 떨어지는 돌을\n손바닥으로 받으세요!",
                                "Catch the falling stones\nwith your palm!"),
 
-        // === 공통 ===
-        ["common.tap_continue"] = ("탭하여 계속", "Tap to continue"),
+        // === 공통 === (260703 스펙: 클릭 기반 게임 → "클릭하여 계속")
+        ["common.click_continue"] = ("클릭하여 계속", "Click to continue"),
 
         // === 타이틀 토스트 (영어 임시 번역, 확인 대기) ===
         ["title.toast"] = ("놀지 말고 공기놀이를 시작하시는게 어떨까요?",
