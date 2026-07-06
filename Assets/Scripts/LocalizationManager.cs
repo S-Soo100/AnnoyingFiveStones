@@ -79,6 +79,7 @@ public static class LocalizationManager
         ["pause.title"]   = ("일시정지", "Pause"),
         ["pause.resume"]  = ("게임 재개", "Resume"),
         ["pause.quit"]    = ("게임 종료", "Quit Game"),
+        ["pause.music"]   = ("음악 {0}%", "Music {0}%"),
 
         // === 게임 종료 확인 모달 (260703) ===
         ["quit.message"]  = ("게임을 종료하시겠습니까?\n현재 기록은 저장되지 않습니다.",
@@ -94,11 +95,15 @@ public static class LocalizationManager
         // === 엔딩·묘지 (260703) ===
         ["ending.mainment"] = ("이번 생은 여기까지 입니다", "This is the end of this life."),
         ["ending.thanks"]   = ("수고하셨습니다", "Well done."),
+        ["ending.record"]   = ("기록: {0}", "Record: {0}"),
         ["ending.credit"]   = ("Credit", "Credit"),
         ["grave.play_again"] = ("Play Again", "Play Again"),
         ["grave.go_home"]    = ("Go Home", "Go Home"),
         ["grave.name_prompt"] = ("묘비에 새길 이름을 지어주세요", "Enter a name for the tombstone."),
         ["grave.save"]        = ("이 이름으로 저장", "Save with this name."),
+        ["grave.loading"]     = ("불러오는 중...", "Loading..."),
+        ["grave.load_fail"]   = ("기록을 불러올 수 없습니다", "Failed to load records."),
+        ["grave.regression"]  = ("회귀 {0}번", "Loop {0}"),
 
         // === 게임플레이 HUD ===
         ["hud.age"]        = ("{0}살", "Age {0}"),

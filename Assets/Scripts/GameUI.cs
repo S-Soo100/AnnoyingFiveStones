@@ -35,6 +35,8 @@ public class GameUI : MonoBehaviour
     private TMP_FontAsset koreanTmpFont;
     private static Sprite circleSprite; // 진행 도트용 원형 스프라이트 (공유)
 
+    private TextMeshProUGUI pauseHudLabel; // v10 다국어: 우상단 "중지" HUD 라벨
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -46,14 +48,29 @@ public class GameUI : MonoBehaviour
         Init();
     }
 
+    private void OnEnable()
+    {
+        // v10 다국어: 언어 전환 시 정적 HUD 라벨 갱신
+        LocalizationManager.OnLanguageChanged += RefreshLocalized;
+    }
+
     private void OnDisable()
     {
+        LocalizationManager.OnLanguageChanged -= RefreshLocalized;
         StopOverlay();
         if (guideCoroutine != null)
         {
             StopCoroutine(guideCoroutine);
             guideCoroutine = null;
         }
+    }
+
+    /// <summary>런타임 오버레이 멘트는 코루틴 실행 시점에 L()로 조회되므로,
+    /// 여기서는 빌드 시 1회 설정되는 정적 HUD 라벨(중지)만 갱신한다.</summary>
+    private void RefreshLocalized()
+    {
+        if (pauseHudLabel != null)
+            pauseHudLabel.text = LocalizationManager.L("hud.pause");
     }
 
     private void OnDestroy()
@@ -280,12 +297,13 @@ public class GameUI : MonoBehaviour
         labelRect.offsetMax = Vector2.zero;
 
         var tmp = labelGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = "중지";
+        tmp.text = LocalizationManager.L("hud.pause");
         tmp.fontSize = 36f;
         tmp.fontStyle = FontStyles.Bold;
         tmp.color = Color.white;
         tmp.alignment = TextAlignmentOptions.Center;
         if (koreanTmpFont != null) tmp.font = koreanTmpFont;
+        pauseHudLabel = tmp;
     }
 
     // ==========================================================
@@ -404,7 +422,7 @@ public class GameUI : MonoBehaviour
         overlayBg.color = new Color(0, 0, 0, 1f);
 
         // 2. 중앙 텍스트 표시 (1.5초 유지)
-        overlayMainText.text = "인생을 다시 시작합니다";
+        overlayMainText.text = LocalizationManager.L("result.restart_life");
         overlayMainText.color = new Color(1f, 1f, 1f, 0.9f);
         overlayMainText.fontSize = 70;
         yield return new WaitForSeconds(1.5f);
@@ -590,7 +608,7 @@ public class GameUI : MonoBehaviour
     private IEnumerator DoAllClear()
     {
         overlayBg.color = new Color(0, 0, 0, 0.7f);
-        overlayMainText.text = "이번 생은 여기까지 입니다";
+        overlayMainText.text = LocalizationManager.L("ending.mainment");
         overlayMainText.fontSize = 80;
 
         // [Online] 클리어 시간 표시
@@ -602,7 +620,7 @@ public class GameUI : MonoBehaviour
         string timeStr = $"{ch:00}:{cm:00}:{cs:00}";
 
         // v9(260703): 조선시대 놀림 톤 → 진지한 위로. "이번 생은 여기까지 입니다 / 수고하셨습니다"
-        overlaySubText.text = $"수고하셨습니다\n\n<size=80%>기록: {timeStr}</size>";
+        overlaySubText.text = $"{LocalizationManager.L("ending.thanks")}\n\n<size=80%>{LocalizationManager.LF("ending.record", timeStr)}</size>";
         overlaySubText.enableAutoSizing = false;
         overlaySubText.fontSize = 36;
         overlaySubText.textWrappingMode = TextWrappingModes.Normal;
@@ -628,7 +646,7 @@ public class GameUI : MonoBehaviour
         overlayBg.color = new Color(0f, 0f, 0f, 1f); // 암전
         overlayGroup.alpha = 1f;
 
-        overlayMainText.text = "Credit";
+        overlayMainText.text = LocalizationManager.L("ending.credit");
         overlayMainText.enableAutoSizing = false;
         overlayMainText.fontSize = 64;
         overlayMainText.color = new Color(1f, 1f, 1f, 0f);
