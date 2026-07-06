@@ -115,7 +115,7 @@ public static class LocalizationManager
         // === 스테이지 인트로 ===
         ["stage.ready"]    = ("준비하세요.", "Get ready."),
 
-        // === 튜토리얼 (10살) — 영어는 임시 번역, 확인 대기 ===
+        // === 튜토리얼 (10살) — 영어 확정 (2026-07-06 사용자 승인) ===
         ["tutorial.slide1"] = ("꾹 눌러서 게이지를 조절하세요.\n놓으면 돌이 퍼집니다.",
                                "Press and hold to set the gauge.\nRelease to scatter the stones."),
         ["tutorial.slide2"] = ("돌 위로 커서를 이동하면\n자동으로 줍습니다.",
@@ -126,7 +126,7 @@ public static class LocalizationManager
         // === 공통 === (260703 스펙: 클릭 기반 게임 → "클릭하여 계속")
         ["common.click_continue"] = ("클릭하여 계속", "Click to continue"),
 
-        // === 타이틀 토스트 (영어 임시 번역, 확인 대기) ===
+        // === 타이틀 토스트 (영어 확정, 2026-07-06 사용자 승인) ===
         ["title.toast"] = ("놀지 말고 공기놀이를 시작하시는게 어떨까요?",
                            "How about starting the game instead of playing around?"),
     };
