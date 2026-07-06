@@ -74,7 +74,7 @@ public class SidePanelUI : MonoBehaviour
         ageRt.anchoredPosition = new Vector2(20f, -30f);
 
         ageLabel = ageGo.AddComponent<TextMeshProUGUI>();
-        ageLabel.text = "나이: -살";
+        ageLabel.text = LocalizationManager.LF("hud.age", "-"); // 초기 플레이스홀더, Refresh가 즉시 갱신
         ageLabel.fontSize = 28f;
         ageLabel.color = Color.white;
         ageLabel.alignment = TextAlignmentOptions.Left;
@@ -91,7 +91,7 @@ public class SidePanelUI : MonoBehaviour
         regRt.anchoredPosition = new Vector2(20f, -70f);
 
         regressionLabel = regGo.AddComponent<TextMeshProUGUI>();
-        regressionLabel.text = "회귀: -번";
+        regressionLabel.text = LocalizationManager.LF("hud.regression", "-"); // 초기 플레이스홀더, Refresh가 즉시 갱신
         regressionLabel.fontSize = 22f;
         regressionLabel.color = new Color(1f, 1f, 1f, 0.7f);
         regressionLabel.alignment = TextAlignmentOptions.Left;

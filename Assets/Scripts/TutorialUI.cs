@@ -20,11 +20,12 @@ public class TutorialUI : MonoBehaviour
 
     private InputAction tapAction;
 
-    private static readonly string[] slides = new string[]
+    // v10 다국어: 슬라이드 문구 → 로컬라이제이션 키. 표시 시점에 L()로 현재 언어 조회.
+    private static readonly string[] slideKeys = new string[]
     {
-        "꾹 눌러서 게이지를 조절하세요.\n놓으면 돌이 퍼집니다.",
-        "돌 위로 커서를 이동하면\n자동으로 줍습니다.",
-        "하늘에서 떨어지는 돌을\n손바닥으로 받으세요!",
+        "tutorial.slide1",
+        "tutorial.slide2",
+        "tutorial.slide3",
     };
 
     private void Awake()
@@ -97,7 +98,7 @@ public class TutorialUI : MonoBehaviour
         hintText.fontSize = 18;
         hintText.color = new Color(1f, 1f, 1f, 0.4f);
         hintText.alignment = TextAlignmentOptions.Center;
-        hintText.text = "탭하여 계속";
+        hintText.text = LocalizationManager.L("common.tap_continue");
 
         if (koreanFont != null)
             hintText.font = koreanFont;
@@ -133,7 +134,8 @@ public class TutorialUI : MonoBehaviour
     {
         pendingCallback = onComplete;
         currentSlide = 0;
-        slideText.text = slides[currentSlide];
+        slideText.text = LocalizationManager.L(slideKeys[currentSlide]);
+        hintText.text = LocalizationManager.L("common.tap_continue"); // v10 다국어
         IsShowing = true;
         rootGroup.blocksRaycasts = true;
 
@@ -164,13 +166,13 @@ public class TutorialUI : MonoBehaviour
         if (!IsShowing) return;
 
         currentSlide++;
-        if (currentSlide >= slides.Length)
+        if (currentSlide >= slideKeys.Length)
         {
             StartCoroutine(DoFadeOut());
         }
         else
         {
-            slideText.text = slides[currentSlide];
+            slideText.text = LocalizationManager.L(slideKeys[currentSlide]);
         }
     }
 

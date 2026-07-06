@@ -101,6 +101,8 @@ public static class LocalizationManager
         ["grave.go_home"]    = ("Go Home", "Go Home"),
         ["grave.name_prompt"] = ("묘비에 새길 이름을 지어주세요", "Enter a name for the tombstone."),
         ["grave.save"]        = ("이 이름으로 저장", "Save with this name."),
+        ["grave.name_start"]  = ("시작", "Start"),
+        ["grave.elapsed"]     = ("소요 시간  {0}", "Time taken  {0}"),
         ["grave.loading"]     = ("불러오는 중...", "Loading..."),
         ["grave.load_fail"]   = ("기록을 불러올 수 없습니다", "Failed to load records."),
         ["grave.regression"]  = ("회귀 {0}번", "Loop {0}"),
@@ -112,5 +114,20 @@ public static class LocalizationManager
 
         // === 스테이지 인트로 ===
         ["stage.ready"]    = ("준비하세요.", "Get ready."),
+
+        // === 튜토리얼 (10살) — 영어는 임시 번역, 확인 대기 ===
+        ["tutorial.slide1"] = ("꾹 눌러서 게이지를 조절하세요.\n놓으면 돌이 퍼집니다.",
+                               "Press and hold to set the gauge.\nRelease to scatter the stones."),
+        ["tutorial.slide2"] = ("돌 위로 커서를 이동하면\n자동으로 줍습니다.",
+                               "Move the cursor over a stone\nto pick it up automatically."),
+        ["tutorial.slide3"] = ("하늘에서 떨어지는 돌을\n손바닥으로 받으세요!",
+                               "Catch the falling stones\nwith your palm!"),
+
+        // === 공통 ===
+        ["common.tap_continue"] = ("탭하여 계속", "Tap to continue"),
+
+        // === 타이틀 토스트 (영어 임시 번역, 확인 대기) ===
+        ["title.toast"] = ("놀지 말고 공기놀이를 시작하시는게 어떨까요?",
+                           "How about starting the game instead of playing around?"),
     };
 }

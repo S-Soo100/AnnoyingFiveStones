@@ -18,6 +18,8 @@ public class NameInputUI : MonoBehaviour
     private GameObject panel;
     private TMP_InputField inputField;
     private TextMeshProUGUI timeLabel;
+    private TextMeshProUGUI promptLabel;    // v10 다국어: "묘비에 새길 이름을…"
+    private TextMeshProUGUI confirmBtnLabel; // v10 다국어: "시작"
     private Toggle testPlayToggle;
     private Action<string, bool> onNameConfirmed;
     private TMP_FontAsset koreanFont;
@@ -79,7 +81,8 @@ public class NameInputUI : MonoBehaviour
         // 라벨: "이름을 입력하세요"
         var labelGo = CreateUIObject("Label", panelGo.transform);
         var labelText = labelGo.AddComponent<TextMeshProUGUI>();
-        labelText.text = "묘비에 새길 이름을 지어주세요"; // v10: 기획 문구 일치
+        labelText.text = LocalizationManager.L("grave.name_prompt"); // v10: 다국어
+        promptLabel = labelText;
         labelText.fontSize = 20;
         labelText.color = Color.white;
         labelText.alignment = TextAlignmentOptions.Center;
@@ -224,7 +227,8 @@ public class NameInputUI : MonoBehaviour
 
         var btnTextGo = CreateUIObject("Text", btnGo.transform);
         var btnText = btnTextGo.AddComponent<TextMeshProUGUI>();
-        btnText.text = "시작";
+        btnText.text = LocalizationManager.L("grave.name_start"); // v10: 다국어
+        confirmBtnLabel = btnText;
         btnText.fontSize = 18;
         btnText.color = Color.white;
         btnText.alignment = TextAlignmentOptions.Center;
@@ -249,7 +253,10 @@ public class NameInputUI : MonoBehaviour
     public void Show(float clearTime, Action<string, bool> onNameConfirmed)
     {
         this.onNameConfirmed = onNameConfirmed;
-        if (timeLabel != null) timeLabel.text = "소요 시간  " + FormatTime(clearTime);
+        // v10 다국어: 표시 시점에 현재 언어로 갱신
+        if (promptLabel != null) promptLabel.text = LocalizationManager.L("grave.name_prompt");
+        if (confirmBtnLabel != null) confirmBtnLabel.text = LocalizationManager.L("grave.name_start");
+        if (timeLabel != null) timeLabel.text = LocalizationManager.LF("grave.elapsed", FormatTime(clearTime));
         inputField.text = "";
         testPlayToggle.isOn = false;
         canvas.gameObject.SetActive(true);

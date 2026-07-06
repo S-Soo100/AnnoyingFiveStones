@@ -103,7 +103,7 @@ public class StoryMentUI : MonoBehaviour
         hintText.fontSize = 20;
         hintText.color = new Color(1f, 1f, 1f, 0.4f);
         hintText.alignment = TextAlignmentOptions.Center;
-        hintText.text = "탭하여 계속";
+        hintText.text = LocalizationManager.L("common.tap_continue");
 
         if (koreanFont != null)
         {
@@ -165,6 +165,7 @@ public class StoryMentUI : MonoBehaviour
         pendingCallback = onComplete;
         currentMessage = message;
         skipRequested = false;
+        hintText.text = LocalizationManager.L("common.tap_continue"); // v10 다국어: 매 표시마다 현재 언어
         hintText.alpha = 0f;
 
         // v10: 페이드인 동안 풀텍스트 잔상 방지 — 즉시 비움

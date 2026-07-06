@@ -260,7 +260,8 @@ public class TitleScreenUI : MonoBehaviour
         textRect.offsetMax = new Vector2(-10f, 0f);
 
         toastText = textGo.AddComponent<TextMeshProUGUI>();
-        toastText.text = "놀지 말고 공기놀이를 시작하시는게 어떨까요?";
+        toastText.text = LocalizationManager.L("title.toast");
+        RegisterLocalized(toastText, "title.toast");
         toastText.fontSize = 22f;
         toastText.color = Color.white;
         toastText.alignment = TextAlignmentOptions.Center;
