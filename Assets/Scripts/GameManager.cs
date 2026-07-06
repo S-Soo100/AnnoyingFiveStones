@@ -429,7 +429,7 @@ public class GameManager : MonoBehaviour
     {
         // v4: 첫 스테이지 StoryMent 표시 후 게임 시작
         var config = StageConfig.Get(session != null ? session.CurrentLoop : 1);
-        string ment = config.StoryMent;
+        string ment = config.LocalizedStoryMent; // v10 다국어
         if (!string.IsNullOrEmpty(ment))
         {
             isTransitioning = true;
@@ -744,9 +744,9 @@ public class GameManager : MonoBehaviour
             Debug.Log($"[GameManager] Stage {session?.CurrentLoop} started! (Age={session?.CurrentAge})");
             int nextLoopNum = session != null ? session.CurrentLoop : 1;
             var nextConfig = StageConfig.Get(nextLoopNum);
-            if (nextConfig != null && !string.IsNullOrEmpty(nextConfig.StoryMent))
+            if (nextConfig != null && !string.IsNullOrEmpty(nextConfig.LocalizedStoryMent))
             {
-                transitionCoroutine = StartCoroutine(DoClearThenMent(nextConfig.StoryMent));
+                transitionCoroutine = StartCoroutine(DoClearThenMent(nextConfig.LocalizedStoryMent)); // v10 다국어
             }
             else
             {

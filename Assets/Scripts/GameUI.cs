@@ -483,7 +483,7 @@ public class GameUI : MonoBehaviour
     private IEnumerator DoStageIntro(int stage)
     {
         bool isStage5 = stage == 5;
-        string mainText = "준비하세요.";
+        string mainText = LocalizationManager.L("stage.ready");
         Color mainColor = isStage5
             ? new Color(1f, 0.84f, 0f, 1f)
             : Color.white;

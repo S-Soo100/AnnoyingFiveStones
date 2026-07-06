@@ -109,5 +109,8 @@ public static class LocalizationManager
         ["hud.age"]        = ("{0}살", "Age {0}"),
         ["hud.regression"] = ("회귀: {0}번", "Regression: Loop {0}"),
         ["hud.pause"]      = ("중지", "Pause"),
+
+        // === 스테이지 인트로 ===
+        ["stage.ready"]    = ("준비하세요.", "Get ready."),
     };
 }
