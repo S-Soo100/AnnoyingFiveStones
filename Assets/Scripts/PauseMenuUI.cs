@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
@@ -18,6 +19,10 @@ public class PauseMenuUI : MonoBehaviour
     private GameObject quitConfirmPanel;
     private TMP_FontAsset koreanFont;
     private bool isOpen;
+
+    // v10 다국어: 정적 라벨(제목/버튼) → 키 매핑. Open() 때 현재 언어로 재설정.
+    private readonly List<(TextMeshProUGUI tmp, string key)> localized = new();
+    private TextMeshProUGUI quitMsgTmp;
 
     private void Awake()
     {
@@ -135,11 +140,12 @@ public class PauseMenuUI : MonoBehaviour
         titleRect.sizeDelta = new Vector2(280f, 60f);
 
         var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
-        titleTmp.text = "일시정지";
+        titleTmp.text = LocalizationManager.L("pause.title");
         titleTmp.fontSize = 48f;
         titleTmp.color = Color.white;
         titleTmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) titleTmp.font = koreanFont;
+        localized.Add((titleTmp, "pause.title"));
 
         var titleLE = titleGo.AddComponent<LayoutElement>();
         titleLE.preferredHeight = 60f;
@@ -151,8 +157,8 @@ public class PauseMenuUI : MonoBehaviour
         CreateBGMSlider(boxGo.transform);
 
         // 버튼 3개
-        CreateButton("게임 재개", boxGo.transform, OnResume);
-        CreateButton("게임 종료", boxGo.transform, OnQuit);
+        CreateButton("pause.resume", boxGo.transform, OnResume);
+        CreateButton("pause.quit", boxGo.transform, OnQuit);
 
         return panelGo;
     }
@@ -270,7 +276,7 @@ public class PauseMenuUI : MonoBehaviour
     private void UpdateVolumeLabel(float v)
     {
         if (volumeLabel != null)
-            volumeLabel.text = $"음량 {Mathf.RoundToInt(v * 100f)}%";
+            volumeLabel.text = LocalizationManager.LF("settings.volume", Mathf.RoundToInt(v * 100f));
     }
 
     private void CreateBGMSlider(Transform parent)
@@ -380,7 +386,15 @@ public class PauseMenuUI : MonoBehaviour
     private void UpdateBGMVolumeLabel(float v)
     {
         if (bgmVolumeLabel != null)
-            bgmVolumeLabel.text = $"음악 {Mathf.RoundToInt(v * 100f)}%";
+            bgmVolumeLabel.text = LocalizationManager.LF("pause.music", Mathf.RoundToInt(v * 100f));
+    }
+
+    /// <summary>정적 라벨(제목/버튼/종료문)을 현재 언어로 재설정. Open() 때마다 호출.</summary>
+    private void RefreshStaticTexts()
+    {
+        foreach (var (tmp, key) in localized)
+            if (tmp != null) tmp.text = LocalizationManager.L(key);
+        if (quitMsgTmp != null) quitMsgTmp.text = LocalizationManager.L("quit.message");
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -429,6 +443,7 @@ public class PauseMenuUI : MonoBehaviour
         msgTmp.color = Color.white;
         msgTmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) msgTmp.font = koreanFont;
+        quitMsgTmp = msgTmp;
 
         var msgLE = msgGo.AddComponent<LayoutElement>();
         msgLE.preferredHeight = 70f;
@@ -448,8 +463,8 @@ public class PauseMenuUI : MonoBehaviour
         var btnRowLE = btnRowGo.AddComponent<LayoutElement>();
         btnRowLE.preferredHeight = 60f;
 
-        CreateButton("확인", btnRowGo.transform, OnQuitConfirm, new Vector2(130f, 56f));
-        CreateButton("취소", btnRowGo.transform, OnQuitCancel, new Vector2(130f, 56f));
+        CreateButton("quit.confirm", btnRowGo.transform, OnQuitConfirm, new Vector2(130f, 56f));
+        CreateButton("quit.cancel", btnRowGo.transform, OnQuitCancel, new Vector2(130f, 56f));
 
         return panelGo;
     }
@@ -458,12 +473,12 @@ public class PauseMenuUI : MonoBehaviour
     // 버튼 생성 헬퍼
     // ──────────────────────────────────────────────────────────────────
 
-    private GameObject CreateButton(string text, Transform parent, UnityAction onClick,
+    private GameObject CreateButton(string locKey, Transform parent, UnityAction onClick,
         Vector2 size = default)
     {
         if (size == default) size = new Vector2(240f, 56f);
 
-        var btnGo = new GameObject($"Btn_{text}");
+        var btnGo = new GameObject($"Btn_{locKey}");
         btnGo.transform.SetParent(parent, false);
         var btnRect = btnGo.AddComponent<RectTransform>();
         btnRect.sizeDelta = size;
@@ -494,11 +509,12 @@ public class PauseMenuUI : MonoBehaviour
         labelRect.offsetMax = Vector2.zero;
 
         var tmp = labelGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = text;
+        tmp.text = LocalizationManager.L(locKey);
         tmp.fontSize = 32f;
         tmp.color = Color.white;
         tmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) tmp.font = koreanFont;
+        localized.Add((tmp, locKey));
 
         var le = btnGo.AddComponent<LayoutElement>();
         le.preferredWidth = size.x;
@@ -524,6 +540,9 @@ public class PauseMenuUI : MonoBehaviour
         // 메인 패널 표시, 종료 확인은 숨김
         mainPanel.SetActive(true);
         quitConfirmPanel.SetActive(false);
+
+        // v10 다국어: 열 때마다 현재 언어로 정적 라벨 재설정
+        RefreshStaticTexts();
 
         // v6-2: 현재 저장된 볼륨 값을 슬라이더에 재동기화
         if (volumeSlider != null)

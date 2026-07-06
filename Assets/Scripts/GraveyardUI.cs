@@ -21,6 +21,9 @@ public class GraveyardUI : MonoBehaviour
     private GameObject restartHintWrapper;
     private TMP_FontAsset koreanFont;
 
+    // v10 다국어: 하단 버튼(Play Again/Go Home) 라벨 → 키. Show() 때 현재 언어로 재설정.
+    private readonly List<(TextMeshProUGUI tmp, string key)> endButtonLabels = new();
+
     private Coroutine scrollCoroutine;
     private Coroutine blinkCoroutine;
     private bool isShowing;
@@ -76,7 +79,8 @@ public class GraveyardUI : MonoBehaviour
         isShowing = true;
         hasReachedEnd = false;
         restartHintWrapper.SetActive(false);
-        statusText.text = "불러오는 중...";
+        RefreshEndButtons(); // v10 다국어: 현재 언어로 하단 버튼 라벨 갱신
+        statusText.text = LocalizationManager.L("grave.loading");
 
         if (scrollCoroutine != null)
             StopCoroutine(scrollCoroutine);
@@ -153,7 +157,7 @@ public class GraveyardUI : MonoBehaviour
 
         if (records == null)
         {
-            statusText.text = "기록을 불러올 수 없습니다";
+            statusText.text = LocalizationManager.L("grave.load_fail");
             yield return new WaitForSecondsRealtime(5f);
             GameManager.Instance?.RestartGame();
             yield break;
@@ -322,7 +326,7 @@ public class GraveyardUI : MonoBehaviour
         timeRt.offsetMax = Vector2.zero;
 
         var timeTmp = timeGo.AddComponent<TextMeshProUGUI>();
-        timeTmp.text = $"회귀 {regressionCount}번\n{FormatTime(clearTimeSeconds)}";
+        timeTmp.text = $"{LocalizationManager.LF("grave.regression", regressionCount)}\n{FormatTime(clearTimeSeconds)}";
         timeTmp.fontSize = 13f;
         timeTmp.color = isMe ? new Color(0.2f, 0.1f, 0f, 1f) : new Color(0.8f, 0.8f, 0.8f, 1f);
         timeTmp.alignment = TextAlignmentOptions.Center;
@@ -451,8 +455,8 @@ public class GraveyardUI : MonoBehaviour
         hlgBtns.childForceExpandWidth = false;
         hlgBtns.childForceExpandHeight = false;
 
-        CreateEndButton("Play Again", () => GameManager.Instance?.RestartGame(false));
-        CreateEndButton("Go Home", () => GameManager.Instance?.RestartGame(true));
+        CreateEndButton("grave.play_again", () => GameManager.Instance?.RestartGame(false));
+        CreateEndButton("grave.go_home", () => GameManager.Instance?.RestartGame(true));
 
         restartHintWrapper.SetActive(false);
 
@@ -464,9 +468,9 @@ public class GraveyardUI : MonoBehaviour
     // 유틸리티
     // ------------------------------------------------------------------
 
-    private void CreateEndButton(string label, UnityEngine.Events.UnityAction onClick)
+    private void CreateEndButton(string locKey, UnityEngine.Events.UnityAction onClick)
     {
-        var btnGo = new GameObject($"Btn_{label}", typeof(RectTransform));
+        var btnGo = new GameObject($"Btn_{locKey}", typeof(RectTransform));
         btnGo.transform.SetParent(restartHintWrapper.transform, false);
         var le = btnGo.AddComponent<LayoutElement>();
         le.preferredWidth = 200f;
@@ -486,11 +490,19 @@ public class GraveyardUI : MonoBehaviour
         txtRt.anchorMin = Vector2.zero; txtRt.anchorMax = Vector2.one;
         txtRt.offsetMin = Vector2.zero; txtRt.offsetMax = Vector2.zero;
         var tmp = txtGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = label;
+        tmp.text = LocalizationManager.L(locKey);
         tmp.fontSize = 22f;
         tmp.color = Color.white;
         tmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) tmp.font = koreanFont;
+        endButtonLabels.Add((tmp, locKey));
+    }
+
+    /// <summary>하단 버튼(Play Again/Go Home) 라벨을 현재 언어로 재설정.</summary>
+    private void RefreshEndButtons()
+    {
+        foreach (var (tmp, key) in endButtonLabels)
+            if (tmp != null) tmp.text = LocalizationManager.L(key);
     }
 
     private static string FormatTime(float seconds)

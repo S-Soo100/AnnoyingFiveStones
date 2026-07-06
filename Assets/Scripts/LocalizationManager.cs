@@ -7,6 +7,14 @@ using UnityEngine;
 /// 런타임 코드 생성 UI에 맞춰 Dictionary 기반 — L("key")로 현재 언어 문자열 조회.
 /// 언어 전환 시 OnLanguageChanged 이벤트 → 각 UI가 텍스트 재설정.
 /// static 유틸이라 인스턴스 불필요. GameManager 부팅 시 Init() 1회 호출.
+///
+/// ⚠️ 갱신 전략 불변식 (2026-07-06 교차검수):
+///  - **언어 토글 진입점은 SettingsPopupUI 단 하나이며, 이 팝업은 타이틀 화면에서만 열린다.**
+///  - 따라서 토글 순간 화면에 보이는 건 Title+Settings뿐 → 이 둘만 OnLanguageChanged 구독으로 라이브 갱신.
+///  - 그 외 화면(Pause/Graveyard/NameInput/StoryMent/Tutorial/게임플레이 가이드)은
+///    "열릴 때/표시될 때" 재설정하거나 코루틴 실행 시점에 L() 조회 → 재진입 시 항상 최신 언어.
+///  - 이 불변식이 깨지면(예: Pause에 언어 토글 추가, 엔딩 위 Settings 오버레이) 재설정형 화면이
+///    stale로 남을 수 있으니, 그때는 해당 화면에도 OnLanguageChanged 구독을 얹어야 한다.
 /// </summary>
 public static class LocalizationManager
 {
@@ -64,7 +72,7 @@ public static class LocalizationManager
         // === 홈화면 ===
         ["home.play"]      = ("게임 시작", "Play"),
         ["home.settings"]  = ("설정", "Settings"),
-        ["home.exit"]      = ("나가기", "Exit"),
+        ["home.exit"]      = ("게임 종료", "Exit"), // 260703 스펙 일치 (구: "나가기")
         ["home.cemetery"]  = ("묘지", "Cemetery"),
 
         // === 설정창 ===
@@ -79,6 +87,7 @@ public static class LocalizationManager
         ["pause.title"]   = ("일시정지", "Pause"),
         ["pause.resume"]  = ("게임 재개", "Resume"),
         ["pause.quit"]    = ("게임 종료", "Quit Game"),
+        ["pause.music"]   = ("음악 {0}%", "Music {0}%"),
 
         // === 게임 종료 확인 모달 (260703) ===
         ["quit.message"]  = ("게임을 종료하시겠습니까?\n현재 기록은 저장되지 않습니다.",
@@ -94,15 +103,53 @@ public static class LocalizationManager
         // === 엔딩·묘지 (260703) ===
         ["ending.mainment"] = ("이번 생은 여기까지 입니다", "This is the end of this life."),
         ["ending.thanks"]   = ("수고하셨습니다", "Well done."),
+        ["ending.record"]   = ("기록: {0}", "Record: {0}"),
         ["ending.credit"]   = ("Credit", "Credit"),
         ["grave.play_again"] = ("Play Again", "Play Again"),
         ["grave.go_home"]    = ("Go Home", "Go Home"),
         ["grave.name_prompt"] = ("묘비에 새길 이름을 지어주세요", "Enter a name for the tombstone."),
         ["grave.save"]        = ("이 이름으로 저장", "Save with this name."),
+        ["grave.name_start"]  = ("시작", "Start"),
+        ["grave.elapsed"]     = ("소요 시간  {0}", "Time taken  {0}"),
+        ["grave.loading"]     = ("불러오는 중...", "Loading..."),
+        ["grave.load_fail"]   = ("기록을 불러올 수 없습니다", "Failed to load records."),
+        ["grave.regression"]  = ("회귀 {0}번", "Loop {0}"),
 
         // === 게임플레이 HUD ===
         ["hud.age"]        = ("{0}살", "Age {0}"),
         ["hud.regression"] = ("회귀: {0}번", "Regression: Loop {0}"),
         ["hud.pause"]      = ("중지", "Pause"),
+
+        // === 스테이지 인트로 ===
+        ["stage.ready"]    = ("준비하세요.", "Get ready."),
+        ["stage.fold"]     = ("꺾기", "Flip"), // 공기놀이 꺾기 (임시 번역, 2026-07-06 승인)
+
+        // === 게임플레이 조작 가이드 자막 (10살 전용, 영어 임시 번역 2026-07-06 승인) ===
+        ["guide.scatter"]          = ("[ 꾹 눌러서 게이지 조절, 놓으면 뿌리기 ]", "[ Hold to set the gauge, release to scatter ]"),
+        ["guide.pick_throw"]       = ("[ 커서를 돌 위로 이동 ]", "[ Move the cursor over a stone ]"),
+        ["guide.throw"]            = ("[ 클릭하여 던지기 ]", "[ Click to throw ]"),
+        ["guide.pick_stones"]      = ("[ 돌을 단계에 맞게 주우세요 ]", "[ Pick up the stones in order ]"),
+        ["guide.catch"]            = ("[ 커서를 움직여 돌을 받으세요! ]", "[ Move the cursor to catch the stone! ]"),
+        ["guide.s5_throw_palm"]    = ("[ 게이지에 맞춰 클릭! 손바닥 던지기 ]", "[ Click on the gauge! Palm toss ]"),
+        ["guide.s5_throw_back"]    = ("[ 게이지에 맞춰 클릭! 손등 던지기 ]", "[ Click on the gauge! Back-hand toss ]"),
+        ["guide.s5_throw_default"] = ("[ 클릭하여 던지기! ]", "[ Click to throw! ]"),
+        ["guide.s5_catch_back"]    = ("[ 손등으로 5개 모두 받기! ]", "[ Catch all 5 on the back of your hand! ]"),
+        ["guide.s5_catch_snatch"]  = ("[ 타이밍에 맞춰 클릭! 낚아채기! ]", "[ Click on time! Snatch! ]"),
+        ["guide.s5_catch_default"] = ("[ 돌을 받으세요! ]", "[ Catch the stones! ]"),
+
+        // === 튜토리얼 (10살) — 영어 확정 (2026-07-06 사용자 승인) ===
+        ["tutorial.slide1"] = ("꾹 눌러서 게이지를 조절하세요.\n놓으면 돌이 퍼집니다.",
+                               "Press and hold to set the gauge.\nRelease to scatter the stones."),
+        ["tutorial.slide2"] = ("돌 위로 커서를 이동하면\n자동으로 줍습니다.",
+                               "Move the cursor over a stone\nto pick it up automatically."),
+        ["tutorial.slide3"] = ("하늘에서 떨어지는 돌을\n손바닥으로 받으세요!",
+                               "Catch the falling stones\nwith your palm!"),
+
+        // === 공통 === (260703 스펙: 클릭 기반 게임 → "클릭하여 계속")
+        ["common.click_continue"] = ("클릭하여 계속", "Click to continue"),
+
+        // === 타이틀 토스트 (영어 확정, 2026-07-06 사용자 승인) ===
+        ["title.toast"] = ("놀지 말고 공기놀이를 시작하시는게 어떨까요?",
+                           "How about starting the game instead of playing around?"),
     };
 }
