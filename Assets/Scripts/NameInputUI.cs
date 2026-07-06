@@ -17,6 +17,7 @@ public class NameInputUI : MonoBehaviour
     private Canvas canvas;
     private GameObject panel;
     private TMP_InputField inputField;
+    private TextMeshProUGUI timeLabel;
     private Toggle testPlayToggle;
     private Action<string, bool> onNameConfirmed;
     private TMP_FontAsset koreanFont;
@@ -78,7 +79,7 @@ public class NameInputUI : MonoBehaviour
         // 라벨: "이름을 입력하세요"
         var labelGo = CreateUIObject("Label", panelGo.transform);
         var labelText = labelGo.AddComponent<TextMeshProUGUI>();
-        labelText.text = "묘비에 새길 이름을 남기세요";
+        labelText.text = "묘비에 새길 이름을 지어주세요"; // v10: 기획 문구 일치
         labelText.fontSize = 20;
         labelText.color = Color.white;
         labelText.alignment = TextAlignmentOptions.Center;
@@ -89,6 +90,20 @@ public class NameInputUI : MonoBehaviour
         labelRt.pivot = new Vector2(0.5f, 1f);
         labelRt.anchoredPosition = new Vector2(0, -20);
         labelRt.sizeDelta = new Vector2(-20, 36);
+
+        // v10: 소요 시간 표시 (기획 5-2)
+        var timeGo = CreateUIObject("TimeLabel", panelGo.transform);
+        timeLabel = timeGo.AddComponent<TextMeshProUGUI>();
+        timeLabel.fontSize = 15;
+        timeLabel.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+        timeLabel.alignment = TextAlignmentOptions.Center;
+        if (koreanFont != null) timeLabel.font = koreanFont;
+        var timeRt = timeGo.GetComponent<RectTransform>();
+        timeRt.anchorMin = new Vector2(0f, 1f);
+        timeRt.anchorMax = new Vector2(1f, 1f);
+        timeRt.pivot = new Vector2(0.5f, 1f);
+        timeRt.anchoredPosition = new Vector2(0, -58);
+        timeRt.sizeDelta = new Vector2(-20, 22);
 
         // TMP_InputField
         var fieldGo = CreateUIObject("InputField", panelGo.transform);
@@ -231,9 +246,10 @@ public class NameInputUI : MonoBehaviour
     /// 이름 입력 팝업 표시.
     /// onNameConfirmed(name, isTestPlay) 콜백 — 이름이 비어있으면 "Player" 사용.
     /// </summary>
-    public void Show(Action<string, bool> onNameConfirmed)
+    public void Show(float clearTime, Action<string, bool> onNameConfirmed)
     {
         this.onNameConfirmed = onNameConfirmed;
+        if (timeLabel != null) timeLabel.text = "소요 시간  " + FormatTime(clearTime);
         inputField.text = "";
         testPlayToggle.isOn = false;
         canvas.gameObject.SetActive(true);
@@ -269,6 +285,14 @@ public class NameInputUI : MonoBehaviour
     // ------------------------------------------------------------------
     // 유틸리티
     // ------------------------------------------------------------------
+
+    private static string FormatTime(float seconds)
+    {
+        int h = (int)(seconds / 3600);
+        int m = (int)((seconds % 3600) / 60);
+        int s = (int)(seconds % 60);
+        return $"{h:00}:{m:00}:{s:00}";
+    }
 
     private GameObject CreateUIObject(string name, Transform parent)
     {
