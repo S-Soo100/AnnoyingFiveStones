@@ -80,8 +80,8 @@ public class StageConfig
             Gimmick=GimmickType.None, TotalStones=5,
             SkyBottom=new Color(1.0f,0.95f,0.7f), SkyTop=new Color(0.55f,0.85f,1.0f),
             TableColor=new Color(0.95f,0.85f,0.7f), ClothColor=new Color(1.0f,0.5f,0.5f),
-            BackgroundImage = "StageBackgrounds/Stage02_Classroom",
-            MatImage        = "StageBackgrounds/Stage02_Desk",
+            BackgroundImage = "StageBackgrounds/Life/age10", // v11 나이대별 배경 (기존 완성본: "StageBackgrounds/Stage02_Classroom")
+            // v11 Desk 매트 제거: age10/15는 배경에 책상 내장 → 매트 중복(이중 책상) 해결. 플레이면=배경 책상.
             MatCenter       = new Vector2(-0.14f, -2.70f),
             MatSize         = new Vector2(20.6f, 11.6f),
             BoardCenter     = new Vector2(0f, -4.8f),
@@ -103,7 +103,8 @@ public class StageConfig
             Gimmick=GimmickType.ColorSelect, TotalStones=18,
             SkyBottom=new Color(1.0f,0.8f,0.85f), SkyTop=new Color(0.55f,0.7f,0.95f),
             TableColor=new Color(0.6f,0.5f,0.4f), ClothColor=new Color(0.6f,0.65f,0.75f),
-            MatImage        = "StageBackgrounds/Stage02_Desk",
+            BackgroundImage = "StageBackgrounds/Life/age15", // v11 나이대별 배경 (age10과 동일 이미지 — WIP 중복)
+            // v11 Desk 매트 제거: age10/15는 배경에 책상 내장 → 매트 중복(이중 책상) 해결. 플레이면=배경 책상.
             MatCenter       = new Vector2(-0.14f, -2.70f),
             MatSize         = new Vector2(20.6f, 11.6f),
             BoardCenter     = new Vector2(0f, -4.8f),
@@ -125,12 +126,16 @@ public class StageConfig
             Gimmick=GimmickType.Flee, TotalStones=5,
             SkyBottom=new Color(0.7f,0.9f,1.0f), SkyTop=new Color(0.3f,0.65f,0.95f),
             TableColor=new Color(0.4f,0.7f,0.35f), ClothColor=new Color(0.4f,0.75f,0.7f),
-            BackgroundImage="StageBackgrounds/Stage03_Campus",
+            BackgroundImage="StageBackgrounds/Life/age20", // v11 나이대별 배경 (⚠️기존 완성본: "StageBackgrounds/Stage03_Campus" — age20은 임시 스케치)
+            // v11 B정렬 (ImageMagick 측정 기반): age20 "실제 플레이 영역" 빨간 아웃라인에 맞춤.
+            // 뒷변 -2.10: 그리드 back(~-1.98)이 SafeZone yMax(-2.0) 초과 → 0.1 margin 캡. 앞변 -6.90: 그리드 front(88.5% 높이).
+            // X는 그리드가 SafeZone(±5.3)보다 넓어 캡 유지(±4.4/±5.2). quad ⊆ SafeZone → Flee 튕김 안전. SkyFloorY 자동 -2.10.
+            // 되돌리려면 -3.95/-7.10로 복구.
             BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌 (유지)
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우 (유지)
-                new Vector2(-5.20f, -7.10f),  // FL 앞-좌 (SafeZone x±5.3 내부, 0.1 margin)
-                new Vector2( 5.20f, -7.10f),  // FR 앞-우 (SafeZone x±5.3 내부, 0.1 margin)
+                new Vector2(-4.40f, -2.10f),  // BL 뒤-좌
+                new Vector2( 4.48f, -2.10f),  // BR 뒤-우
+                new Vector2(-5.20f, -6.90f),  // FL 앞-좌 (X는 Flee SafeZone ±5.3 내부 유지)
+                new Vector2( 5.20f, -6.90f),  // FR 앞-우
             },
             Props=new BackgroundProp[]
             {
@@ -148,14 +153,14 @@ public class StageConfig
             Gimmick=GimmickType.Sequence, TotalStones=5,
             SkyBottom=new Color(0.7f,0.75f,0.8f), SkyTop=new Color(0.45f,0.5f,0.6f),
             TableColor=new Color(0.5f,0.45f,0.4f), ClothColor=new Color(0.85f,0.78f,0.65f),
-            MatImage    = "StageBackgrounds/BasicBoard",
-            MatCenter   = new Vector2(-0.13f, -3.08f),
-            MatSize     = new Vector2(19.83f, 10.05f),
+            BackgroundImage = "StageBackgrounds/Life/age25", // v11 나이대별 배경 (⚠️ WIP: 무채색 렌더)
+            // v11 B정렬: age25 마우스패드에 맞춤 (ImageMagick CC 측정: back 57.6%/front 85.5%). 빗금 매트 제거 — 마우스패드(배경)가 플레이면.
+            // X는 마우스패드가 SafeZone(±5.3)보다 넓어 캡. 되돌리려면 mat 복원 + BoardQuad -3.95/-7.10.
             BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+                new Vector2(-4.60f, -2.55f),  // BL 뒤-좌
+                new Vector2( 4.60f, -2.55f),  // BR 뒤-우
+                new Vector2(-5.20f, -6.47f),  // FL 앞-좌 (X SafeZone 캡)
+                new Vector2( 5.20f, -6.47f),  // FR 앞-우
             },
             Props=new BackgroundProp[]
             {
@@ -173,12 +178,14 @@ public class StageConfig
             ScatterDropHeightAdd=1.0f, ScatterSpreadMultiplier=1.5f, BallSpeedMultiplier=1.4f,
             SkyBottom=new Color(0.2f,0.3f,0.55f), SkyTop=new Color(0.1f,0.15f,0.3f),
             TableColor=new Color(0.25f,0.35f,0.5f), ClothColor=new Color(0.6f,0.7f,0.85f),
-            BackgroundImage="StageBackgrounds/Stage05_Office",
+            BackgroundImage="StageBackgrounds/Life/age30", // v11 나이대별 배경 (기존: "StageBackgrounds/Stage05_Office" — 둘 다 임시)
+            // v11 B정렬: age30 마우스패드에 맞춤 (CC 측정: back 57.6%/front 85%). X는 SafeZone 캡.
+            // ⚠️ ObstacleGimmick 방해물 영역이 BoardBounds 기반이라 함께 이동/축소됨. 되돌리려면 -3.95/-7.10.
             BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+                new Vector2(-4.60f, -2.55f),  // BL 뒤-좌
+                new Vector2( 4.60f, -2.55f),  // BR 뒤-우
+                new Vector2(-5.20f, -6.40f),  // FL 앞-좌 (X SafeZone 캡)
+                new Vector2( 5.20f, -6.40f),  // FR 앞-우
             },
             Props=new BackgroundProp[]
             {
@@ -197,7 +204,8 @@ public class StageConfig
             Gimmick=GimmickType.FakeStone, TotalStones=10,
             SkyBottom=new Color(0.55f,0.5f,0.65f), SkyTop=new Color(0.3f,0.25f,0.4f),
             TableColor=new Color(0.35f,0.25f,0.2f), ClothColor=new Color(0.25f,0.4f,0.25f),
-            MatImage    = "StageBackgrounds/BasicBoard",
+            BackgroundImage = "StageBackgrounds/Life/age35", // v11 나이대별 배경 (⚠️ WIP: 3D 에디터 스크린샷)
+            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
             BoardQuad = new Vector2[] {
@@ -220,7 +228,8 @@ public class StageConfig
             Gimmick=GimmickType.Gravity, TotalStones=5,
             SkyBottom=new Color(1.0f,0.55f,0.3f), SkyTop=new Color(0.7f,0.3f,0.2f),
             TableColor=new Color(0.45f,0.25f,0.15f), ClothColor=new Color(0.55f,0.25f,0.2f),
-            MatImage    = "StageBackgrounds/BasicBoard",
+            BackgroundImage = "StageBackgrounds/Life/age40", // v11 나이대별 배경 (⚠️ WIP: 3D 에디터 스크린샷)
+            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
             BoardQuad = new Vector2[] {
@@ -243,7 +252,8 @@ public class StageConfig
             Gimmick=GimmickType.AgedHand, TotalStones=5,
             SkyBottom=new Color(0.65f,0.7f,0.75f), SkyTop=new Color(0.45f,0.5f,0.6f),
             TableColor=new Color(0.55f,0.5f,0.45f), ClothColor=new Color(0.75f,0.8f,0.85f),
-            MatImage    = "StageBackgrounds/BasicBoard",
+            BackgroundImage = "StageBackgrounds/Life/age45", // v11 나이대별 배경 (⚠️ WIP: age40과 동일)
+            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
             BoardQuad = new Vector2[] {
@@ -266,7 +276,8 @@ public class StageConfig
             Gimmick=GimmickType.Spotlight, TotalStones=5,
             SkyBottom=new Color(0.25f,0.1f,0.25f), SkyTop=new Color(0.05f,0.05f,0.1f),
             TableColor=new Color(0.2f,0.15f,0.1f), ClothColor=new Color(0.25f,0.15f,0.3f),
-            MatImage    = "StageBackgrounds/BasicBoard",
+            BackgroundImage = "StageBackgrounds/Life/age50", // v11 나이대별 배경 (⚠️ WIP: 무채색 침실 렌더)
+            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
             BoardQuad = new Vector2[] {
@@ -289,7 +300,8 @@ public class StageConfig
             Gimmick=GimmickType.Monochrome, TotalStones=5,
             SkyBottom=new Color(0.7f,0.7f,0.7f), SkyTop=new Color(0.4f,0.4f,0.4f),
             TableColor=new Color(0.35f,0.35f,0.35f), ClothColor=new Color(0.65f,0.65f,0.65f),
-            MatImage    = "StageBackgrounds/BasicBoard",
+            BackgroundImage = "StageBackgrounds/Life/age55", // v11 나이대별 배경 (⚠️ WIP: age50과 동일 침실 렌더)
+            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
             BoardQuad = new Vector2[] {

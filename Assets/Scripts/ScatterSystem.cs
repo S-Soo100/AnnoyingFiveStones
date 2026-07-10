@@ -181,7 +181,8 @@ public class ScatterSystem : MonoBehaviour
         {
             float angle = (slotAngleStep * slots[i] + Random.Range(-10f, 10f)) * Mathf.Deg2Rad;
             // spreadMul 클수록 사다리꼴 안쪽 더 넓게 채움 (0.45~0.92)
-            float spreadGain = Mathf.Lerp(0.45f, 0.92f, Mathf.Clamp01(spreadMul - 1.0f));
+            // v11: 기본 spread 하한 0.45→0.60 (넓어진 age20 등 사다리꼴을 더 채우도록). spreadMul은 단(1~5)별이라 전역 적용.
+            float spreadGain = Mathf.Lerp(0.60f, 0.92f, Mathf.Clamp01(spreadMul - 1.0f));
             float u = 0.5f + Mathf.Cos(angle) * spreadGain * 0.5f * Random.Range(0.8f, 1.2f);
             float v = 0.5f + Mathf.Sin(angle) * spreadGain * 0.5f * Random.Range(0.8f, 1.2f);
             // InnerQuadPoint → 사다리꼴 내부 절대 월드좌표

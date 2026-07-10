@@ -40,3 +40,7 @@ mac_cfs.zip
 
 # Unity/mono 크래시 덤프 (아카이브는 ~/unity-crash-logs/ 로 이동)
 mono_crash.*.json
+
+# 배경 소스 PNG / 테스트 스크린샷 (게임 에셋 아님 — Resources/ 로 복사된 것만 트래킹)
+figma-export/
+screenshots/
