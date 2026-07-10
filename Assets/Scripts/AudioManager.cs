@@ -17,6 +17,9 @@ public class AudioManager : MonoBehaviour
     private const string MasterVolumePrefKey = "MasterVolume";
     private const float DefaultMasterVolume = 0.5f;
 
+    private const string SFXVolumePrefKey = "sfx_volume";
+    private const float DefaultSFXVolume = 0.7f; // sfxVolume 인스턴스 초기값과 일치
+
     private AudioSource sfxSource;       // 짧은 효과음용
     private AudioSource jingleSource;    // 징글용 (겹치지 않게)
 
@@ -74,6 +77,7 @@ public class AudioManager : MonoBehaviour
         bgmSourceB   = CreateChildSource("BGM_B_Source",  loop: true);
 
         bgmVolume = GetBGMVolume();
+        sfxVolume = GetSFXVolume();
 
         ApplyVolume(GetMasterVolume());
     }
@@ -149,6 +153,32 @@ public class AudioManager : MonoBehaviour
         PlayerPrefs.SetFloat(BGMVolumePrefKey, v);
         PlayerPrefs.Save();
         ApplyBGMVolume(v);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // SFX Volume API (신규 — BGM API 미러링. PlaySFX가 sfxVolume을 재생 시점에 직접 곱하므로 output 갱신 불필요)
+    // ──────────────────────────────────────────────────────────────────
+
+    /// <summary>PlayerPrefs에서 SFX 볼륨 읽기. 기본 0.7.</summary>
+    public static float GetSFXVolume()
+    {
+        return Mathf.Clamp01(PlayerPrefs.GetFloat(SFXVolumePrefKey, DefaultSFXVolume));
+    }
+
+    /// <summary>슬라이더 드래그 중 즉시 반영. 다음 PlaySFX부터 새 볼륨 적용.</summary>
+    public static void ApplySFXVolume(float v)
+    {
+        v = Mathf.Clamp01(v);
+        if (Instance != null) Instance.sfxVolume = v;
+    }
+
+    /// <summary>저장 포함 (슬라이더 onValueChanged에서 호출).</summary>
+    public static void SetSFXVolume(float v)
+    {
+        v = Mathf.Clamp01(v);
+        PlayerPrefs.SetFloat(SFXVolumePrefKey, v);
+        PlayerPrefs.Save();
+        ApplySFXVolume(v);
     }
 
     // ──────────────────────────────────────────────────────────────────

@@ -594,7 +594,14 @@ public class GameManager : MonoBehaviour
             GamePhase.Scatter => LocalizationManager.L("guide.scatter"),
             GamePhase.PickThrowStone => LocalizationManager.L("guide.pick_throw"),
             GamePhase.Throw => LocalizationManager.L("guide.throw"),
-            GamePhase.PickStones => LocalizationManager.L("guide.pick_stones"),
+            GamePhase.PickStones => currentStage switch
+            {
+                1 => LocalizationManager.L("guide.pick_1"),
+                2 => LocalizationManager.L("guide.pick_2"),
+                3 => LocalizationManager.L("guide.pick_3"),
+                4 => LocalizationManager.L("guide.pick_4"),
+                _ => LocalizationManager.L("guide.pick_stones")
+            },
             GamePhase.Catch => LocalizationManager.L("guide.catch"),
             GamePhase.Stage5Throw => stage5Step switch
             {

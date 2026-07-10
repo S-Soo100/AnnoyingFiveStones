@@ -154,7 +154,7 @@ public class DebugHUD : MonoBehaviour
         float btnH = 26f;
         float padding = 6f;
         float panelW = 220f;
-        float panelH = btnH + padding * 2f;
+        float panelH = btnH * 2f + padding * 3f; // 버튼 2개 (연습 토글 + 스테이지 스킵)
         float panelX = Screen.width - panelW - 10f;
         float panelY = RightColumnTop() + 72f; // 스테이지(40+gap10) + 토글(28+gap4) = 40+28+4
 
@@ -169,6 +169,15 @@ public class DebugHUD : MonoBehaviour
         float btnW = panelW - padding * 2f;
         float x = panelX + padding;
         float y = panelY + padding;
+
+        // 연습 모드 토글 — IsTestPlay 플립. ON이면 랭킹(묘지) 미저장. 홈 단일 Play 통일 후 연습 진입 경로.
+        bool testPlay = session.IsTestPlay;
+        GUI.backgroundColor = testPlay
+            ? new Color(1f, 0.7f, 0.2f, 0.85f)
+            : new Color(0.45f, 0.45f, 0.45f, 0.7f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), testPlay ? "연습 모드: ON (기록 안 함)" : "연습 모드: OFF", btnStyle))
+            session.IsTestPlay = !session.IsTestPlay;
+        y += btnH + padding;
 
         // 다음 스테이지로 (+5살) — 내부 동작은 "루프 1회 완료"와 동일 (5단계 자동 클리어)
         GUI.backgroundColor = new Color(0.6f, 1f, 0.6f, 0.8f);

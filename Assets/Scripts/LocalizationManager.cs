@@ -74,6 +74,8 @@ public static class LocalizationManager
         ["home.settings"]  = ("설정", "Settings"),
         ["home.exit"]      = ("게임 종료", "Exit"), // 260703 스펙 일치 (구: "나가기")
         ["home.cemetery"]  = ("묘지", "Cemetery"),
+        ["home.record_mode"]   = ("기록 모드", "Record"), // v11 개발 빌드: 기록/연습 분기
+        ["home.practice_mode"] = ("연습 모드", "Practice"),
 
         // === 설정창 ===
         ["settings.title"]     = ("설정", "Settings"),
@@ -88,6 +90,7 @@ public static class LocalizationManager
         ["pause.resume"]  = ("게임 재개", "Resume"),
         ["pause.quit"]    = ("게임 종료", "Quit Game"),
         ["pause.music"]   = ("음악 {0}%", "Music {0}%"),
+        ["pause.sfx"]     = ("효과음 {0}%", "Sound Effect {0}%"), // v11 일시정지 SFX 슬라이더
 
         // === 게임 종료 확인 모달 (260703) ===
         ["quit.message"]  = ("게임을 종료하시겠습니까?\n현재 기록은 저장되지 않습니다.",
@@ -129,6 +132,10 @@ public static class LocalizationManager
         ["guide.pick_throw"]       = ("[ 커서를 돌 위로 이동 ]", "[ Move the cursor over a stone ]"),
         ["guide.throw"]            = ("[ 클릭하여 던지기 ]", "[ Click to throw ]"),
         ["guide.pick_stones"]      = ("[ 돌을 단계에 맞게 주우세요 ]", "[ Pick up the stones in order ]"),
+        ["guide.pick_1"]           = ("[ 돌을 한 개씩 집으세요 ]", "[ Pick up the stones one by one ]"),
+        ["guide.pick_2"]           = ("[ 돌을 두 개씩 집으세요 ]", "[ Pick up two stones at a time ]"),
+        ["guide.pick_3"]           = ("[ 돌을 세 개, 한 개씩 집으세요 ]", "[ Pick up three stones, then one ]"),
+        ["guide.pick_4"]           = ("[ 돌을 네 개 집으세요 ]", "[ Pick up all four stones at once ]"),
         ["guide.catch"]            = ("[ 커서를 움직여 돌을 받으세요! ]", "[ Move the cursor to catch the stone! ]"),
         ["guide.s5_throw_palm"]    = ("[ 게이지에 맞춰 클릭! 손바닥 던지기 ]", "[ Click on the gauge! Palm toss ]"),
         ["guide.s5_throw_back"]    = ("[ 게이지에 맞춰 클릭! 손등 던지기 ]", "[ Click on the gauge! Back-hand toss ]"),

@@ -488,20 +488,8 @@ public class GameUI : MonoBehaviour
             ? new Color(1f, 0.84f, 0f, 1f)
             : Color.white;
 
-        // v4: 스테이지 테마 표시
-        string subText = "";
-        var gm = GameManager.Instance;
-        var session = GameSession.Instance;
-        if (gm != null && session != null)
-        {
-            var config = StageConfig.Get(session.CurrentLoop);
-            if (config != null)
-            {
-                subText = isStage5
-                    ? $"[{config.LocalizedStageName}] {LocalizationManager.L("stage.fold")}"
-                    : $"[{config.LocalizedStageName}]";
-            }
-        }
+        // v11: 스테이지명(기믹명) 스플래시 제거 (사용자 결정 "완전 제거"). Stage 5는 '꺾기' 단 안내만 유지.
+        string subText = isStage5 ? LocalizationManager.L("stage.fold") : "";
 
         overlayMainText.text = mainText;
         overlayMainText.color = mainColor;
