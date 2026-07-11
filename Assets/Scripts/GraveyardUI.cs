@@ -6,9 +6,9 @@ using UnityEngine.InputSystem;
 using TMPro;
 
 /// <summary>
-/// 묘지 파노라마 싱글톤.
-/// ALL CLEAR 후 5초 뒤 표시. 전체 기록을 비석으로 시각화, 자동 스크롤.
-/// Screen Space Overlay Canvas (sortingOrder=200).
+/// 묘지 랭킹보드 싱글톤 (Figma Image#13).
+/// ALL CLEAR 후 표시. 전체 기록을 흰 배경 세로 3열 그리드 카드로 시각화, 세로 스크롤.
+/// 우하단 검정 버튼(Play Again/Go Home). Screen Space Overlay Canvas (sortingOrder=200).
 /// </summary>
 public class GraveyardUI : MonoBehaviour
 {
@@ -25,7 +25,6 @@ public class GraveyardUI : MonoBehaviour
     private readonly List<(TextMeshProUGUI tmp, string key)> endButtonLabels = new();
 
     private Coroutine scrollCoroutine;
-    private Coroutine blinkCoroutine;
     private bool isShowing;
     private bool hasReachedEnd;
 
@@ -94,11 +93,6 @@ public class GraveyardUI : MonoBehaviour
             StopCoroutine(scrollCoroutine);
             scrollCoroutine = null;
         }
-        if (blinkCoroutine != null)
-        {
-            StopCoroutine(blinkCoroutine);
-            blinkCoroutine = null;
-        }
 
         // Content 자식 전부 Destroy
         if (content != null)
@@ -120,17 +114,12 @@ public class GraveyardUI : MonoBehaviour
     {
         if (!isShowing) return;
 
+        // 그리드 대기(0.6초) 중 탭 시 버튼 즉시 표시. 완료 후에는 화면 버튼(Play Again/Go Home)으로 처리.
         if (!hasReachedEnd)
         {
-            // 스크롤 스킵
-            if (scrollCoroutine != null)
-            {
-                StopCoroutine(scrollCoroutine);
-                scrollCoroutine = null;
-            }
-            scrollCoroutine = StartCoroutine(CoSkipScroll());
+            hasReachedEnd = true;
+            restartHintWrapper.SetActive(true);
         }
-        // v9(260703): 스크롤 완료 후에는 화면 버튼(Play Again/Go Home)으로 처리 — 탭 재시작 제거
     }
 
     // ------------------------------------------------------------------
@@ -155,12 +144,10 @@ public class GraveyardUI : MonoBehaviour
             yield return null;
         }
 
+        // 로드 실패(오프라인/타임아웃) 시 튕김 방지 — 빈 리스트로 대체해 빈 흰 화면 + 버튼만 표시
         if (records == null)
         {
-            statusText.text = LocalizationManager.L("grave.load_fail");
-            yield return new WaitForSecondsRealtime(5f);
-            GameManager.Instance?.RestartGame();
-            yield break;
+            records = new List<RecordEntry>();
         }
 
         statusText.text = "";
@@ -171,12 +158,7 @@ public class GraveyardUI : MonoBehaviour
 
         yield return null; // Destroy 반영 대기
 
-        float padWidth = Mathf.Max(Screen.width / 2f, 320f);
-
-        // LeftPadding
-        var leftPad = CreatePadding("LeftPadding", padWidth);
-
-        // 내 비석 제외한 다른 플레이어 비석
+        // 다른 플레이어 비석 (그리드 배치는 GridLayoutGroup이 처리)
         foreach (var rec in records)
         {
             CreateTombstone(rec.player_name, rec.clear_time_seconds, rec.regression_count, false);
@@ -188,64 +170,14 @@ public class GraveyardUI : MonoBehaviour
             CreateTombstone(myName, myTime, myRegressionCount, true);
         }
 
-        // RightPadding
-        var rightPad = CreatePadding("RightPadding", padWidth);
-
         LayoutRebuilder.ForceRebuildLayoutImmediate(content);
-        yield return null; // 1프레임 대기
+        scrollRect.verticalNormalizedPosition = 1f; // 맨 위
 
-        scrollRect.horizontalNormalizedPosition = 0f;
-
-        // 자동 스크롤 시작
-        int totalTombstones = isTestPlay ? records.Count : records.Count + 1;
-        scrollCoroutine = StartCoroutine(CoAutoScroll(totalTombstones));
-    }
-
-    private IEnumerator CoAutoScroll(int tombstoneCount)
-    {
-        float totalDuration = Mathf.Max(tombstoneCount * 1.5f, 3f);
-        float elapsed = 0f;
-
-        while (elapsed < totalDuration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            scrollRect.horizontalNormalizedPosition = Mathf.Clamp01(elapsed / totalDuration);
-            yield return null;
-        }
-
-        scrollRect.horizontalNormalizedPosition = 1f;
+        // 그리드 완성 후 잠시 뒤 버튼 노출 (가로 자동스크롤 대체)
+        yield return new WaitForSecondsRealtime(0.6f);
         hasReachedEnd = true;
-        scrollCoroutine = null;
-
-        // 재시작 힌트 깜빡임
-        blinkCoroutine = StartCoroutine(CoBlinkHint());
-    }
-
-    private IEnumerator CoSkipScroll()
-    {
-        float startPos = scrollRect.horizontalNormalizedPosition;
-        float elapsed = 0f;
-        float duration = 0.5f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            scrollRect.horizontalNormalizedPosition = Mathf.Lerp(startPos, 1f, elapsed / duration);
-            yield return null;
-        }
-
-        scrollRect.horizontalNormalizedPosition = 1f;
-        hasReachedEnd = true;
-        scrollCoroutine = null;
-
-        blinkCoroutine = StartCoroutine(CoBlinkHint());
-    }
-
-    private IEnumerator CoBlinkHint()
-    {
-        // v9(260703): 스크롤 완료 → Play Again / Go Home 버튼 표시
         restartHintWrapper.SetActive(true);
-        yield break;
+        scrollCoroutine = null;
     }
 
     // ------------------------------------------------------------------
@@ -254,93 +186,88 @@ public class GraveyardUI : MonoBehaviour
 
     private void CreateTombstone(string playerName, float clearTimeSeconds, int regressionCount, bool isMe)
     {
-        // 비석 루트
+        // 비석 루트 — 크기는 GridLayoutGroup의 cellSize(220×200)가 제어
         var tombGo = new GameObject("Tombstone", typeof(RectTransform));
         tombGo.transform.SetParent(content, false);
 
-        var tombRt = tombGo.GetComponent<RectTransform>();
-        tombRt.sizeDelta = new Vector2(160f, 220f);
+        // Card — 단일 회색 사각 카드 (stretch full)
+        var cardGo = new GameObject("Card", typeof(RectTransform));
+        cardGo.transform.SetParent(tombGo.transform, false);
 
-        var tombLe = tombGo.AddComponent<LayoutElement>();
-        tombLe.preferredWidth = 160f;
-        tombLe.preferredHeight = 220f;
+        var cardRt = cardGo.GetComponent<RectTransform>();
+        cardRt.anchorMin = Vector2.zero;
+        cardRt.anchorMax = Vector2.one;
+        cardRt.offsetMin = Vector2.zero;
+        cardRt.offsetMax = Vector2.zero;
 
-        // StoneBody (높이의 75% = 165)
-        var bodyGo = new GameObject("StoneBody", typeof(RectTransform));
-        bodyGo.transform.SetParent(tombGo.transform, false);
+        var cardImg = cardGo.AddComponent<Image>();
+        cardImg.color = isMe
+            ? new Color(0.98f, 0.90f, 0.55f, 1f)  // 옅은 금색 (내 카드)
+            : new Color(0.82f, 0.82f, 0.82f, 1f); // 회색
 
-        var bodyRt = bodyGo.GetComponent<RectTransform>();
-        // 앵커: 상단 stretch, 높이 75%
-        bodyRt.anchorMin = new Vector2(0.1f, 0.25f);
-        bodyRt.anchorMax = new Vector2(0.9f, 1f);
-        bodyRt.offsetMin = Vector2.zero;
-        bodyRt.offsetMax = Vector2.zero;
-
-        var bodyImg = bodyGo.AddComponent<Image>();
-        bodyImg.color = isMe
-            ? new Color(1f, 0.84f, 0f, 1f)   // 금색 (내 비석)
-            : new Color(0.45f, 0.45f, 0.5f, 1f); // 회색
-
-        // StoneBase (높이의 25% = 55, 하단)
-        var baseGo = new GameObject("StoneBase", typeof(RectTransform));
-        baseGo.transform.SetParent(tombGo.transform, false);
-
-        var baseRt = baseGo.GetComponent<RectTransform>();
-        baseRt.anchorMin = new Vector2(0f, 0f);
-        baseRt.anchorMax = new Vector2(1f, 0.25f);
-        baseRt.offsetMin = Vector2.zero;
-        baseRt.offsetMax = Vector2.zero;
-
-        var baseImg = baseGo.AddComponent<Image>();
-        baseImg.color = isMe
-            ? new Color(0.7f, 0.58f, 0f, 1f)   // 어두운 금색
-            : new Color(0.3f, 0.3f, 0.35f, 1f); // 어두운 회색
-
-        // NameText (비석 몸체 상부 40%)
+        // NameText (카드 상부)
         var nameGo = new GameObject("NameText", typeof(RectTransform));
-        nameGo.transform.SetParent(bodyGo.transform, false);
+        nameGo.transform.SetParent(cardGo.transform, false);
 
         var nameRt = nameGo.GetComponent<RectTransform>();
-        nameRt.anchorMin = new Vector2(0.05f, 0.55f);
-        nameRt.anchorMax = new Vector2(0.95f, 0.95f);
+        nameRt.anchorMin = new Vector2(0.08f, 0.45f);
+        nameRt.anchorMax = new Vector2(0.92f, 0.90f);
         nameRt.offsetMin = Vector2.zero;
         nameRt.offsetMax = Vector2.zero;
 
         var nameTmp = nameGo.AddComponent<TextMeshProUGUI>();
         nameTmp.text = playerName;
-        nameTmp.fontSize = 15f;
-        nameTmp.color = isMe ? Color.black : Color.white;
+        nameTmp.fontSize = 20f;
+        nameTmp.color = isMe ? Color.black : new Color(0.15f, 0.15f, 0.15f, 1f);
         nameTmp.alignment = TextAlignmentOptions.Center;
         nameTmp.textWrappingMode = TextWrappingModes.Normal;
         nameTmp.overflowMode = TextOverflowModes.Truncate;
         if (koreanFont != null) nameTmp.font = koreanFont;
 
-        // TimeText (비석 몸체 하부 30%)
+        // TimeText (카드 하부)
         var timeGo = new GameObject("TimeText", typeof(RectTransform));
-        timeGo.transform.SetParent(bodyGo.transform, false);
+        timeGo.transform.SetParent(cardGo.transform, false);
 
         var timeRt = timeGo.GetComponent<RectTransform>();
-        timeRt.anchorMin = new Vector2(0.05f, 0.1f);
-        timeRt.anchorMax = new Vector2(0.95f, 0.5f);
+        timeRt.anchorMin = new Vector2(0.08f, 0.10f);
+        timeRt.anchorMax = new Vector2(0.92f, 0.45f);
         timeRt.offsetMin = Vector2.zero;
         timeRt.offsetMax = Vector2.zero;
 
         var timeTmp = timeGo.AddComponent<TextMeshProUGUI>();
         timeTmp.text = $"{LocalizationManager.LF("grave.regression", regressionCount)}\n{FormatTime(clearTimeSeconds)}";
-        timeTmp.fontSize = 13f;
-        timeTmp.color = isMe ? new Color(0.2f, 0.1f, 0f, 1f) : new Color(0.8f, 0.8f, 0.8f, 1f);
+        timeTmp.fontSize = 15f;
+        timeTmp.color = isMe ? new Color(0.25f, 0.15f, 0f, 1f) : new Color(0.4f, 0.4f, 0.4f, 1f);
         timeTmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) timeTmp.font = koreanFont;
     }
 
-    private GameObject CreatePadding(string name, float width)
+    // ------------------------------------------------------------------
+    // 디버그 미리보기 (에디터 확인용 — Supabase 불필요)
+    // ------------------------------------------------------------------
+
+    public void ShowPreview()  // 더미 그리드 즉시 표시 (Supabase 불필요, 에디터 확인용)
     {
-        var go = new GameObject(name, typeof(RectTransform));
-        go.transform.SetParent(content, false);
-        var le = go.AddComponent<LayoutElement>();
-        le.preferredWidth = width;
-        le.preferredHeight = 220f;
-        return go;
+        canvas.gameObject.SetActive(true);
+        isShowing = true; hasReachedEnd = true;
+        restartHintWrapper.SetActive(false);
+        RefreshEndButtons();
+        statusText.text = "";
+        if (scrollCoroutine != null) { StopCoroutine(scrollCoroutine); scrollCoroutine = null; }
+        scrollCoroutine = StartCoroutine(CoShowPreview());
+    }
+
+    private IEnumerator CoShowPreview()
+    {
+        for (int i = content.childCount - 1; i >= 0; i--) Destroy(content.GetChild(i).gameObject);
+        yield return null; // Destroy 반영
+        string[] names = {"홍길동","김철수","이영희","박민수","최지우","정해인","강동원","한소희"};
+        for (int i = 0; i < names.Length; i++) CreateTombstone(names[i], 180f + i*20f, i % 3, false);
+        CreateTombstone("나", 200f, 1, true);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+        scrollRect.verticalNormalizedPosition = 1f;
+        restartHintWrapper.SetActive(true);
+        scrollCoroutine = null;
     }
 
     // ------------------------------------------------------------------
@@ -362,18 +289,18 @@ public class GraveyardUI : MonoBehaviour
         scaler.referenceResolution = new Vector2(1280, 720);
         canvasGo.AddComponent<GraphicRaycaster>();
 
-        // Background — 전체화면 어두운 색
+        // Background — 전체화면 흰색 (Figma Image#13)
         var bgGo = new GameObject("Background", typeof(RectTransform));
         bgGo.transform.SetParent(canvasGo.transform, false);
         var bgImg = bgGo.AddComponent<Image>();
-        bgImg.color = new Color(0.05f, 0.08f, 0.05f, 1f);
+        bgImg.color = Color.white;
         var bgRt = bgGo.GetComponent<RectTransform>();
         bgRt.anchorMin = Vector2.zero;
         bgRt.anchorMax = Vector2.one;
         bgRt.offsetMin = Vector2.zero;
         bgRt.offsetMax = Vector2.zero;
 
-        // ScrollRect — 수평, 전체화면
+        // ScrollRect — 수직 3열 그리드, 전체화면 (Figma Image#13)
         var scrollGo = new GameObject("ScrollRect", typeof(RectTransform));
         scrollGo.transform.SetParent(canvasGo.transform, false);
         var scrollRt = scrollGo.GetComponent<RectTransform>();
@@ -383,10 +310,10 @@ public class GraveyardUI : MonoBehaviour
         scrollRt.offsetMax = Vector2.zero;
 
         scrollRect = scrollGo.AddComponent<ScrollRect>();
-        scrollRect.horizontal = true;
-        scrollRect.vertical = false;
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
         scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 0f;
+        scrollRect.scrollSensitivity = 20f;
 
         // Viewport
         var viewportGo = new GameObject("Viewport", typeof(RectTransform));
@@ -400,27 +327,26 @@ public class GraveyardUI : MonoBehaviour
 
         scrollRect.viewport = viewportRt;
 
-        // Content
+        // Content — 상단 stretch, 세로 3열 그리드
         var contentGo = new GameObject("Content", typeof(RectTransform));
         contentGo.transform.SetParent(viewportGo.transform, false);
         content = contentGo.GetComponent<RectTransform>();
-        content.anchorMin = new Vector2(0f, 0f);
-        content.anchorMax = new Vector2(0f, 1f);
-        content.pivot = new Vector2(0f, 0.5f);
+        content.anchorMin = new Vector2(0f, 1f);
+        content.anchorMax = new Vector2(1f, 1f);
+        content.pivot = new Vector2(0.5f, 1f);
         content.anchoredPosition = Vector2.zero;
 
-        var hlg = contentGo.AddComponent<HorizontalLayoutGroup>();
-        hlg.spacing = 40f;
-        hlg.childAlignment = TextAnchor.MiddleCenter;
-        hlg.padding = new RectOffset(0, 0, 0, 0);
-        hlg.childForceExpandWidth = false;
-        hlg.childForceExpandHeight = false;
-        hlg.childControlWidth = true;
-        hlg.childControlHeight = true;
+        var grid = contentGo.AddComponent<GridLayoutGroup>();
+        grid.cellSize = new Vector2(220f, 200f);
+        grid.spacing = new Vector2(36f, 36f);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;
+        grid.childAlignment = TextAnchor.UpperCenter;
+        grid.padding = new RectOffset(0, 0, 90, 120);
 
         var csf = contentGo.AddComponent<ContentSizeFitter>();
-        csf.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-        csf.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
+        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
         scrollRect.content = content;
 
@@ -435,7 +361,7 @@ public class GraveyardUI : MonoBehaviour
         statusText = statusGo.AddComponent<TextMeshProUGUI>();
         statusText.text = "";
         statusText.fontSize = 20f;
-        statusText.color = new Color(0.7f, 0.7f, 0.7f, 1f);
+        statusText.color = new Color(0.3f, 0.3f, 0.3f, 1f); // 흰 배경 위 가독
         statusText.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) statusText.font = koreanFont;
 
@@ -443,11 +369,11 @@ public class GraveyardUI : MonoBehaviour
         restartHintWrapper = new GameObject("EndButtons", typeof(RectTransform));
         restartHintWrapper.transform.SetParent(canvasGo.transform, false);
         var btnsRt = restartHintWrapper.GetComponent<RectTransform>();
-        btnsRt.anchorMin = new Vector2(0.5f, 0.03f);
-        btnsRt.anchorMax = new Vector2(0.5f, 0.13f);
-        btnsRt.pivot = new Vector2(0.5f, 0f);
-        btnsRt.sizeDelta = new Vector2(460f, 72f);
-        btnsRt.anchoredPosition = Vector2.zero;
+        btnsRt.anchorMin = new Vector2(1f, 0f); // 우하단 (Figma Image#13)
+        btnsRt.anchorMax = new Vector2(1f, 0f);
+        btnsRt.pivot = new Vector2(1f, 0f);
+        btnsRt.sizeDelta = new Vector2(440f, 72f);
+        btnsRt.anchoredPosition = new Vector2(-40f, 40f);
 
         var hlgBtns = restartHintWrapper.AddComponent<HorizontalLayoutGroup>();
         hlgBtns.spacing = 40f;
@@ -477,7 +403,7 @@ public class GraveyardUI : MonoBehaviour
         le.preferredHeight = 64f;
 
         var img = btnGo.AddComponent<Image>();
-        img.color = new Color(0.2f, 0.22f, 0.25f, 0.95f);
+        img.color = new Color(0f, 0f, 0f, 1f); // 검정 (Figma Image#13)
         var btn = btnGo.AddComponent<Button>();
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);

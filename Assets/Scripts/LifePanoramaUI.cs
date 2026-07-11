@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -38,6 +39,9 @@ public class LifePanoramaUI : MonoBehaviour
     private int imageCount;
     private Coroutine playCoroutine;
 
+    // 스크롤 시작/끝 X (첫/마지막 카드가 화면 중앙에 오도록 BuildUI에서 계산).
+    private float scrollStartX, scrollEndX;
+
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
@@ -52,6 +56,7 @@ public class LifePanoramaUI : MonoBehaviour
     public void Show(Action onComplete)
     {
         if (imageCount == 0) { onComplete?.Invoke(); return; } // 배경 로드 실패 시 스킵
+
         canvas.gameObject.SetActive(true);
         if (playCoroutine != null) StopCoroutine(playCoroutine);
         playCoroutine = StartCoroutine(CoPlay(onComplete));
@@ -59,8 +64,8 @@ public class LifePanoramaUI : MonoBehaviour
 
     private IEnumerator CoPlay(Action onComplete)
     {
-        // 시작 위치: content X=0 → 첫 이미지 화면. 왼쪽으로 이동 → 오른→왼 흐름.
-        content.anchoredPosition = Vector2.zero;
+        // 시작 위치: 첫 카드가 화면 중앙(scrollStartX). 왼쪽으로 이동 → 오른→왼 흐름.
+        content.anchoredPosition = new Vector2(scrollStartX, 0f);
         group.alpha = 0f;
 
         // 페이드인
@@ -73,15 +78,15 @@ public class LifePanoramaUI : MonoBehaviour
         }
         group.alpha = 1f;
 
-        // 스크롤: X 0 → -(n-1)*w
+        // 스크롤: 첫 카드 중앙(scrollStartX) → 마지막 카드 중앙(scrollEndX)
         float duration = Mathf.Max((imageCount - 1) * PerImageSeconds, PerImageSeconds);
-        float endX = -(imageCount - 1) * screenW;
+        float endX = scrollEndX;
         t = 0f;
         while (t < duration)
         {
             t += Time.unscaledDeltaTime;
             float p = Mathf.SmoothStep(0f, 1f, t / duration);
-            content.anchoredPosition = new Vector2(Mathf.Lerp(0f, endX, p), 0f);
+            content.anchoredPosition = new Vector2(Mathf.Lerp(scrollStartX, endX, p), 0f);
             yield return null;
         }
         content.anchoredPosition = new Vector2(endX, 0f);
@@ -104,6 +109,7 @@ public class LifePanoramaUI : MonoBehaviour
     private void BuildUI()
     {
         screenW = Screen.width;
+        float screenH = Screen.height;
 
         var canvasGo = new GameObject("LifePanoramaCanvas");
         canvasGo.transform.SetParent(transform, false);
@@ -132,28 +138,45 @@ public class LifePanoramaUI : MonoBehaviour
         content.pivot = new Vector2(0f, 0.5f);
         content.anchoredPosition = Vector2.zero;
 
+        // 카드형: 검은 배경 위에 가로 직사각형 카드들이 오른쪽→왼쪽으로 흐른다 (레터박스).
+        float cursorX = 0f;
+        var cardCenters = new List<float>();
         int idx = 0;
-        foreach (var path in bgPaths)
+        for (int i = 0; i < bgPaths.Length; i++)
         {
-            var tex = Resources.Load<Texture2D>(path);
+            var tex = Resources.Load<Texture2D>(bgPaths[i]);
             if (tex == null)
             {
-                Debug.LogWarning($"[LifePanoramaUI] 배경 로드 실패: {path}");
-                continue;
+                Debug.LogWarning($"[LifePanoramaUI] 배경 로드 실패: {bgPaths[i]}");
+                continue; // 로드 실패 → 카드·커서 모두 건너뜀. 인덱스 정합 유지.
             }
             var imgGo = new GameObject($"Bg_{idx}", typeof(RectTransform));
             imgGo.transform.SetParent(contentGo.transform, false);
             var raw = imgGo.AddComponent<RawImage>();
             raw.texture = tex;
             var rt = imgGo.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0f, 0f);
-            rt.anchorMax = new Vector2(0f, 1f);
+            rt.anchorMin = rt.anchorMax = new Vector2(0f, 0.5f);
             rt.pivot = new Vector2(0f, 0.5f);
-            rt.sizeDelta = new Vector2(screenW, 0f); // 폭=화면, 높이=stretch
-            rt.anchoredPosition = new Vector2(idx * screenW, 0f);
+
+            float cardH = screenH * 0.45f;
+            float cardW = cardH * (tex.width / (float)tex.height); // 실제 비율 → 왜곡 방지
+            float gap = cardW * 0.18f;
+            rt.sizeDelta = new Vector2(cardW, cardH);
+            rt.anchoredPosition = new Vector2(cursorX, 0f);
+
+            cardCenters.Add(cursorX + cardW * 0.5f);
+            cursorX += cardW + gap;
+
             idx++;
         }
         imageCount = idx;
+
+        // 스크롤 시작/끝: 첫/마지막 카드가 화면 중앙에 오도록. 1장이면 start==end (정지 표시).
+        if (imageCount > 0)
+        {
+            scrollStartX = screenW * 0.5f - cardCenters[0];
+            scrollEndX   = screenW * 0.5f - cardCenters[cardCenters.Count - 1];
+        }
 
         canvasGo.SetActive(false);
     }

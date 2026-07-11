@@ -154,7 +154,7 @@ public class DebugHUD : MonoBehaviour
         float btnH = 26f;
         float padding = 6f;
         float panelW = 220f;
-        float panelH = btnH * 2f + padding * 3f; // 버튼 2개 (연습 토글 + 스테이지 스킵)
+        float panelH = btnH * 5f + padding * 6f; // 버튼 5개 (연습 토글 + 스테이지 스킵 + 주마등 + 이름입력 + 묘지 미리보기)
         float panelX = Screen.width - panelW - 10f;
         float panelY = RightColumnTop() + 72f; // 스테이지(40+gap10) + 토글(28+gap4) = 40+28+4
 
@@ -195,6 +195,28 @@ public class DebugHUD : MonoBehaviour
             SidePanelUI.Instance?.Refresh();
             AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
         }
+        y += btnH + padding;
+
+        // 주마등(라이프 파노라마) 미리보기 — 엔딩 카드 스크롤 연출을 즉시 재생
+        GUI.backgroundColor = new Color(0.6f, 0.7f, 1f, 0.8f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), "주마등 미리보기", btnStyle))
+        {
+            LifePanoramaUI.Instance?.Show(() => Debug.Log("[DEBUG] 주마등 미리보기 종료"));
+        }
+        y += btnH + padding;
+
+        // 이름입력(묘비명) 미리보기 — Figma 재설계된 전체화면 입력 화면을 즉시 표시
+        GUI.backgroundColor = new Color(0.8f, 0.7f, 1f, 0.8f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), "이름입력 미리보기", btnStyle))
+        {
+            NameInputUI.Instance?.Show(182f, (nm, tp) => Debug.Log($"[DEBUG] 이름입력 미리보기: {nm}, test={tp}"));
+        }
+        y += btnH + padding;
+
+        // 묘지(랭킹보드) 미리보기 — Figma 재설계된 흰 배경 3열 그리드를 즉시 표시 (Supabase 불필요)
+        GUI.backgroundColor = new Color(0.7f, 0.9f, 0.8f, 0.8f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), "묘지 미리보기", btnStyle))
+            GraveyardUI.Instance?.ShowPreview();
 
         GUI.backgroundColor = origBg;
     }

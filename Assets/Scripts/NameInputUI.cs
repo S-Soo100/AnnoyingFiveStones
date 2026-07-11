@@ -19,8 +19,7 @@ public class NameInputUI : MonoBehaviour
     private TMP_InputField inputField;
     private TextMeshProUGUI timeLabel;
     private TextMeshProUGUI promptLabel;    // v10 다국어: "묘비에 새길 이름을…"
-    private TextMeshProUGUI confirmBtnLabel; // v10 다국어: "시작"
-    private Toggle testPlayToggle;
+    private TextMeshProUGUI confirmBtnLabel; // v10 다국어: "이 이름으로 저장"
     private Action<string, bool> onNameConfirmed;
     private TMP_FontAsset koreanFont;
 
@@ -57,67 +56,68 @@ public class NameInputUI : MonoBehaviour
         canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 300;
-        canvasGo.AddComponent<CanvasScaler>();
+        var scaler = canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1280f, 720f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
         canvasGo.AddComponent<GraphicRaycaster>();
 
-        // 전체화면 반투명 배경
+        // 전체화면 흰색 불투명 배경 (Figma: 순수 흰 전체화면)
         var bgGo = CreateUIObject("Background", canvasGo.transform);
         var bgImage = bgGo.AddComponent<Image>();
-        bgImage.color = new Color(0, 0, 0, 0.7f);
+        bgImage.color = Color.white;
         StretchFull(bgGo.GetComponent<RectTransform>());
 
-        // 중앙 패널
+        // 풀스크린 투명 컨테이너 패널 (자식은 이 패널 = 화면 기준 중앙 앵커)
         var panelGo = CreateUIObject("Panel", canvasGo.transform);
         panel = panelGo;
         var panelImage = panelGo.AddComponent<Image>();
-        panelImage.color = new Color(0.1f, 0.1f, 0.1f, 0.95f);
+        panelImage.color = new Color(0, 0, 0, 0);
         var panelRt = panelGo.GetComponent<RectTransform>();
-        panelRt.anchorMin = new Vector2(0.5f, 0.5f);
-        panelRt.anchorMax = new Vector2(0.5f, 0.5f);
-        panelRt.pivot = new Vector2(0.5f, 0.5f);
-        panelRt.sizeDelta = new Vector2(300, 240);
-        panelRt.anchoredPosition = Vector2.zero;
+        StretchFull(panelRt);
 
-        // 라벨: "이름을 입력하세요"
+        // 타이틀: "묘비에 새길 이름을…" (Figma: 검은 굵은 대제목)
         var labelGo = CreateUIObject("Label", panelGo.transform);
         var labelText = labelGo.AddComponent<TextMeshProUGUI>();
         labelText.text = LocalizationManager.L("grave.name_prompt"); // v10: 다국어
         promptLabel = labelText;
-        labelText.fontSize = 20;
-        labelText.color = Color.white;
+        labelText.fontSize = 44;
+        labelText.fontStyle = FontStyles.Bold;
+        labelText.color = Color.black;
         labelText.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) labelText.font = koreanFont;
         var labelRt = labelGo.GetComponent<RectTransform>();
-        labelRt.anchorMin = new Vector2(0f, 1f);
-        labelRt.anchorMax = new Vector2(1f, 1f);
-        labelRt.pivot = new Vector2(0.5f, 1f);
-        labelRt.anchoredPosition = new Vector2(0, -20);
-        labelRt.sizeDelta = new Vector2(-20, 36);
+        labelRt.anchorMin = new Vector2(0.5f, 0.5f);
+        labelRt.anchorMax = new Vector2(0.5f, 0.5f);
+        labelRt.pivot = new Vector2(0.5f, 0.5f);
+        labelRt.sizeDelta = new Vector2(900, 70);
+        labelRt.anchoredPosition = new Vector2(0, 120);
 
         // v10: 소요 시간 표시 (기획 5-2)
         var timeGo = CreateUIObject("TimeLabel", panelGo.transform);
         timeLabel = timeGo.AddComponent<TextMeshProUGUI>();
-        timeLabel.fontSize = 15;
-        timeLabel.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+        timeLabel.fontSize = 26;
+        timeLabel.color = new Color(0.1f, 0.1f, 0.1f, 1f);
         timeLabel.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) timeLabel.font = koreanFont;
         var timeRt = timeGo.GetComponent<RectTransform>();
-        timeRt.anchorMin = new Vector2(0f, 1f);
-        timeRt.anchorMax = new Vector2(1f, 1f);
-        timeRt.pivot = new Vector2(0.5f, 1f);
-        timeRt.anchoredPosition = new Vector2(0, -58);
-        timeRt.sizeDelta = new Vector2(-20, 22);
+        timeRt.anchorMin = new Vector2(0.5f, 0.5f);
+        timeRt.anchorMax = new Vector2(0.5f, 0.5f);
+        timeRt.pivot = new Vector2(0.5f, 0.5f);
+        timeRt.anchoredPosition = new Vector2(0, 50);
+        timeRt.sizeDelta = new Vector2(600, 40);
 
-        // TMP_InputField
+        // TMP_InputField (Figma: 회색 필드)
         var fieldGo = CreateUIObject("InputField", panelGo.transform);
         var fieldBg = fieldGo.AddComponent<Image>();
-        fieldBg.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+        fieldBg.color = new Color(0.83f, 0.83f, 0.83f, 1f);
         var fieldRt = fieldGo.GetComponent<RectTransform>();
         fieldRt.anchorMin = new Vector2(0.5f, 0.5f);
         fieldRt.anchorMax = new Vector2(0.5f, 0.5f);
         fieldRt.pivot = new Vector2(0.5f, 0.5f);
-        fieldRt.sizeDelta = new Vector2(240, 40);
-        fieldRt.anchoredPosition = new Vector2(0, 30);
+        fieldRt.sizeDelta = new Vector2(520, 60);
+        fieldRt.anchoredPosition = new Vector2(0, -30);
 
         inputField = fieldGo.AddComponent<TMP_InputField>();
         inputField.characterLimit = 10;
@@ -131,22 +131,22 @@ public class NameInputUI : MonoBehaviour
         textAreaRt.anchoredPosition = Vector2.zero;
         var textAreaMask = textAreaGo.AddComponent<RectMask2D>();
 
-        // Placeholder
+        // Placeholder (Figma: 빈 회색 박스 — 안내문 없음)
         var placeholderGo = CreateUIObject("Placeholder", textAreaGo.transform);
         var placeholderText = placeholderGo.AddComponent<TextMeshProUGUI>();
-        placeholderText.text = "Player";
-        placeholderText.fontSize = 18;
+        placeholderText.text = "";
+        placeholderText.fontSize = 26;
         placeholderText.color = new Color(0.5f, 0.5f, 0.5f, 0.7f);
-        placeholderText.alignment = TextAlignmentOptions.MidlineLeft;
+        placeholderText.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) placeholderText.font = koreanFont;
         StretchFull(placeholderGo.GetComponent<RectTransform>());
 
-        // 입력 텍스트
+        // 입력 텍스트 (Figma: 검은 텍스트 중앙 정렬)
         var inputTextGo = CreateUIObject("Text", textAreaGo.transform);
         var inputText = inputTextGo.AddComponent<TextMeshProUGUI>();
-        inputText.fontSize = 18;
-        inputText.color = Color.white;
-        inputText.alignment = TextAlignmentOptions.MidlineLeft;
+        inputText.fontSize = 26;
+        inputText.color = Color.black;
+        inputText.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) inputText.font = koreanFont;
         StretchFull(inputTextGo.GetComponent<RectTransform>());
 
@@ -154,72 +154,16 @@ public class NameInputUI : MonoBehaviour
         inputField.placeholder = placeholderText;
         inputField.textViewport = textAreaRt;
 
-        // Toggle: "Test Play" — InputField 아래, 버튼 위 중간 영역
-        var toggleContainerGo = CreateUIObject("ToggleContainer", panelGo.transform);
-        var toggleContainerRt = toggleContainerGo.GetComponent<RectTransform>();
-        toggleContainerRt.anchorMin = new Vector2(0.5f, 0.5f);
-        toggleContainerRt.anchorMax = new Vector2(0.5f, 0.5f);
-        toggleContainerRt.pivot = new Vector2(0.5f, 0.5f);
-        toggleContainerRt.sizeDelta = new Vector2(160, 24);
-        toggleContainerRt.anchoredPosition = new Vector2(0, -10);
-
-        var toggleGo = CreateUIObject("Toggle", toggleContainerGo.transform);
-        var toggleRt = toggleGo.GetComponent<RectTransform>();
-        toggleRt.anchorMin = Vector2.zero;
-        toggleRt.anchorMax = Vector2.one;
-        toggleRt.offsetMin = Vector2.zero;
-        toggleRt.offsetMax = Vector2.zero;
-        testPlayToggle = toggleGo.AddComponent<Toggle>();
-        testPlayToggle.isOn = false;
-
-        // Background (체크박스 배경)
-        var bgCheckGo = CreateUIObject("Background", toggleGo.transform);
-        var bgCheckRt = bgCheckGo.GetComponent<RectTransform>();
-        bgCheckRt.anchorMin = new Vector2(0f, 0.5f);
-        bgCheckRt.anchorMax = new Vector2(0f, 0.5f);
-        bgCheckRt.pivot = new Vector2(0f, 0.5f);
-        bgCheckRt.sizeDelta = new Vector2(20, 20);
-        bgCheckRt.anchoredPosition = Vector2.zero;
-        var bgCheckImg = bgCheckGo.AddComponent<Image>();
-        bgCheckImg.color = new Color(0.3f, 0.3f, 0.3f, 1f);
-
-        // Checkmark
-        var checkmarkGo = CreateUIObject("Checkmark", bgCheckGo.transform);
-        var checkmarkRt = checkmarkGo.GetComponent<RectTransform>();
-        checkmarkRt.anchorMin = new Vector2(0.1f, 0.1f);
-        checkmarkRt.anchorMax = new Vector2(0.9f, 0.9f);
-        checkmarkRt.offsetMin = Vector2.zero;
-        checkmarkRt.offsetMax = Vector2.zero;
-        var checkmarkImg = checkmarkGo.AddComponent<Image>();
-        checkmarkImg.color = Color.white;
-
-        // Label "Test Play"
-        var toggleLabelGo = CreateUIObject("Label", toggleGo.transform);
-        var toggleLabelRt = toggleLabelGo.GetComponent<RectTransform>();
-        toggleLabelRt.anchorMin = new Vector2(0f, 0f);
-        toggleLabelRt.anchorMax = new Vector2(1f, 1f);
-        toggleLabelRt.offsetMin = new Vector2(26, 0);
-        toggleLabelRt.offsetMax = Vector2.zero;
-        var toggleLabelTmp = toggleLabelGo.AddComponent<TextMeshProUGUI>();
-        toggleLabelTmp.text = "Test Play";
-        toggleLabelTmp.fontSize = 14;
-        toggleLabelTmp.color = new Color(0.7f, 0.7f, 0.7f, 1f);
-        toggleLabelTmp.alignment = TextAlignmentOptions.MidlineLeft;
-        if (koreanFont != null) toggleLabelTmp.font = koreanFont;
-
-        testPlayToggle.targetGraphic = bgCheckImg;
-        testPlayToggle.graphic = checkmarkImg;
-
-        // 버튼: "시작"
+        // 버튼: "이 이름으로 저장" (Figma: 검은 버튼 + 흰 굵은 글씨)
         var btnGo = CreateUIObject("StartButton", panelGo.transform);
         var btnImage = btnGo.AddComponent<Image>();
-        btnImage.color = new Color(0.2f, 0.6f, 1f, 1f);
+        btnImage.color = Color.black;
         var btnRt = btnGo.GetComponent<RectTransform>();
-        btnRt.anchorMin = new Vector2(0.5f, 0f);
-        btnRt.anchorMax = new Vector2(0.5f, 0f);
-        btnRt.pivot = new Vector2(0.5f, 0f);
-        btnRt.sizeDelta = new Vector2(120, 40);
-        btnRt.anchoredPosition = new Vector2(0, 20);
+        btnRt.anchorMin = new Vector2(0.5f, 0.5f);
+        btnRt.anchorMax = new Vector2(0.5f, 0.5f);
+        btnRt.pivot = new Vector2(0.5f, 0.5f);
+        btnRt.sizeDelta = new Vector2(260, 66);
+        btnRt.anchoredPosition = new Vector2(0, -130);
 
         var btn = btnGo.AddComponent<Button>();
         btn.targetGraphic = btnImage;
@@ -227,9 +171,10 @@ public class NameInputUI : MonoBehaviour
 
         var btnTextGo = CreateUIObject("Text", btnGo.transform);
         var btnText = btnTextGo.AddComponent<TextMeshProUGUI>();
-        btnText.text = LocalizationManager.L("grave.name_start"); // v10: 다국어
+        btnText.text = LocalizationManager.L("grave.save"); // Figma: 이 이름으로 저장
         confirmBtnLabel = btnText;
-        btnText.fontSize = 18;
+        btnText.fontSize = 26;
+        btnText.fontStyle = FontStyles.Bold;
         btnText.color = Color.white;
         btnText.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) btnText.font = koreanFont;
@@ -255,10 +200,9 @@ public class NameInputUI : MonoBehaviour
         this.onNameConfirmed = onNameConfirmed;
         // v10 다국어: 표시 시점에 현재 언어로 갱신
         if (promptLabel != null) promptLabel.text = LocalizationManager.L("grave.name_prompt");
-        if (confirmBtnLabel != null) confirmBtnLabel.text = LocalizationManager.L("grave.name_start");
+        if (confirmBtnLabel != null) confirmBtnLabel.text = LocalizationManager.L("grave.save");
         if (timeLabel != null) timeLabel.text = LocalizationManager.LF("grave.elapsed", FormatTime(clearTime));
         inputField.text = "";
-        testPlayToggle.isOn = false;
         canvas.gameObject.SetActive(true);
         IsOpen = true;
         Time.timeScale = 0f;
@@ -280,7 +224,7 @@ public class NameInputUI : MonoBehaviour
         if (string.IsNullOrEmpty(name))
             name = "Player";
 
-        bool isTestPlay = testPlayToggle != null && testPlayToggle.isOn;
+        bool isTestPlay = GameSession.Instance != null && GameSession.Instance.IsTestPlay;
 
         canvas.gameObject.SetActive(false);
         IsOpen = false;

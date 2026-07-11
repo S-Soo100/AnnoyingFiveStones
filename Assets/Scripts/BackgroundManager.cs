@@ -40,7 +40,7 @@ public class BackgroundManager : MonoBehaviour
 
     // v8-2c: 라이브 튜닝 (Play 중 Inspector로 quad offset/scale 미세조정). 만족 시 값을 StageConfig에 옮긴다.
     [Header("Live Tuning — Play 중 Inspector로 조정")]
-    [SerializeField] private bool liveTuningEnabled = false;
+    [SerializeField] private bool liveTuningEnabled = false; // v12 침대 라이브튜닝 세션 완료 → 복귀
     [SerializeField] private Vector2 liveOffset = Vector2.zero;
     [SerializeField] private Vector2 liveScale  = Vector2.one;
 

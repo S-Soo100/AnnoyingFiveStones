@@ -277,14 +277,16 @@ public class StageConfig
             SkyBottom=new Color(0.25f,0.1f,0.25f), SkyTop=new Color(0.05f,0.05f,0.1f),
             TableColor=new Color(0.2f,0.15f,0.1f), ClothColor=new Color(0.25f,0.15f,0.3f),
             BackgroundImage = "StageBackgrounds/Life/age50", // v11 나이대별 배경 (⚠️ WIP: 무채색 침실 렌더)
+            BgImageScale  = new Vector2(1.3f, 1.3f),   // v12 병상 확대 (라이브튜닝 확정 — 좌우 정렬; 세로는 배경 아트 수정 대기)
+            BgImageOffset = new Vector2(-0.8f, -1.0f),  // 라이브튜닝 확정값
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
-            MatCenter   = new Vector2(-0.13f, -3.08f),
-            MatSize     = new Vector2(19.83f, 10.05f),
+            MatCenter   = new Vector2(0.10f, -2.06f), // v12 침대 정렬 3차 (라벨 측정 기반, 매트리스 4모서리 직접 맞춤)
+            MatSize     = new Vector2(14.76f, 13.39f),
             BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+                new Vector2(-3.65f, -2.95f),  // BL 뒤-좌 (매트리스 뒤)
+                new Vector2( 3.85f, -2.95f),  // BR 뒤-우
+                new Vector2(-5.30f, -7.35f),  // FL 앞-좌 (매트리스 앞/발치)
+                new Vector2( 5.50f, -7.35f),  // FR 앞-우
             },
             Props=new BackgroundProp[]
             {
@@ -301,14 +303,16 @@ public class StageConfig
             SkyBottom=new Color(0.7f,0.7f,0.7f), SkyTop=new Color(0.4f,0.4f,0.4f),
             TableColor=new Color(0.35f,0.35f,0.35f), ClothColor=new Color(0.65f,0.65f,0.65f),
             BackgroundImage = "StageBackgrounds/Life/age55", // v11 나이대별 배경 (⚠️ WIP: age50과 동일 침실 렌더)
+            BgImageScale  = new Vector2(1.3f, 1.3f),   // v12 병상 확대 (라이브튜닝 확정 — 좌우 정렬; 세로는 배경 아트 수정 대기)
+            BgImageOffset = new Vector2(-0.8f, -1.0f),  // 라이브튜닝 확정값
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
-            MatCenter   = new Vector2(-0.13f, -3.08f),
-            MatSize     = new Vector2(19.83f, 10.05f),
+            MatCenter   = new Vector2(0.10f, -2.06f), // v12 침대 정렬 3차 (라벨 측정 기반, 매트리스 4모서리 직접 맞춤)
+            MatSize     = new Vector2(14.76f, 13.39f),
             BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
+                new Vector2(-3.65f, -2.95f),  // BL 뒤-좌 (매트리스 뒤)
+                new Vector2( 3.85f, -2.95f),  // BR 뒤-우
+                new Vector2(-5.30f, -7.35f),  // FL 앞-좌 (매트리스 앞/발치)
+                new Vector2( 5.50f, -7.35f),  // FR 앞-우
             },
             Props=new BackgroundProp[]
             {
