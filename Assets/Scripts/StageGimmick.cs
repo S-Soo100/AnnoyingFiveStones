@@ -20,6 +20,9 @@ public abstract class StageGimmick
     /// <summary>줍기 허용 여부. true=허용, false=실패.</summary>
     public virtual bool ValidatePick(Stone stone) => true;
 
+    /// <summary>던지는 돌 집기 허용 여부 (기믹이 던지는 돌을 지정할 때). true=허용, false=즉시 실패.</summary>
+    public virtual bool ValidateThrowPick(Stone stone) => true;
+
     /// <summary>
     /// 받기 성공 후 클리어 판정. 기본 = remainingOnBoard == 0.
     /// 기믹이 오버라이드하면 기존 판정 대신 기믹 판정을 사용.
