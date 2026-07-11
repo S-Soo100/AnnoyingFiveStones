@@ -23,6 +23,9 @@ public abstract class StageGimmick
     /// <summary>던지는 돌 집기 허용 여부 (기믹이 던지는 돌을 지정할 때). true=허용, false=즉시 실패.</summary>
     public virtual bool ValidateThrowPick(Stone stone) => true;
 
+    /// <summary>true면 이 기믹이 가이드 텍스트를 직접 제어한다 → PushGuideText(페이즈 자동 가이드)가 덮어쓰지 않는다.</summary>
+    public virtual bool OverridesGuideText => false;
+
     /// <summary>
     /// 받기 성공 후 클리어 판정. 기본 = remainingOnBoard == 0.
     /// 기믹이 오버라이드하면 기존 판정 대신 기믹 판정을 사용.

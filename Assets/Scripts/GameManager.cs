@@ -588,6 +588,9 @@ public class GameManager : MonoBehaviour
     {
         if (GameUI.Instance == null) return;
 
+        // v12b: 기믹이 가이드를 직접 제어하면(Sequence 순서대로 잡기) 페이즈 자동 가이드로 덮지 않는다.
+        if (currentGimmick != null && currentGimmick.OverridesGuideText) return;
+
         // v10 다국어: 조작 가이드 자막 → 로컬라이제이션 키 (push 시점 현재 언어로 조회)
         string guide = phase switch
         {
@@ -637,6 +640,12 @@ public class GameManager : MonoBehaviour
         SidePanelUI.Instance?.Refresh();
 
         ResetAllStones();
+
+        // v12b: 실패도 스테이지 종료 — 기믹 UI/오브젝트(공기구성 헤더·번호 라벨 등)를 즉시 정리한다.
+        // (기존엔 StartStage(1)까지 지연돼 실패/회귀 연출 동안 잔존.) null 대입으로 StartStage 이중 OnStageEnd 방지.
+        currentGimmick?.OnStageEnd();
+        currentGimmick = null;
+
         transitionCoroutine = StartCoroutine(DoFailTransition());
     }
 

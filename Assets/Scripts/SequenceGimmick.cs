@@ -72,6 +72,10 @@ public class SequenceGimmick : StageGimmick
         return stone != null && stone.StoneIndex == throwStoneIndex;
     }
 
+    // v12b: 순서대로 잡기 가이드("검은 돌 던지세요"/"1→2→3→4")를 기믹이 직접 제어.
+    // Age 25는 PushGuideText가 기본 가이드를 숨기므로, 이 플래그로 덮어쓰기를 막아 안내가 표시되게 한다.
+    public override bool OverridesGuideText => true;
+
     public override void OnThrowStart(Stone thrownStone)
     {
         // v12b: 색 배정은 OnScatterComplete로 이동. 던진 뒤 순서 안내만 갱신.
@@ -123,6 +127,7 @@ public class SequenceGimmick : StageGimmick
         throwStoneIndex = -1;
 
         GameUI.Instance?.HideComposition(); // v12: 상단 "공기 구성" 헤더 숨김
+        GameUI.Instance?.HideGuideText();   // v12b: OverridesGuideText로 PushGuideText가 안 숨기므로, 종료(특히 실패) 시 직접 정리
 
         Debug.Log("[SequenceGimmick] Stage ended: cleanup complete.");
     }
