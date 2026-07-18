@@ -43,6 +43,7 @@ public class ScatterSystem : MonoBehaviour
 
     private bool gaugeGoingUp = true;
     private InputAction pressAction;
+    private HandController handController;
 
     public float CurrentGaugeValue => currentGaugeValue;
     public bool IsGaugeActive => isGaugeActive;
@@ -61,6 +62,8 @@ public class ScatterSystem : MonoBehaviour
         pressAction = new InputAction("Press", InputActionType.Button);
         pressAction.AddBinding("<Mouse>/leftButton");
         pressAction.AddBinding("<Touchscreen>/primaryTouch/press");
+
+        handController = FindFirstObjectByType<HandController>();
     }
 
     private void OnEnable()
@@ -100,13 +103,28 @@ public class ScatterSystem : MonoBehaviour
 
     public void BeginScatter()
     {
-        // 돌들을 보드 중앙에 모아놓기 (손에서 던지는 출발점)
-        float boardCenterY = BoardBounds.MatRect.center.y;
+        // 돌들을 손바닥 위에 소복이 쥐게 (손에서 던지는 출발점)
         var stones = GameManager.Instance.Stones;
+        int idx = 0;
         foreach (var stone in stones)
         {
             stone.SetState(Stone.State.InHand);
-            stone.transform.position = new Vector3(0f, boardCenterY, 0f);
+            if (handController != null)
+            {
+                // 손 자식으로 붙여 손바닥 위 클러스터로 배치 (localPosition = 손 로컬)
+                //   Z=-0.15: 팜 앞(카메라 쪽) → 손 위에 얹혀 보임. Y≈0.05: 손바닥 바로 위.
+                //   X 지터로 5개가 서로 겹치지 않게 소폭 분산.
+                stone.transform.SetParent(handController.transform);
+                float jitterX = Mathf.Lerp(-0.25f, 0.25f, stones.Length > 1 ? (float)idx / (stones.Length - 1) : 0.5f);
+                float jitterY = 0.05f + (idx % 2) * 0.04f;
+                stone.transform.localPosition = new Vector3(jitterX, jitterY, -0.15f);
+            }
+            else
+            {
+                // 안전망: 손이 없으면 기존처럼 보드 중앙
+                stone.transform.position = new Vector3(0f, BoardBounds.MatRect.center.y, 0f);
+            }
+            idx++;
         }
 
         waitingForPress = true;
@@ -151,6 +169,7 @@ public class ScatterSystem : MonoBehaviour
         TestLogger.Instance?.LogScatter(gauge, currentGaugeValue);
         Debug.Log($"[ScatterSystem] Scatter gauge: {gauge:F2}");
 
+        handController?.PlayScatterFlick();
         StartCoroutine(DoScatter(gauge));
     }
 
@@ -239,6 +258,7 @@ public class ScatterSystem : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             stones[i].SetState(Stone.State.InHand); // kinematic, 콜라이더 off
+            stones[i].transform.SetParent(null); // 손에서 분리 (world 위치 유지 → 손 위치가 출발점)
             var col = stones[i].GetComponent<SphereCollider>();
             if (col != null) col.radius = 0.9f;
             spin[i] = Random.Range(180f, 540f) * (Random.value < 0.5f ? -1f : 1f);

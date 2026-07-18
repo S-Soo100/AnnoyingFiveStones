@@ -52,6 +52,7 @@ public class HandController : MonoBehaviour
     private bool stage5CatchActive;                            // 슬라이드 인 완료 후 true — LateUpdate Y 고정 + X 추종 트리거
     private Coroutine stage5Coroutine;
     private Coroutine throwCoroutine;
+    private Coroutine flickCoroutine;
 
     [Header("Stage 5 Height Settings")]
     [SerializeField] private float stage5HeightStep = 0.4f;   // 돌 간 높이 간격 (부드럽게 모임)
@@ -1395,6 +1396,40 @@ public class HandController : MonoBehaviour
     }
 
     /// <summary>손가락 접힘/펼침 애니메이션</summary>
+    /// <summary>
+    /// 뿌리기 던지는 순간 손목 flick 연출 (시각 전용).
+    /// UpdatePosition이 position만 덮으므로 rotation은 유지됨 → 손 루트 rotation만 사용.
+    /// 손목을 z축으로 살짝 꺾었다가 identity로 EaseOut 복귀. 완료 시 반드시 identity 복원.
+    /// </summary>
+    public void PlayScatterFlick()
+    {
+        if (flickCoroutine != null) StopCoroutine(flickCoroutine);
+        flickCoroutine = StartCoroutine(DoScatterFlick());
+    }
+
+    private IEnumerator DoScatterFlick()
+    {
+        // 손가락 살짝 펴는 fling 느낌 (선택적, 과하지 않게)
+        AnimateFingerFold(false);
+
+        Quaternion startRot = Quaternion.Euler(0f, 0f, 18f); // 손목 z축 꺾기
+        float duration = 0.2f;
+        float elapsed = 0f;
+        transform.rotation = startRot;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            float eased = 1f - (1f - t) * (1f - t); // EaseOut
+            transform.rotation = Quaternion.Slerp(startRot, Quaternion.identity, eased);
+            yield return null;
+        }
+
+        transform.rotation = Quaternion.identity;
+        flickCoroutine = null;
+    }
+
     private void AnimateFingerFold(bool fold)
     {
         if (fingerFoldCoroutine != null)
@@ -1504,6 +1539,13 @@ public class HandController : MonoBehaviour
             StopCoroutine(fingerFoldCoroutine);
             fingerFoldCoroutine = null;
         }
+        // 뿌리기 flick 코루틴 정리 + 손 기울기 복원 (기운 채 남지 않도록)
+        if (flickCoroutine != null)
+        {
+            StopCoroutine(flickCoroutine);
+            flickCoroutine = null;
+        }
+        transform.rotation = Quaternion.identity;
         // 손가락 펼침 상태로 즉시 복원
         if (handModel != null && handModel.Fingers != null)
         {
