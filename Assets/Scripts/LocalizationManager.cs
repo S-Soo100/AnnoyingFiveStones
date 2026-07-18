@@ -82,14 +82,13 @@ public static class LocalizationManager
         ["settings.bgm"]       = ("배경음", "BGM"),
         ["settings.sfx"]       = ("효과음", "Sound Effect"),
         ["settings.language"]  = ("언어", "Language"),
-        ["settings.volume"]    = ("음량 {0}%", "Volume {0}%"),
         ["settings.close"]     = ("닫기", "Close"),
 
         // === 일시정지 ===
         ["pause.title"]   = ("일시정지", "Pause"),
         ["pause.resume"]  = ("게임 재개", "Resume"),
         ["pause.quit"]    = ("게임 종료", "Quit Game"),
-        ["pause.music"]   = ("음악 {0}%", "Music {0}%"),
+        ["pause.music"]   = ("BGM {0}%", "BGM {0}%"),
         ["pause.sfx"]     = ("효과음 {0}%", "Sound Effect {0}%"), // v11 일시정지 SFX 슬라이더
 
         // === 게임 종료 확인 모달 (260703) ===
@@ -145,12 +144,12 @@ public static class LocalizationManager
         ["guide.s5_catch_default"] = ("[ 돌을 받으세요! ]", "[ Catch the stones! ]"),
 
         // === 튜토리얼 (10살) — 영어 확정 (2026-07-06 사용자 승인) ===
-        ["tutorial.slide1"] = ("꾹 눌러서 게이지를 조절하세요.\n놓으면 돌이 퍼집니다.",
-                               "Press and hold to set the gauge.\nRelease to scatter the stones."),
-        ["tutorial.slide2"] = ("돌 위로 커서를 이동하면\n자동으로 줍습니다.",
-                               "Move the cursor over a stone\nto pick it up automatically."),
-        ["tutorial.slide3"] = ("하늘에서 떨어지는 돌을\n손바닥으로 받으세요!",
-                               "Catch the falling stones\nwith your palm!"),
+        ["tutorial.slide1"] = ("꾹 눌러서 힘을 조절하고,\n놓으면 돌이 뿌려집니다.",
+                               "Press and hold to set your power,\nrelease to scatter the stones."),
+        ["tutorial.slide2"] = ("돌 위로 커서를 옮기면\n돌을 잡습니다.",
+                               "Move the cursor over a stone\nto pick it up."),
+        ["tutorial.slide3"] = ("잡은 돌을 클릭해 위로 던지고,\n떨어질 때 다시 받으세요!",
+                               "Click to toss the stone up,\nthen catch it as it falls!"),
 
         // === 공통 === (260703 스펙: 클릭 기반 게임 → "클릭하여 계속")
         ["common.click_continue"] = ("클릭하여 계속", "Click to continue"),

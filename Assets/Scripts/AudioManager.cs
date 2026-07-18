@@ -11,14 +11,11 @@ public class AudioManager : MonoBehaviour
     public static AudioManager Instance { get; private set; }
 
     [Header("Volume")]
-    [SerializeField] private float sfxVolume = 0.7f;
+    [SerializeField] private float sfxVolume = 0.5f;
     [SerializeField] private float jingleVolume = 0.5f;
 
-    private const string MasterVolumePrefKey = "MasterVolume";
-    private const float DefaultMasterVolume = 0.5f;
-
     private const string SFXVolumePrefKey = "sfx_volume";
-    private const float DefaultSFXVolume = 0.7f; // sfxVolume 인스턴스 초기값과 일치
+    private const float DefaultSFXVolume = 0.5f; // sfxVolume 인스턴스 초기값과 일치
 
     private AudioSource sfxSource;       // 짧은 효과음용
     private AudioSource jingleSource;    // 징글용 (겹치지 않게)
@@ -34,7 +31,7 @@ public class AudioManager : MonoBehaviour
     // ──────────────────────────────────────────────────────────────────
 
     private const string BGMVolumePrefKey = "BGMVolume";
-    private const float DefaultBGMVolume = 0.30f;
+    private const float DefaultBGMVolume = 0.5f;
 
     [Header("BGM Fade Settings")]
     [SerializeField] private float bgmFadeInDuration    = 1.5f;
@@ -71,6 +68,18 @@ public class AudioManager : MonoBehaviour
         }
         Instance = this;
 
+        // v13: 오디오 설정 일회성 마이그레이션 — 저장된 BGM/SFX=0 무음 복구 + 마스터 개념 제거 + 새 튜토리얼 1회 재노출
+        if (PlayerPrefs.GetInt("SettingsMigrationV13", 0) == 0)
+        {
+            // 무음(0) 또는 미저장(-1)일 때만 0.5로 복구 — 사용자가 설정한 커스텀 볼륨(예: 0.3)은 보존.
+            if (PlayerPrefs.GetFloat("BGMVolume", -1f) <= 0f) PlayerPrefs.SetFloat("BGMVolume", 0.5f);
+            if (PlayerPrefs.GetFloat("sfx_volume", -1f) <= 0f) PlayerPrefs.SetFloat("sfx_volume", 0.5f);
+            PlayerPrefs.DeleteKey("MasterVolume");
+            PlayerPrefs.DeleteKey("TutorialSeen");
+            PlayerPrefs.SetInt("SettingsMigrationV13", 1);
+            PlayerPrefs.Save();
+        }
+
         sfxSource    = CreateChildSource("SFX_Source",    loop: false);
         jingleSource = CreateChildSource("Jingle_Source", loop: false);
         bgmSourceA   = CreateChildSource("BGM_A_Source",  loop: true);
@@ -79,7 +88,8 @@ public class AudioManager : MonoBehaviour
         bgmVolume = GetBGMVolume();
         sfxVolume = GetSFXVolume();
 
-        ApplyVolume(GetMasterVolume());
+        // v13: 마스터 슬라이더 제거 → AudioListener.volume을 1로 고정. 이후 BGM/SFX가 유일한 볼륨 제어.
+        AudioListener.volume = 1f;
     }
 
     private IEnumerator Start()
@@ -102,34 +112,15 @@ public class AudioManager : MonoBehaviour
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Master Volume API (기존 — 변경 없음)
+    // AudioListener 볼륨: v13에서 마스터 슬라이더 제거 → Awake에서 AudioListener.volume=1f로 고정.
+    // 이후 볼륨 제어는 BGM/SFX API가 전담 (별도 마스터 적용 메서드 없음).
     // ──────────────────────────────────────────────────────────────────
-
-    public static float GetMasterVolume()
-    {
-        return Mathf.Clamp01(PlayerPrefs.GetFloat(MasterVolumePrefKey, DefaultMasterVolume));
-    }
-
-    /// <summary>AudioListener.volume만 즉시 적용 (저장 X). 드래그 중 고빈도 호출용.</summary>
-    public static void ApplyVolume(float v)
-    {
-        AudioListener.volume = Mathf.Clamp01(v);
-    }
-
-    /// <summary>볼륨 적용 + PlayerPrefs 저장. 포인터 뗄 때 / 복귀 완료 시점에서 호출.</summary>
-    public static void SetMasterVolume(float v)
-    {
-        v = Mathf.Clamp01(v);
-        ApplyVolume(v);
-        PlayerPrefs.SetFloat(MasterVolumePrefKey, v);
-        PlayerPrefs.Save();
-    }
 
     // ──────────────────────────────────────────────────────────────────
     // BGM Volume API (신규)
     // ──────────────────────────────────────────────────────────────────
 
-    /// <summary>PlayerPrefs에서 BGM 볼륨 읽기. 기본 0.30.</summary>
+    /// <summary>PlayerPrefs에서 BGM 볼륨 읽기. 기본 0.50.</summary>
     public static float GetBGMVolume()
     {
         return Mathf.Clamp01(PlayerPrefs.GetFloat(BGMVolumePrefKey, DefaultBGMVolume));
@@ -159,7 +150,7 @@ public class AudioManager : MonoBehaviour
     // SFX Volume API (신규 — BGM API 미러링. PlaySFX가 sfxVolume을 재생 시점에 직접 곱하므로 output 갱신 불필요)
     // ──────────────────────────────────────────────────────────────────
 
-    /// <summary>PlayerPrefs에서 SFX 볼륨 읽기. 기본 0.7.</summary>
+    /// <summary>PlayerPrefs에서 SFX 볼륨 읽기. 기본 0.50.</summary>
     public static float GetSFXVolume()
     {
         return Mathf.Clamp01(PlayerPrefs.GetFloat(SFXVolumePrefKey, DefaultSFXVolume));

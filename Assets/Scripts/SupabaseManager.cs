@@ -29,6 +29,14 @@ public class SupabaseManager : MonoBehaviour
         baseEndpoint = supabaseUrl + "/rest/v1/five_stones_records";
     }
 
+    private void Start()
+    {
+        // 앱 시작(Play)마다 1회 keep-alive. 에디터·빌드 공통, 게이팅 없음.
+        // 중복 인스턴스는 Awake에서 Destroy되지만 같은 프레임엔 Start가 돌 수 있어 가드.
+        if (Instance != this) return;
+        Ping();
+    }
+
     private void OnDestroy()
     {
         if (Instance == this) Instance = null;
@@ -71,6 +79,12 @@ public class SupabaseManager : MonoBehaviour
     public void GetAllRecords(Action<List<RecordEntry>> onComplete)
     {
         StartCoroutine(CoGetAllRecords(onComplete));
+    }
+
+    /// <summary>keep-alive 핑 — Supabase 무료 티어 비활성 pause 방지. fire-and-forget, 결과 무시(로그만).</summary>
+    public void Ping()
+    {
+        StartCoroutine(CoPing());
     }
 
     // ------------------------------------------------------------------
@@ -213,6 +227,19 @@ public class SupabaseManager : MonoBehaviour
         string contentRange = req.GetResponseHeader("content-range");
         int rank = ParseRankFromContentRange(contentRange);
         onComplete?.Invoke(rank);
+    }
+
+    private IEnumerator CoPing()
+    {
+        string url = $"{baseEndpoint}?select=id&limit=1";
+        using var req = UnityWebRequest.Get(url);
+        req.timeout = 10;
+        SetCommonHeaders(req);
+        yield return req.SendWebRequest();
+        if (req.result == UnityWebRequest.Result.Success)
+            Debug.Log("[SupabaseManager] keep-alive ping ok");
+        else
+            Debug.LogWarning($"[SupabaseManager] keep-alive ping failed: {req.error}");
     }
 
     // ------------------------------------------------------------------

@@ -612,25 +612,26 @@ public class GameUI : MonoBehaviour
 
     private IEnumerator DoStageIntro(int stage)
     {
-        bool isStage5 = stage == 5;
-        string mainText = LocalizationManager.L("stage.ready");
-        Color mainColor = isStage5
-            ? new Color(1f, 0.84f, 0f, 1f)
-            : Color.white;
+        // v13: "준비하세요" 완전 제거 (v11 결정 완결). 일반 스테이지는 아무것도 표시하지 않음.
+        if (stage != 5)
+        {
+            overlayGroup.alpha = 0f;
+            overlayCoroutine = null;
+            yield break;
+        }
 
-        // v11: 스테이지명(기믹명) 스플래시 제거 (사용자 결정 "완전 제거"). Stage 5는 '꺾기' 단 안내만 유지.
-        string subText = isStage5 ? LocalizationManager.L("stage.fold") : "";
-
-        overlayMainText.text = mainText;
+        // Stage 5: '꺾기' 단 안내만 유지.
+        Color mainColor = new Color(1f, 0.84f, 0f, 1f);
+        overlayMainText.text = LocalizationManager.L("stage.fold");
         overlayMainText.color = mainColor;
         overlayMainText.fontSize = 80;
-        overlaySubText.text = subText;
+        overlaySubText.text = "";
         overlaySubText.color = new Color(1f, 1f, 1f, 0.8f);
-        overlayBg.color = isStage5 ? new Color(0, 0, 0, 0.4f) : new Color(0, 0, 0, 0);
+        overlayBg.color = new Color(0, 0, 0, 0.4f);
         overlayGroup.alpha = 1f;
 
-        float holdTime = isStage5 ? 0.5f : 0.3f;
-        float fadeTime = isStage5 ? 1.5f : 0.9f;
+        float holdTime = 0.5f;
+        float fadeTime = 1.5f;
 
         // 홀드
         yield return new WaitForSeconds(holdTime);
@@ -643,8 +644,7 @@ public class GameUI : MonoBehaviour
             float alpha = 1f - (elapsed / fadeTime);
             overlayMainText.color = new Color(mainColor.r, mainColor.g, mainColor.b, alpha);
             overlaySubText.color = new Color(1f, 1f, 1f, alpha * 0.8f);
-            if (isStage5)
-                overlayBg.color = new Color(0, 0, 0, 0.4f * alpha);
+            overlayBg.color = new Color(0, 0, 0, 0.4f * alpha);
             yield return null;
         }
 
