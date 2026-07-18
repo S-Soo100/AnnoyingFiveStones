@@ -10,6 +10,10 @@ public class TrapezoidQuad : MonoBehaviour
     [SerializeField, Range(0f, 0.5f)]
     private float topNarrow = 0.38f; // 윗변 좁힘 비율 (38% = v8-2d, 이미지 모드 매트 perspective와 톤 맞춤)
 
+    /// <summary>윗변(뒤) 좁힘 비율. 윗변 너비 = 아랫변 너비 × (1 - TopNarrow).
+    /// ScatterSystem이 보이는 사다리꼴 꼭짓점을 계산할 때 사용.</summary>
+    public float TopNarrow => topNarrow;
+
     private void Start()
     {
         var meshFilter = GetComponent<MeshFilter>();

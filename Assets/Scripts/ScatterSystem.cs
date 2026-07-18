@@ -4,22 +4,26 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// 뿌리기 시스템: 게이지 왕복 → 놓는 순간의 높이로 산개 세기 결정.
-/// 돌을 보드 중앙 위에서 살짝 띄운 뒤 수평으로 흩뿌린다.
+/// 뿌리기 시스템 (v14 코루틴 토스 재설계).
+/// 게이지 왕복 → 놓는 순간의 세기로 산개 폭 결정.
+/// ★핵심: 물리 임펄스가 아니라 "코루틴 애니메이션 토스"로 돌을 보드 좌표(원근) 목표까지 던진다.
+///   - 화면 평면 물리(위/아래로 날아감) 문제 원천 제거 → CLAUDE.md "연출은 코루틴" 규칙 준수.
+///   - 목표는 BoardBounds.QuadPoint(u,v)로 계산 → 사다리꼴 원근을 정확히 따름.
+///   - 파워가 크면 일부 목표 uv가 [0,1] 밖 → QuadPoint 외삽으로 보드 밖 → 그 돌만 가장자리 너머로 낙.
 /// </summary>
 public class ScatterSystem : MonoBehaviour
 {
     [Header("Gauge Settings")]
     [SerializeField] private float gaugeSpeed = 2f;
-    [SerializeField] private float minScatterForce = 1.0f;
-    [SerializeField] private float maxScatterForce = 3.0f;
+    [SerializeField] private float minScatterForce = 1.0f; // (v14 미사용 — 씬 직렬화 잔존, 무해)
+    [SerializeField] private float maxScatterForce = 3.0f; // (v14 미사용)
 
     [Header("Scatter Settings")]
-    [SerializeField] private float baseSpreadRadius = 0.9f;  // 게이지 0%에서도 최소 퍼짐 반지름
-    [SerializeField] private float minStoneSeparation = 0.8f; // 돌 사이 최소 간격 (units)
-    [SerializeField] private float dropHeight = 1.5f;        // 보드 중앙 위로 이 높이에서 떨어뜨림
-    [SerializeField] private float settleSpeedThreshold = 0.1f; // 이 속도 이하면 안착 간주
-    [SerializeField] private float settleTimeout = 4f;       // 최대 안착 대기 시간
+    [SerializeField] private float baseSpreadRadius = 0.9f;   // (v14 미사용)
+    [SerializeField] private float minStoneSeparation = 0.8f; // (v14 미사용)
+    [SerializeField] private float dropHeight = 1.5f;         // (v14 미사용)
+    [SerializeField] private float settleSpeedThreshold = 0.1f; // (v14 미사용)
+    [SerializeField] private float settleTimeout = 4f;       // (v14 미사용)
 
     [Header("Board (auto-resolved)")]
     [SerializeField] private Vector2 boardSize = new Vector2(9.6f, 6.1f);
@@ -27,6 +31,15 @@ public class ScatterSystem : MonoBehaviour
     [Header("State")]
     [SerializeField] private float currentGaugeValue;
     [SerializeField] private bool isGaugeActive;
+
+    // ── v14 토스 튜닝 상수 (씬 오버라이드 함정 회피 위해 코드 상수) ──
+    private const float RMinUV       = 0.14f; // 게이지 0: 손 근처 뭉침(uv 중심±0.14)
+    private const float RMaxUV       = 0.60f; // 게이지 1: uv 중심±0.60 → 일부 [0,1] 밖 = 낙
+    private const float TossDuration = 0.42f; // 돌 하나 비행 시간(초)
+    private const float TossStagger  = 0.035f; // 돌 간 출발 지연(캐스케이드 느낌)
+    private const float LiftHeight   = 0.55f; // 비행 중 아치 최고 높이(화면 Y)
+    private const float TargetSep    = 0.7f;  // 안착 목표 최소 간격(world)
+    private const float NakMargin    = 0.25f; // 이만큼 사다리꼴 밖으로 나가야 낙(경계 애매낙 방지)
 
     private bool gaugeGoingUp = true;
     private InputAction pressAction;
@@ -48,7 +61,6 @@ public class ScatterSystem : MonoBehaviour
         pressAction = new InputAction("Press", InputActionType.Button);
         pressAction.AddBinding("<Mouse>/leftButton");
         pressAction.AddBinding("<Touchscreen>/primaryTouch/press");
-
     }
 
     private void OnEnable()
@@ -88,7 +100,7 @@ public class ScatterSystem : MonoBehaviour
 
     public void BeginScatter()
     {
-        // 돌들을 보드 중앙에 모아놓기
+        // 돌들을 보드 중앙에 모아놓기 (손에서 던지는 출발점)
         float boardCenterY = BoardBounds.MatRect.center.y;
         var stones = GameManager.Instance.Stones;
         foreach (var stone in stones)
@@ -97,7 +109,6 @@ public class ScatterSystem : MonoBehaviour
             stone.transform.position = new Vector3(0f, boardCenterY, 0f);
         }
 
-        // 롱프레스 대기 (아직 게이지 시작 안 함)
         waitingForPress = true;
         isGaugeActive = false;
         currentGaugeValue = 0f;
@@ -110,13 +121,12 @@ public class ScatterSystem : MonoBehaviour
     private void OnPressStarted(InputAction.CallbackContext ctx)
     {
         if (GameManager.Instance == null) return;
-        if (GameManager.Instance.IsPaused) return; // [P4]
+        if (GameManager.Instance.IsPaused) return;
         if (GameManager.Instance.IsTransitioning) return;
         if (GameManager.Instance.CurrentPhase != GameManager.GamePhase.Scatter) return;
 
         if (waitingForPress)
         {
-            // 롱프레스 시작 = 게이지 왕복 시작
             waitingForPress = false;
             isGaugeActive = true;
             currentGaugeValue = 0f;
@@ -128,7 +138,7 @@ public class ScatterSystem : MonoBehaviour
     private void OnPressReleased(InputAction.CallbackContext ctx)
     {
         if (GameManager.Instance == null) return;
-        if (GameManager.Instance.IsPaused) return; // [P4]
+        if (GameManager.Instance.IsPaused) return;
         if (GameManager.Instance.IsTransitioning) return;
         if (GameManager.Instance.CurrentPhase != GameManager.GamePhase.Scatter) return;
         if (!isGaugeActive) return;
@@ -136,74 +146,82 @@ public class ScatterSystem : MonoBehaviour
         isGaugeActive = false;
         GaugeBarUI.Instance?.Hide();
         AudioManager.Instance?.PlayGaugeConfirm();
-        // 제곱 커브: 낮은 게이지에서 미세 조절 가능, 상위에서 급격히 증가
-        float curved = currentGaugeValue * currentGaugeValue;
-        float power = Mathf.Lerp(minScatterForce, maxScatterForce, curved);
-        TestLogger.Instance?.LogScatter(power, currentGaugeValue);
-        Debug.Log($"[ScatterSystem] Scatter power: {power:F2} (gauge: {currentGaugeValue:F2})");
+        // v14: 게이지 값을 그대로 넘김. 퍼짐/낙은 DoScatter에서 코루틴 토스로 결정.
+        float gauge = currentGaugeValue;
+        TestLogger.Instance?.LogScatter(gauge, currentGaugeValue);
+        Debug.Log($"[ScatterSystem] Scatter gauge: {gauge:F2}");
 
-        StartCoroutine(DoScatter(power));
+        StartCoroutine(DoScatter(gauge));
     }
 
-    private IEnumerator DoScatter(float power)
+    /// <summary>v14: 코루틴 토스 산개. 손 중앙 → 보드 좌표 목표까지 아치 애니메이션.
+    /// 목표 uv가 [0,1] 밖인 돌은 보드 밖으로 던져져 낙.</summary>
+    private IEnumerator DoScatter(float gauge)
     {
         var stones = GameManager.Instance.Stones;
-        int stoneCount = stones.Length;
-        float boardCenterY = BoardBounds.MatRect.center.y;
+        int n = stones != null ? stones.Length : 0;
+        if (n == 0)
+        {
+            GameManager.Instance.SetPhase(GameManager.GamePhase.PickThrowStone);
+            yield break;
+        }
 
-        // v7-3: 6단 난이도 파라미터 로드
-        var stageCfg = StageConfig.Get(GameManager.Instance.CurrentStage);
-        float dropHeightAdd = stageCfg.ScatterDropHeightAdd;
-        float spreadMul = stageCfg.ScatterSpreadMultiplier;
+        float spreadT = Mathf.Clamp01(gauge);
 
-        // 돌 개수에 따라 최소 간격 + 세기 동적 조정
-        float dynamicMinSeparation = stoneCount <= 5 ? minStoneSeparation : minStoneSeparation * 0.4f;
-        // 많은 돌: 힘을 줄여 보드 밖 낙 방지 (5개=1.0, 18개=0.45, 20개=0.4)
-        float forceScale = stoneCount <= 5 ? 1f : Mathf.Lerp(0.6f, 0.35f, (stoneCount - 6f) / 14f);
-
-        // 슬롯 개수: 돌의 2배 (최소 10)
-        int slotCount = Mathf.Max(10, stoneCount * 2);
+        // ── 1) 목표 uv 계산 (셔플 슬롯으로 각도 균등 분포) ──
+        int slotCount = Mathf.Max(10, n * 2);
         int[] slots = new int[slotCount];
         for (int i = 0; i < slotCount; i++) slots[i] = i;
-        // Fisher-Yates 셔플 후 앞 stoneCount개만 사용
         for (int i = slotCount - 1; i > 0; i--)
         {
             int j = Random.Range(0, i + 1);
             (slots[i], slots[j]) = (slots[j], slots[i]);
         }
-
         float slotAngleStep = 360f / slotCount;
-        // v10: 사다리꼴 전체를 사용하는 InnerQuadPoint 방식 (구 고정 타원 교체)
-        const float scatterMargin = 0.12f;
-        Vector2 boardCenter = BoardBounds.QuadPoint(0.5f, 0.5f); // 사다리꼴 centroid (절대 월드좌표)
-        Vector2[] baseOffsets = new Vector2[stones.Length];
-        for (int i = 0; i < stones.Length; i++)
+
+        var targets = new Vector2[n];
+        var isNak = new bool[n];
+        var startPos = new Vector2[n];
+
+        // 뿌리기 보드 = 게임 BoardBounds 실제 폴리곤 (quad=사다리꼴 = 보이는 노란 테이블 / 없으면 AABB).
+        //   게임 낙 감시(IsOutsideMat)와 "동일 폴리곤" → placement·낙·play감시 3자 완전 일치.
+        //   QuadPoint로 4꼭짓점을 얻어 LerpUnclamped bilinear(TrapPoint)로 매핑 → uv>1은 보드 밖 외삽(낙 목표).
+        Vector2 cBL = BoardBounds.QuadPoint(0f, 0f);
+        Vector2 cBR = BoardBounds.QuadPoint(1f, 0f);
+        Vector2 cFL = BoardBounds.QuadPoint(0f, 1f);
+        Vector2 cFR = BoardBounds.QuadPoint(1f, 1f);
+
+        for (int i = 0; i < n; i++)
         {
-            float angle = (slotAngleStep * slots[i] + Random.Range(-10f, 10f)) * Mathf.Deg2Rad;
-            // spreadMul 클수록 사다리꼴 안쪽 더 넓게 채움 (0.45~0.92)
-            // v11: 기본 spread 하한 0.45→0.60 (넓어진 age20 등 사다리꼴을 더 채우도록). spreadMul은 단(1~5)별이라 전역 적용.
-            float spreadGain = Mathf.Lerp(0.60f, 0.92f, Mathf.Clamp01(spreadMul - 1.0f));
-            float u = 0.5f + Mathf.Cos(angle) * spreadGain * 0.5f * Random.Range(0.8f, 1.2f);
-            float v = 0.5f + Mathf.Sin(angle) * spreadGain * 0.5f * Random.Range(0.8f, 1.2f);
-            // InnerQuadPoint → 사다리꼴 내부 절대 월드좌표
-            baseOffsets[i] = BoardBounds.InnerQuadPoint(u, v, scatterMargin);
+            float angle = (slotAngleStep * slots[i] + Random.Range(-12f, 12f)) * Mathf.Deg2Rad;
+            float radius = Mathf.Lerp(RMinUV, RMaxUV, spreadT) * Random.Range(0.82f, 1.18f);
+            float u = 0.5f + Mathf.Cos(angle) * radius;
+            float v = 0.5f + Mathf.Sin(angle) * radius;
+
+            // provisional (분리 그룹핑용). 최종 낙은 아래에서 IsOutsideMat로 재판정.
+            isNak[i] = (u < 0f || u > 1f || v < 0f || v > 1f);
+            targets[i] = TrapPoint(u, v, cBL, cBR, cFL, cFR);
+
+            startPos[i] = new Vector2(stones[i].transform.position.x, stones[i].transform.position.y);
         }
 
-        // 최소 간격 보장: 너무 가까운 돌 쌍이 있으면 밀어냄
-        for (int pass = 0; pass < 10; pass++)
+        // ── 2) 안착 목표 최소 간격 보장 (낙 목표는 건드리지 않음 — 어차피 보드 밖) ──
+        for (int pass = 0; pass < 8; pass++)
         {
             bool adjusted = false;
-            for (int a = 0; a < stones.Length; a++)
+            for (int a = 0; a < n; a++)
             {
-                for (int b = a + 1; b < stones.Length; b++)
+                if (isNak[a]) continue;
+                for (int b = a + 1; b < n; b++)
                 {
-                    Vector2 diff = baseOffsets[a] - baseOffsets[b];
+                    if (isNak[b]) continue;
+                    Vector2 diff = targets[a] - targets[b];
                     float dist = diff.magnitude;
-                    if (dist < dynamicMinSeparation && dist > 0.001f)
+                    if (dist < TargetSep && dist > 0.001f)
                     {
-                        Vector2 push = diff.normalized * (dynamicMinSeparation - dist) * 0.5f;
-                        baseOffsets[a] += push;
-                        baseOffsets[b] -= push;
+                        Vector2 push = diff.normalized * (TargetSep - dist) * 0.5f;
+                        targets[a] += push;
+                        targets[b] -= push;
                         adjusted = true;
                     }
                 }
@@ -211,173 +229,82 @@ public class ScatterSystem : MonoBehaviour
             if (!adjusted) break;
         }
 
-        // v10: InnerQuadPoint이 scatterMargin으로 이미 사다리꼴 내부로 가두므로 AABB clamp 불필요.
+        // ── 2.5) 최종 낙 판정: 게임 감시와 "완전히 동일한" IsOutsideMat 사용 → scatter 낙 = play 낙 100% 일치.
+        // 분리 패스가 밀어낸 것도 반영. IsOutsideMat 자체 마진(0.2)이 경계 애매낙을 흡수.
+        for (int i = 0; i < n; i++)
+            isNak[i] = BoardBounds.IsOutsideMat(targets[i], 0.2f);
 
-        for (int i = 0; i < stones.Length; i++)
+        // ── 3) 준비: 모든 돌 InHand(kinematic) + 콜라이더 반경 + 랜덤 스핀 ──
+        var spin = new float[n];
+        for (int i = 0; i < n; i++)
         {
-            var stone = stones[i];
-
-            // v7-3: 6단(dropHeightAdd>0)은 InAir 상태로 위에서 낙하 시작. 나머지는 기존 OnBoard 즉시.
-            if (dropHeightAdd > 0f)
-            {
-                // +1.0m 위에서 InAir(중력 ON)로 시작
-                stone.SetState(Stone.State.InAir);
-                stone.transform.position = new Vector3(
-                    baseOffsets[i].x,
-                    baseOffsets[i].y + dropHeightAdd,  // v10: 절대 월드좌표
-                    0f
-                );
-            }
-            else
-            {
-                // 기존 동작: OnBoard(중력 OFF) 즉시
-                stone.SetState(Stone.State.OnBoard);
-                stone.transform.position = new Vector3(
-                    baseOffsets[i].x,
-                    baseOffsets[i].y,  // v10: 절대 월드좌표
-                    0f
-                );
-            }
-
-            // Y축만 랜덤 회전 (X/Z 틸트는 물리가 자연스럽게 처리)
-            // air_rock이 비대칭이라 Y 회전만으로도 다양한 모양
-            stone.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-
-            // SphereCollider를 air_rock mesh에 맞게 확대 (시각 mesh가 바닥 아래로 돌출 방지)
-            var col = stone.GetComponent<SphereCollider>();
+            stones[i].SetState(Stone.State.InHand); // kinematic, 콜라이더 off
+            var col = stones[i].GetComponent<SphereCollider>();
             if (col != null) col.radius = 0.9f;
-
-            stone.Rb.linearVelocity = Vector3.zero;
-            stone.Rb.angularVelocity = Vector3.zero;
-
-            // X/Y 방향으로 퍼짐 + 기본 오프셋 방향으로 약간 밀어줌
-            // v10: baseOffsets가 절대 월드좌표이므로 center 기준 상대 오프셋으로 변환
-            float scaledPower = power * forceScale;
-            float xRandomCoeff = dropHeightAdd > 0f ? 1.0f : 0.34f; // anisotropic: OnBoard는 사다리꼴 X 우세 보정
-            float spreadX = Random.Range(-xRandomCoeff, xRandomCoeff) * scaledPower + (baseOffsets[i].x - boardCenter.x) * 0.12f * forceScale;
-            float spreadY = Random.Range(-0.105f, 0.105f) * scaledPower + (baseOffsets[i].y - boardCenter.y) * 0.12f * forceScale;
-
-            Vector3 force = new Vector3(spreadX, spreadY, 0f);
-            stone.Rb.AddForce(force, ForceMode.Impulse);
-
-            // 회전 부여 (퍼지면서 굴러가는 느낌)
-            float torqueScale = forceScale;
-            stone.Rb.AddTorque(
-                new Vector3(Random.Range(-3f, 3f) * torqueScale, Random.Range(-5f, 5f) * torqueScale, Random.Range(-3f, 3f) * torqueScale),
-                ForceMode.Impulse
-            );
-
-            AudioManager.Instance?.PlayScatterHit(i);
+            spin[i] = Random.Range(180f, 540f) * (Random.value < 0.5f ? -1f : 1f);
         }
 
-        // 안착 판정: 모든 돌의 속도가 threshold 이하가 될 때까지 대기
+        // ── 4) 코루틴 토스 애니메이션 (캐스케이드 stagger) ──
+        var landed = new bool[n];
+        var nakStones = new List<Stone>();
+        float total = TossDuration + TossStagger * (n - 1);
         float elapsed = 0f;
-        while (elapsed < settleTimeout)
-        {
-            yield return new WaitForFixedUpdate();
-            elapsed += Time.fixedDeltaTime;
 
-            // v7-3: 6단 InAir 돌이 보드 표면 근처에서 느려지면 OnBoard 전환
-            if (dropHeightAdd > 0f)
+        while (elapsed < total + 0.02f)
+        {
+            elapsed += Time.deltaTime;
+            for (int i = 0; i < n; i++)
             {
-                foreach (var stone in stones)
+                if (landed[i]) continue;
+                float st = elapsed - i * TossStagger;
+                if (st <= 0f) continue;
+
+                float t = Mathf.Clamp01(st / TossDuration);
+                float te = 1f - (1f - t) * (1f - t); // ease-out (던진 뒤 감속)
+                Vector2 p = Vector2.Lerp(startPos[i], targets[i], te);
+                float lift = Mathf.Sin(t * Mathf.PI) * LiftHeight; // 아치
+
+                stones[i].transform.position = new Vector3(p.x, p.y + lift, 0f);
+                stones[i].transform.rotation = Quaternion.Euler(0f, spin[i] * t, 0f);
+
+                if (t >= 1f)
                 {
-                    if (stone.CurrentState == Stone.State.InAir)
+                    landed[i] = true;
+                    stones[i].transform.position = new Vector3(targets[i].x, targets[i].y, 0f);
+                    AudioManager.Instance?.PlayScatterHit(i);
+
+                    if (isNak[i])
                     {
-                        bool nearSurface = stone.transform.position.y <= boardCenterY + 0.5f;
-                        bool slowEnough  = stone.Rb.linearVelocity.magnitude < 0.5f;
-                        if (nearSurface && slowEnough)
-                        {
-                            stone.SetState(Stone.State.OnBoard);
-                            stone.Rb.linearVelocity  = Vector3.zero;
-                            stone.Rb.angularVelocity = Vector3.zero;
-                            stone.Rb.Sleep();
-                        }
+                        nakStones.Add(stones[i]); // 보드 밖 도달 → 아래 낙 처리
+                    }
+                    else
+                    {
+                        stones[i].SetState(Stone.State.OnBoard); // 상태만 OnBoard
+                        stones[i].Rb.linearVelocity = Vector3.zero;
+                        stones[i].Rb.angularVelocity = Vector3.zero;
+                        // v14: 안착 후 kinematic 고정 → 콜라이더 겹침 물리 사출/드리프트 차단.
+                        // (드리프트로 SafeZone 밖으로 밀려 플레이 중 낙나던 버그 해결. 줍힐 때 InHand로 전환됨.)
+                        stones[i].Rb.isKinematic = true;
                     }
                 }
             }
-
-            bool allSettled = true;
-            foreach (var stone in stones)
-            {
-                if (stone.Rb.linearVelocity.magnitude > settleSpeedThreshold)
-                {
-                    allSettled = false;
-                    break;
-                }
-            }
-
-            if (allSettled && elapsed > 0.5f) // 최소 0.5초는 대기
-                break;
+            yield return null;
         }
 
-        // v9 보강①: Stage 2 사다리꼴 전용 — SafeZone(직사각) 안이지만 사다리꼴 밖(뒷모서리 슬리버)에
-        // 안착한 돌을 centroid 쪽으로 당겨 내부로 보정. 줍기 단계 IsOutsideMat 낙(갑툭낙) 방지.
-        // SafeZone 밖 돌은 건드리지 않음 → 기존 관대한 scatter 낙 로직 그대로 유지.
-        // HasQuad 가드로 quad 없는 스테이지(1, 3~10)는 완전 비실행.
-        if (BoardBounds.HasQuad)
-        {
-            Vector2 centroid = BoardBounds.QuadPoint(0.5f, 0.5f);
-            foreach (var stone in stones)
-            {
-                Vector2 p = new Vector2(stone.transform.position.x, stone.transform.position.y);
-                // SafeZone 밖이면 보정하지 않음 (장외 = 기존 낙 로직 담당)
-                if (p.x < GameManager.SafeZoneMin.x || p.x > GameManager.SafeZoneMax.x ||
-                    p.y < GameManager.SafeZoneMin.y || p.y > GameManager.SafeZoneMax.y)
-                    continue;
-
-                // SafeZone 안인데 사다리꼴 밖 = 슬리버 → centroid로 단계적으로 당겨 내부로
-                Vector2 corrected = p;
-                int guard = 0;
-                while (BoardBounds.IsOutsideMat(corrected, 0.15f) && guard++ < 8)
-                    corrected = Vector2.Lerp(corrected, centroid, 0.25f);
-
-                if (corrected != p)
-                {
-                    // 텔레포트: Kinematic → 이동 → 속도 0 → 복원 (ColorSelectGimmick과 동일 패턴)
-                    var rb = stone.Rb;
-                    bool wasKinematic = rb.isKinematic;
-                    rb.isKinematic = true;
-                    stone.transform.position = new Vector3(corrected.x, corrected.y, stone.transform.position.z);
-                    rb.linearVelocity  = Vector3.zero;
-                    rb.angularVelocity = Vector3.zero;
-                    rb.isKinematic = wasKinematic;
-                }
-            }
-        }
-
-        // 장외 체크 (2D 기준: X, Y만 비교) — SafeZone 기반
-        var outOfBoundsStones = new List<Stone>();
-        foreach (var stone in stones)
-        {
-            Vector2 stonePos = new Vector2(stone.transform.position.x, stone.transform.position.y);
-            bool outX = stonePos.x < GameManager.SafeZoneMin.x || stonePos.x > GameManager.SafeZoneMax.x;
-            bool outY = stonePos.y < GameManager.SafeZoneMin.y || stonePos.y > GameManager.SafeZoneMax.y;
-
-            if (outX || outY)
-            {
-                Debug.Log($"[ScatterSystem] Stone {stone.StoneIndex} out of bounds at ({stonePos.x:F2}, {stonePos.y:F2})");
-                TestLogger.Instance?.LogPhysics("out_of_bounds",
-                    $"stone={stone.StoneIndex} pos=({stonePos.x:F2},{stonePos.y:F2}) safe_min=({GameManager.SafeZoneMin.x:F2},{GameManager.SafeZoneMin.y:F2}) safe_max=({GameManager.SafeZoneMax.x:F2},{GameManager.SafeZoneMax.y:F2})");
-                outOfBoundsStones.Add(stone);
-            }
-        }
-
-        if (outOfBoundsStones.Count > 0)
+        // ── 5) 낙 처리 (보드 밖 목표에 도달한 돌을 가장자리 너머로 떨어뜨림) ──
+        if (nakStones.Count > 0)
         {
             AudioManager.Instance?.PlayOutOfBounds();
             TestLogger.Instance?.LogFailure("scatter_out_of_bounds");
 
-            // 낙 연출: InAir 상태 전환 + 하강 속도 → 허공 정지 방지
             var wall = GameObject.Find("BoardBottomWall");
             bool wallWasActive = wall != null && wall.activeSelf;
             if (wall != null) wall.SetActive(false);
 
-            foreach (var s in outOfBoundsStones)
+            foreach (var s in nakStones)
             {
-                s.SetState(Stone.State.InAir);
-                var v = s.Rb.linearVelocity;
-                s.Rb.linearVelocity = new Vector3(v.x * 0.5f, Mathf.Min(v.y, -4f), 0f);
+                s.SetState(Stone.State.InAir);       // 중력 ON
+                s.Rb.linearVelocity = new Vector3(0f, -4f, 0f); // 아래로 떨어짐
             }
 
             yield return new WaitForSeconds(1.0f);
@@ -390,9 +317,17 @@ public class ScatterSystem : MonoBehaviour
         else
         {
             Debug.Log("[ScatterSystem] Scatter complete. All stones on board.");
-            // 기믹에 산란 완료 알림 (장애물과 겹치는 돌 보정 등)
             GameManager.Instance.CurrentGimmick?.OnScatterComplete(stones);
             GameManager.Instance.SetPhase(GameManager.GamePhase.PickThrowStone);
         }
+    }
+
+    /// <summary>보드 폴리곤 bilinear 매핑. u,v∈[0,1]=내부. LerpUnclamped라 밖이면 외삽(낙 목표).
+    /// 코너는 BoardBounds.QuadPoint(0/1,0/1)에서 얻어 게임의 실제 보드(quad/AABB)를 그대로 따름.</summary>
+    private static Vector2 TrapPoint(float u, float v, Vector2 bl, Vector2 br, Vector2 fl, Vector2 fr)
+    {
+        Vector2 back  = Vector2.LerpUnclamped(bl, br, u);
+        Vector2 front = Vector2.LerpUnclamped(fl, fr, u);
+        return Vector2.LerpUnclamped(back, front, v);
     }
 }

@@ -45,7 +45,7 @@ public class BoardDebugLines : MonoBehaviour
     // v11-fix3 진단 종료: 사용자 요청으로 표시 OFF. 향후 진단 필요 시 true로 변경.
     // (자동 부착은 유지 — 컴포넌트 비용 거의 0, 토글로 즉시 재활성 가능)
     // v11 배경 정렬 진단: 나이대별 배경 vs BoardQuad 정합 확인용. 정렬 완료 → false 복귀 (재진단 시 true).
-    private const bool ShowDebugLines = false;
+    private const bool ShowDebugLines = false; // (URP에서 GL 즉시모드 미렌더 — 디버그 라인 비활성)
 
     private static bool ShouldShow()
     {

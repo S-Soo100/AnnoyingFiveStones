@@ -41,5 +41,11 @@
 
 18. **SOT(공유 좌표/영역/임계값) 변경 시 다운스트림 전수 검토** — BoardBounds, SkyFloorY 등 여러 시스템이 공유하는 좌표/영역/임계값을 도입·수정할 때, 모든 소비자(CatchSystem, HandController, Flee, MonochromeGimmick 추가 배치 등)에 미치는 영향을 grep+Read로 사전 추적한다. **영역 축소 시에는** 손바닥 픽업 충돌·스폰 최소 간격·낙 판정선 race를 `BoardDebugLines`나 콘솔 로그로 시각화 검증 후 진행. (v9 Stage 2 quad↔Flee AABB / v11-fix3 SkyFloorY 미스매치 3사이클 / v12 Stage 10 quad 축소 → 손바닥 충돌 + IsOutsideMat SkyFloor 예외 Flee 적용 — 3회 누적 후 정식 룰화)
 
+19. **보드/낙 판정은 "게임의 실제 폴리곤" 하나로 통일** — 돌 배치·낙 분류·플레이 감시가 **서로 다른 보드 정의**(SafeZone 사각형 ±5.3 vs 보이는 사다리꼴 quad ±8/±4.4 vs Cloth AABB)를 쓰면 "보이는 보드 안인데 낙 / 밖인데 안 낙"이 반드시 난다. **`BoardBounds.QuadPoint`(배치) + `IsOutsideMat`(낙/감시)** 로 3자를 동일 폴리곤에 맞춘다. `HasQuad`는 씬 init 시 false여도 **스테이지 시작 후 true로 바뀜**(BackgroundManager) → init 로그만 믿지 말 것. (v14 뿌리기 재설계 — 사각형/사다리꼴/좌표를 여러 번 추측하다 4~5회 실패)
+
+20. **연출 동작(뿌리기/던지기/받기)은 물리 임펄스 대신 코루틴 애니메이션** — 2.5D는 카메라 평면 물리라 임펄스를 주면 "화면 위/아래로 날아가 버림"(원근 무시). 목표 지점을 보드 좌표로 계산하고 코루틴으로 토스. 안착 돌은 `isKinematic=true`로 고정해 콜라이더 겹침 물리 사출/드리프트를 차단(안 하면 안착 후 밀려나 플레이 중 갑툭낙). (v14)
+
+21. **시각/판정 버그는 "실행 중 게임을 직접 확인" — 좌표 추측 금지** — get_gameobject로 실제 Transform/스케일, 콘솔 로그로 실측 좌표, computer-use로 화면 캡처해 눈으로 대조한다. ⚠️ **URP에서는 `OnRenderObject`+`GL` 즉시모드 디버그 라인이 렌더링 안 됨**(BoardDebugLines가 안 보이는 이유) → LineRenderer/마커 오브젝트로 시각화. ⚠️ **Play 중 MCP 재컴파일은 Play를 정지→재시작하기 전까지 반영 안 됨** → 유저가 "똑같다"면 재시작 여부부터 확인. (v14 — 추측 기반 수정 반복이 실패의 근본 원인)
+
 ---
 **출처 메모리:** `feedback_unity_quest_guard`, `feedback_quest_advance`, `feedback_autowalk_pathfinding`, `feedback_content_not_system`, `feedback_map_redesign`, `feedback_unity_input_system`, `feedback_unity_tmp_font`, `feedback_parallel_agents`, `feedback_csharp_array_init`, `feedback_visual_check_asset_first`, `feedback_tree_rules`, `feedback_game_code_workflow`, `feedback_ai_design_review`, `feedback_build_diagnosis_log_first`, `feedback_verify_assumptions`
