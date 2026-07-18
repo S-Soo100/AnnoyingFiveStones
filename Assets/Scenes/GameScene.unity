@@ -1967,7 +1967,7 @@ MonoBehaviour:
   currentStage: 1
   currentPhase: 0
   baseHangTime: 5
-  stageIntroDuration: 1.2
+  stageIntroDuration: 0.3
   stage5IntroDuration: 2
   clearDuration: 1.5
   failDuration: 1.5

@@ -1,0 +1,33 @@
+name: Supabase Keep-Alive
+
+# Supabase 무료 티어는 ~1주 비활성 시 프로젝트가 자동 pause된다.
+# 매일 REST 엔드포인트를 1회 가볍게 때려 활성 상태를 유지한다 (플레이어 유무와 무관).
+#
+# 주의:
+#  - schedule 트리거는 GitHub 규칙상 "기본 브랜치(main)"에 있는 워크플로만 실행된다.
+#    → 이 파일이 main에 머지돼야 매일 자동 실행이 활성화된다.
+#  - anon 키는 이미 클라이언트 코드(SupabaseManager.cs)에 공개돼 있어 비밀이 아니다.
+#    다만 원하면 리포 Settings > Secrets에 SUPABASE_ANON_KEY를 추가하면 그 값이 우선 사용된다.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'   # 매일 06:17 UTC (= 15:17 KST). 정각은 지연되기 쉬워 17분으로 회피.
+  workflow_dispatch:        # Actions 탭에서 수동 실행/테스트용
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST (keep-alive)
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNldnZzeG5peGxoamV5b3F5bWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNjAwNTksImV4cCI6MjA4OTczNjA1OX0.kADdsTmSGWxD2aLAbvVpqbcusjXX1VZLlAv8gW12EYk' }}
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            "https://sevvsxnixlhjeyoqymhs.supabase.co/rest/v1/five_stones_records?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          echo "Supabase keep-alive HTTP $code"
+          case "$code" in
+            2*) echo "ok" ;;
+            *)  echo "keep-alive failed (HTTP $code)"; exit 1 ;;
+          esac

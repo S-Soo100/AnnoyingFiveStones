@@ -171,18 +171,19 @@ public class TitleScreenUI : MonoBehaviour
         // 말풍선 장식
         CreateSpeechBubbles(parent);
 
-        // v9(260703): 게임 시작 단일 버튼. v10: 로컬라이즈
+        // v11: 홈은 항상 게임 시작 단일 버튼으로 통일. 연습 모드(IsTestPlay)는 디버그 HUD 테스트 패널에서 진입 (에디터/연습빌드 전용).
         RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.play"), parent, new Vector2(0f, -50f), 34, () => OnModeSelected(false)), "home.play");
+        float settingsY = -110f, cemeteryY = -170f;
 
         // "설정" 버튼
-        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.settings"), parent, new Vector2(0f, -110f), 26, () => {
+        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.settings"), parent, new Vector2(0f, settingsY), 26, () => {
             SettingsPopupUI.EnsureInstance().Open();
         }), "home.settings");
 
         // v9(260703): 묘지(Cemetery) — 엔딩 기록 유저만. 관람 모드.
         if (PlayerPrefs.GetInt("EndingSeen", 0) == 1)
         {
-            RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.cemetery"), parent, new Vector2(0f, -170f), 26, () => {
+            RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.cemetery"), parent, new Vector2(0f, cemeteryY), 26, () => {
                 GraveyardUI.Instance?.Show(0f, "", 0, true);
             }), "home.cemetery");
         }

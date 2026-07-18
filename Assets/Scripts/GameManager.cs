@@ -46,7 +46,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float baseHangTime = 5f; // 기본 체공 시간
 
     [Header("Transition Timing")]
-    [SerializeField] private float stageIntroDuration = 1.2f;
+    // v13: "준비하세요" 제거로 일반 스테이지 인트로 딜레이 단축 1.2→0.3. 씬 직렬화값도 갱신 필요.
+    [SerializeField] private float stageIntroDuration = 0.3f;
     [SerializeField] private float stage5IntroDuration = 2.0f;
     [SerializeField] private float clearDuration = 1.5f;
     [SerializeField] private float failDuration = 1.5f;
@@ -65,6 +66,7 @@ public class GameManager : MonoBehaviour
     private bool isAllClear;
     private bool isPaused;                // [P4]
     private bool isInTitleScreen = true;
+    private bool usedStageSkip;           // v13: 이번 판에 스테이지 스킵을 사용했는가 → 사용 시 랭킹 기록 업로드 제외
     private string lastFailReason = "";
     private Coroutine transitionCoroutine;
     private InputAction escAction;        // [P4]
@@ -98,7 +100,11 @@ public class GameManager : MonoBehaviour
     public bool IsTransitioning => isTransitioning;
     public bool IsAllClear => isAllClear;
     public bool IsPaused => isPaused;     // [P4]
+    public bool IsInTitleScreen => isInTitleScreen; // v13: DebugHUD 스킵버튼 게이팅 (타이틀/엔딩에서 숨김)
     public string LastFailReason => lastFailReason;
+
+    /// <summary>v13: 스테이지 스킵(디버그 버튼/키보드 점프) 사용 표시. 사용한 판은 랭킹 기록을 업로드하지 않는다.</summary>
+    public void MarkStageSkipUsed() => usedStageSkip = true;
 
     /// <summary>
     /// 현재 단계에서 한 번에 주워야 할 돌 수
@@ -343,6 +349,7 @@ public class GameManager : MonoBehaviour
                     session.CurrentStageInLoop = 1;
                 }
                 Debug.Log($"[DEBUG] Jump to Loop {targetLoop} ({config.StageName}), Age={config.Age}");
+                usedStageSkip = true; // 스킵 사용 판 → 랭킹 기록 업로드 제외
                 StartStage(1);
                 return;
             }
@@ -358,12 +365,14 @@ public class GameManager : MonoBehaviour
         {
             int nextStage = Mathf.Clamp(currentStage + 1, 1, 5);
             Debug.Log($"[DEBUG] Stage jump +1 → Stage {nextStage}");
+            usedStageSkip = true; // 스킵 사용 판 → 랭킹 기록 업로드 제외
             StartStage(nextStage);
         }
         else if (minusPressed)
         {
             int prevStage = Mathf.Clamp(currentStage - 1, 1, 5);
             Debug.Log($"[DEBUG] Stage jump -1 → Stage {prevStage}");
+            usedStageSkip = true; // 스킵 사용 판 → 랭킹 기록 업로드 제외
             StartStage(prevStage);
         }
     }
@@ -399,6 +408,7 @@ public class GameManager : MonoBehaviour
     public void StartGameFromTitle()
     {
         isInTitleScreen = false;
+        usedStageSkip = false; // 새 플레이스루 시작 — 스킵 사용 플래그 리셋
         if (session != null)
         {
             session.PlayerName = "Player";
@@ -588,13 +598,23 @@ public class GameManager : MonoBehaviour
     {
         if (GameUI.Instance == null) return;
 
+        // v12b: 기믹이 가이드를 직접 제어하면(Sequence 순서대로 잡기) 페이즈 자동 가이드로 덮지 않는다.
+        if (currentGimmick != null && currentGimmick.OverridesGuideText) return;
+
         // v10 다국어: 조작 가이드 자막 → 로컬라이제이션 키 (push 시점 현재 언어로 조회)
         string guide = phase switch
         {
             GamePhase.Scatter => LocalizationManager.L("guide.scatter"),
             GamePhase.PickThrowStone => LocalizationManager.L("guide.pick_throw"),
             GamePhase.Throw => LocalizationManager.L("guide.throw"),
-            GamePhase.PickStones => LocalizationManager.L("guide.pick_stones"),
+            GamePhase.PickStones => currentStage switch
+            {
+                1 => LocalizationManager.L("guide.pick_1"),
+                2 => LocalizationManager.L("guide.pick_2"),
+                3 => LocalizationManager.L("guide.pick_3"),
+                4 => LocalizationManager.L("guide.pick_4"),
+                _ => LocalizationManager.L("guide.pick_stones")
+            },
             GamePhase.Catch => LocalizationManager.L("guide.catch"),
             GamePhase.Stage5Throw => stage5Step switch
             {
@@ -630,6 +650,12 @@ public class GameManager : MonoBehaviour
         SidePanelUI.Instance?.Refresh();
 
         ResetAllStones();
+
+        // v12b: 실패도 스테이지 종료 — 기믹 UI/오브젝트(공기구성 헤더·번호 라벨 등)를 즉시 정리한다.
+        // (기존엔 StartStage(1)까지 지연돼 실패/회귀 연출 동안 잔존.) null 대입으로 StartStage 이중 OnStageEnd 방지.
+        currentGimmick?.OnStageEnd();
+        currentGimmick = null;
+
         transitionCoroutine = StartCoroutine(DoFailTransition());
     }
 
@@ -854,11 +880,18 @@ public class GameManager : MonoBehaviour
 
         if (!testPlay)
         {
-            SupabaseManager.Instance?.PostRecord(playerName, clearTime, regressionCount, success =>
+            if (!usedStageSkip)
             {
-                if (!success)
-                    Debug.LogWarning("[GameManager] PostRecord failed — continuing without record upload.");
-            });
+                SupabaseManager.Instance?.PostRecord(playerName, clearTime, regressionCount, success =>
+                {
+                    if (!success)
+                        Debug.LogWarning("[GameManager] PostRecord failed — continuing without record upload.");
+                });
+            }
+            else
+            {
+                Debug.Log("[GameManager] 스테이지 스킵 사용 — 기록 업로드 생략");
+            }
         }
 
         handController?.gameObject.SetActive(false);
@@ -965,6 +998,7 @@ public class GameManager : MonoBehaviour
 
         // 세션 전체 초기화 (이름 입력은 엔딩 후)
         session?.ResetAll();
+        usedStageSkip = false; // 다시하기/홈복귀 — 스킵 사용 플래그 리셋 (Play Again은 StartGameFromTitle에서 재리셋)
         // [Phase B] 채도 리셋
         AgeSaturationController.Instance?.ResetSaturation();
         SidePanelUI.Instance?.Refresh();

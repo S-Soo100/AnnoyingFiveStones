@@ -4,6 +4,7 @@ using UnityEngine;
 /// 디버그 전용 HUD.
 /// - 에디터: 항상 표시
 /// - 릴리스 빌드: GameSession.IsTestPlay(연습 모드)일 때만 표시, 기록 모드에서는 숨김
+/// - v13 예외: 스테이지 스킵 버튼(1~5)만은 릴리스 포함 항상 노출(플레이 중일 때만; 타이틀/엔딩에서는 숨김).
 /// 정식 UI는 GameUI.cs (Canvas+TMP)로 이전됨.
 /// </summary>
 public class DebugHUD : MonoBehaviour
@@ -39,7 +40,6 @@ public class DebugHUD : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!ShouldShow()) return;
         if (GameManager.Instance == null) return;
 
         var gm = GameManager.Instance;
@@ -48,8 +48,15 @@ public class DebugHUD : MonoBehaviour
         if (korFont != null)
             GUI.skin.font = korFont;
 
+        // v13: 스테이지 스킵 버튼(1~5)은 릴리스 포함 항상 노출 — 단 플레이 중일 때만(타이틀/엔딩 제외).
+        // StartStage()엔 전환/일시정지 진입 가드가 없으므로(키보드 DebugStageJump엔 있음) 여기서 함께 제외해 연출/일시정지 끊김 방지.
+        if (!gm.IsInTitleScreen && !gm.IsAllClear && !gm.IsTransitioning && !gm.IsPaused)
+            DrawStageSkipButtons(gm);
+
+        // 나머지(디버그 정보 + TEST 패널)는 기존 게이팅 유지 (에디터=항상, 빌드=연습 모드만).
+        if (!ShouldShow()) return;
+
         DrawDebugInfo(gm);
-        DrawStageSkipButtons(gm);
         DrawTestPanelToggle();
         if (showTestPanel) DrawTestPanel(gm);
     }
@@ -119,6 +126,7 @@ public class DebugHUD : MonoBehaviour
 
             if (GUI.Button(r, $"{i}", btnStyle))
             {
+                gm.MarkStageSkipUsed(); // 스킵 사용 판 → 랭킹 기록 업로드 제외 (치팅 방지)
                 gm.StartStage(i);
             }
         }
@@ -154,7 +162,7 @@ public class DebugHUD : MonoBehaviour
         float btnH = 26f;
         float padding = 6f;
         float panelW = 220f;
-        float panelH = btnH + padding * 2f;
+        float panelH = btnH * 5f + padding * 6f; // 버튼 5개 (연습 토글 + 스테이지 스킵 + 주마등 + 이름입력 + 묘지 미리보기)
         float panelX = Screen.width - panelW - 10f;
         float panelY = RightColumnTop() + 72f; // 스테이지(40+gap10) + 토글(28+gap4) = 40+28+4
 
@@ -169,6 +177,15 @@ public class DebugHUD : MonoBehaviour
         float btnW = panelW - padding * 2f;
         float x = panelX + padding;
         float y = panelY + padding;
+
+        // 연습 모드 토글 — IsTestPlay 플립. ON이면 랭킹(묘지) 미저장. 홈 단일 Play 통일 후 연습 진입 경로.
+        bool testPlay = session.IsTestPlay;
+        GUI.backgroundColor = testPlay
+            ? new Color(1f, 0.7f, 0.2f, 0.85f)
+            : new Color(0.45f, 0.45f, 0.45f, 0.7f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), testPlay ? "연습 모드: ON (기록 안 함)" : "연습 모드: OFF", btnStyle))
+            session.IsTestPlay = !session.IsTestPlay;
+        y += btnH + padding;
 
         // 다음 스테이지로 (+5살) — 내부 동작은 "루프 1회 완료"와 동일 (5단계 자동 클리어)
         GUI.backgroundColor = new Color(0.6f, 1f, 0.6f, 0.8f);
@@ -186,6 +203,28 @@ public class DebugHUD : MonoBehaviour
             SidePanelUI.Instance?.Refresh();
             AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
         }
+        y += btnH + padding;
+
+        // 주마등(라이프 파노라마) 미리보기 — 엔딩 카드 스크롤 연출을 즉시 재생
+        GUI.backgroundColor = new Color(0.6f, 0.7f, 1f, 0.8f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), "주마등 미리보기", btnStyle))
+        {
+            LifePanoramaUI.Instance?.Show(() => Debug.Log("[DEBUG] 주마등 미리보기 종료"));
+        }
+        y += btnH + padding;
+
+        // 이름입력(묘비명) 미리보기 — Figma 재설계된 전체화면 입력 화면을 즉시 표시
+        GUI.backgroundColor = new Color(0.8f, 0.7f, 1f, 0.8f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), "이름입력 미리보기", btnStyle))
+        {
+            NameInputUI.Instance?.Show(182f, (nm, tp) => Debug.Log($"[DEBUG] 이름입력 미리보기: {nm}, test={tp}"));
+        }
+        y += btnH + padding;
+
+        // 묘지(랭킹보드) 미리보기 — Figma 재설계된 흰 배경 3열 그리드를 즉시 표시 (Supabase 불필요)
+        GUI.backgroundColor = new Color(0.7f, 0.9f, 0.8f, 0.8f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), "묘지 미리보기", btnStyle))
+            GraveyardUI.Instance?.ShowPreview();
 
         GUI.backgroundColor = origBg;
     }

@@ -25,6 +25,12 @@ public class StoneShadow : MonoBehaviour
     private const float AlphaTtPeak    = 0.10f; // 최고점에서의 불투명도
     private const float HeightNormMax  = 10f;   // 정규화 기준 높이
 
+    // v13-1: 보드에 놓인 돌(OnBoard)의 접지 그림자 — 자기 발밑에 고정 크기/투명도.
+    // 낙하 그림자와 달리 중심선 투영을 하지 않고 돌 자신의 위치를 기준으로 한다.
+    private const float ContactScale   = 1.15f;  // 돌 지름(≈1)보다 크게 → 발밑에서 확실히 삐져나옴
+    private const float ContactAlpha   = 0.62f;  // 놓인 돌 그림자 진하기 (더 잘 보이게)
+    private const float ContactYOffset = -0.20f; // 돌 아래로 내려 그림자가 발밑에서 삐져나오게
+
     private const float ShadowZ        = -0.06f; // Cloth(Z=-0.05) 바로 앞 — 카메라(-10)에 더 가까워야 보임
 
     // v11-fix2: 그림자 Y는 매 프레임 돌 X 위치 기반 사다리꼴 내부 점으로 계산 (perspective 보정).
@@ -83,10 +89,12 @@ public class StoneShadow : MonoBehaviour
             Destroy(shadowObj);
     }
 
-    /// <summary>Stone.SetState에서 호출: InAir/Bouncing이면 활성화, 나머지 비활성화</summary>
+    /// <summary>Stone.SetState에서 호출: OnBoard(접지)/InAir/Bouncing(낙하)이면 활성화, 나머지 비활성화</summary>
     public void UpdateVisibility(Stone.State newState)
     {
-        bool active = (newState == Stone.State.InAir || newState == Stone.State.Bouncing);
+        bool active = (newState == Stone.State.OnBoard
+                    || newState == Stone.State.InAir
+                    || newState == Stone.State.Bouncing);
         if (shadowObj != null)
             shadowObj.SetActive(active);
     }
@@ -95,6 +103,31 @@ public class StoneShadow : MonoBehaviour
     {
         if (shadowObj == null || !shadowObj.activeSelf) return;
 
+        // v13-1: 보드에 놓인 돌은 접지 그림자, 공중 돌은 기존 낙하 그림자로 분기.
+        if (stone != null && stone.CurrentState == Stone.State.OnBoard)
+        {
+            UpdateContactShadow();
+            return;
+        }
+        UpdateFallingShadow();
+    }
+
+    /// <summary>OnBoard: 돌 발밑 고정 크기/투명도 접지 그림자.</summary>
+    private void UpdateContactShadow()
+    {
+        Vector3 p = transform.position;
+        shadowObj.transform.localScale = new Vector3(ContactScale, ContactScale, 1f);
+        shadowObj.transform.position = new Vector3(p.x, p.y + ContactYOffset, ShadowZ);
+
+        shadowRenderer.GetPropertyBlock(mpb);
+        mpb.SetColor("_BaseColor", new Color(0f, 0f, 0f, ContactAlpha));
+        mpb.SetColor("_Color", new Color(0f, 0f, 0f, ContactAlpha));
+        shadowRenderer.SetPropertyBlock(mpb);
+    }
+
+    /// <summary>InAir/Bouncing: 높이에 따라 크기/투명도가 변하는 낙하 그림자 (중심선 투영).</summary>
+    private void UpdateFallingShadow()
+    {
         // v11-fix2: 돌 X 기반 perspective 보정 Y. 사다리꼴 내부 v=0.5 라인 (중심선).
         float stoneX = transform.position.x;
         float shadowY = ComputeShadowY(stoneX);

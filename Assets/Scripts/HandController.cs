@@ -296,6 +296,19 @@ public class HandController : MonoBehaviour
 
         if (coveredCount == 1)
         {
+            // v12b: 기믹이 던지는 돌을 지정하면 검증 (Stage 4 순서대로 잡기: 검정 돌만 허용)
+            var throwGimmick = GameManager.Instance.CurrentGimmick;
+            if (throwGimmick != null && !throwGimmick.ValidateThrowPick(coveredStone))
+            {
+                isHolding = false;
+                AnimateFingerFold(false);
+                AudioManager.Instance?.PlayPickExcess();
+                TestLogger.Instance?.LogFailure("wrong_throw_stone");
+                GameManager.Instance.SetFailReason("던지는 돌(검정)부터 집어야 한다!");
+                GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+                return;
+            }
+
             throwStone = coveredStone;
             throwStone.SetState(Stone.State.InHand);
             throwStone.transform.SetParent(transform);

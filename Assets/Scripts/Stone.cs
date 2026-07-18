@@ -124,6 +124,20 @@ public class Stone : MonoBehaviour
         }
     }
 
+    /// <summary>임의 RGB 색상 직접 지정 (Stage 4 순서대로 잡기 색 구분용).
+    /// StoneColor 열거형과 무관하게 머티리얼 _BaseColor를 직접 설정한다.
+    /// ResetColorAndFake()의 SetColor(Default)가 originalMaterialColor로 복원하므로
+    /// 스테이지 전환 시(StonePool.Activate) 자동 리셋된다.</summary>
+    public void SetColorRGB(Color rgb)
+    {
+        var renderer = GetComponent<Renderer>();
+        if (renderer == null) return;
+        var mat = renderer.material;
+        rgb.a = 1f; // 불투명 보장
+        mat.SetColor("_BaseColor", rgb);
+        mat.color = rgb;
+    }
+
     public void SetFake(bool fake)
     {
         isFake = fake;

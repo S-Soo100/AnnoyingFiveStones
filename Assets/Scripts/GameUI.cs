@@ -37,6 +37,8 @@ public class GameUI : MonoBehaviour
 
     private TextMeshProUGUI pauseHudLabel; // v10 다국어: 우상단 "중지" HUD 라벨
 
+    private GameObject compositionHeader; // v12: Stage 4 "공기 구성" 헤더 (순서대로 잡기)
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -99,6 +101,7 @@ public class GameUI : MonoBehaviour
         CreateGuideText();
         CreateOverlay();
         CreatePauseButton();
+        CreateCompositionHeader(); // v12: Stage 4 "공기 구성" 헤더 (기본 숨김)
     }
 
     // ==========================================================
@@ -307,6 +310,133 @@ public class GameUI : MonoBehaviour
     }
 
     // ==========================================================
+    // v12: Stage 4 "공기 구성" 헤더 (순서대로 잡기 — Figma 260710)
+    // 좌상단에 번호별 색 돌 4개(Figma 배열 4·1·3·2) + 던지는 공(검정) 표시.
+    // 색상은 SequencePalette(SequenceGimmick.cs) 공유 SOT. Sequence 스테이지에서만 노출.
+    // ==========================================================
+
+    private void CreateCompositionHeader()
+    {
+        var container = CreateUIObject("CompositionHeader", canvas.transform);
+        var rt = container.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(40f, -24f);
+        rt.sizeDelta = new Vector2(560f, 150f);
+
+        // 반투명 배경 패널 (오피스 씬 위 가독성 확보)
+        var bgGo = CreateUIObject("Bg", container.transform);
+        var bg = bgGo.AddComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0.30f);
+        bg.raycastTarget = false;
+        var bgRt = bgGo.GetComponent<RectTransform>();
+        bgRt.anchorMin = Vector2.zero;
+        bgRt.anchorMax = Vector2.one;
+        bgRt.sizeDelta = Vector2.zero;
+
+        // "공기 구성" 타이틀
+        var titleGo = CreateUIObject("Title", container.transform);
+        var title = titleGo.AddComponent<TextMeshProUGUI>();
+        title.text = "공기 구성";
+        title.fontSize = 26;
+        title.fontStyle = FontStyles.Bold;
+        title.color = Color.white;
+        title.alignment = TextAlignmentOptions.Left;
+        title.raycastTarget = false;
+        if (koreanTmpFont != null) title.font = koreanTmpFont;
+        var titleRt = titleGo.GetComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 1f);
+        titleRt.anchorMax = new Vector2(0f, 1f);
+        titleRt.pivot = new Vector2(0f, 1f);
+        titleRt.anchoredPosition = new Vector2(18f, -10f);
+        titleRt.sizeDelta = new Vector2(300f, 34f);
+
+        // 번호 돌 칩 (Figma 배열 순서: 4, 1, 3, 2)
+        int[] displayOrder = { 4, 1, 3, 2 };
+        const float chipY = -52f;
+        for (int i = 0; i < displayOrder.Length; i++)
+            CreateStoneChip(container.transform, displayOrder[i], 18f + i * 88f, chipY);
+
+        // 던지는 공 칩 (검정)
+        CreateThrowChip(container.transform, 18f + 4 * 88f + 8f, chipY);
+
+        compositionHeader = container;
+        compositionHeader.SetActive(false); // 기본 숨김 — Sequence 스테이지에서만 표시
+    }
+
+    private void CreateStoneChip(Transform parent, int number, float x, float y)
+    {
+        const float d = 68f;
+        var chipGo = CreateUIObject($"Chip_{number}", parent);
+        var img = chipGo.AddComponent<Image>();
+        img.color = SequencePalette.NumberColors[number];
+        img.raycastTarget = false;
+        MakeCircle(img);
+        var rt = chipGo.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.sizeDelta = new Vector2(d, d);
+        rt.anchoredPosition = new Vector2(x, y);
+
+        var numGo = CreateUIObject("Num", chipGo.transform);
+        var t = numGo.AddComponent<TextMeshProUGUI>();
+        t.text = number.ToString();
+        t.fontSize = 34;
+        t.fontStyle = FontStyles.Bold;
+        // 노랑(3)은 흰 글씨 대비가 낮아 어두운 글씨로 처리
+        t.color = number == 3 ? new Color(0.15f, 0.15f, 0.15f) : Color.white;
+        t.alignment = TextAlignmentOptions.Center;
+        t.raycastTarget = false;
+        if (koreanTmpFont != null) t.font = koreanTmpFont;
+        var nrt = numGo.GetComponent<RectTransform>();
+        nrt.anchorMin = Vector2.zero;
+        nrt.anchorMax = Vector2.one;
+        nrt.sizeDelta = Vector2.zero;
+    }
+
+    private void CreateThrowChip(Transform parent, float x, float y)
+    {
+        var chipGo = CreateUIObject("ThrowChip", parent);
+        var img = chipGo.AddComponent<Image>();
+        img.color = SequencePalette.ThrowBall;
+        img.raycastTarget = false;
+        var rt = chipGo.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.sizeDelta = new Vector2(132f, 64f);
+        rt.anchoredPosition = new Vector2(x, y - 2f);
+
+        var lblGo = CreateUIObject("Label", chipGo.transform);
+        var t = lblGo.AddComponent<TextMeshProUGUI>();
+        t.text = "던지는 공";
+        t.fontSize = 24;
+        t.fontStyle = FontStyles.Bold;
+        t.color = Color.white;
+        t.alignment = TextAlignmentOptions.Center;
+        t.raycastTarget = false;
+        if (koreanTmpFont != null) t.font = koreanTmpFont;
+        var lrt = lblGo.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.sizeDelta = Vector2.zero;
+    }
+
+    /// <summary>Stage 4 "공기 구성" 헤더 표시 (SequenceGimmick.OnStageStart)</summary>
+    public void ShowComposition()
+    {
+        if (compositionHeader != null) compositionHeader.SetActive(true);
+    }
+
+    /// <summary>Stage 4 "공기 구성" 헤더 숨김 (SequenceGimmick.OnStageEnd)</summary>
+    public void HideComposition()
+    {
+        if (compositionHeader != null) compositionHeader.SetActive(false);
+    }
+
+    // ==========================================================
     // 공개 API — GameManager에서 호출
     // ==========================================================
 
@@ -482,37 +612,26 @@ public class GameUI : MonoBehaviour
 
     private IEnumerator DoStageIntro(int stage)
     {
-        bool isStage5 = stage == 5;
-        string mainText = LocalizationManager.L("stage.ready");
-        Color mainColor = isStage5
-            ? new Color(1f, 0.84f, 0f, 1f)
-            : Color.white;
-
-        // v4: 스테이지 테마 표시
-        string subText = "";
-        var gm = GameManager.Instance;
-        var session = GameSession.Instance;
-        if (gm != null && session != null)
+        // v13: "준비하세요" 완전 제거 (v11 결정 완결). 일반 스테이지는 아무것도 표시하지 않음.
+        if (stage != 5)
         {
-            var config = StageConfig.Get(session.CurrentLoop);
-            if (config != null)
-            {
-                subText = isStage5
-                    ? $"[{config.LocalizedStageName}] {LocalizationManager.L("stage.fold")}"
-                    : $"[{config.LocalizedStageName}]";
-            }
+            overlayGroup.alpha = 0f;
+            overlayCoroutine = null;
+            yield break;
         }
 
-        overlayMainText.text = mainText;
+        // Stage 5: '꺾기' 단 안내만 유지.
+        Color mainColor = new Color(1f, 0.84f, 0f, 1f);
+        overlayMainText.text = LocalizationManager.L("stage.fold");
         overlayMainText.color = mainColor;
         overlayMainText.fontSize = 80;
-        overlaySubText.text = subText;
+        overlaySubText.text = "";
         overlaySubText.color = new Color(1f, 1f, 1f, 0.8f);
-        overlayBg.color = isStage5 ? new Color(0, 0, 0, 0.4f) : new Color(0, 0, 0, 0);
+        overlayBg.color = new Color(0, 0, 0, 0.4f);
         overlayGroup.alpha = 1f;
 
-        float holdTime = isStage5 ? 0.5f : 0.3f;
-        float fadeTime = isStage5 ? 1.5f : 0.9f;
+        float holdTime = 0.5f;
+        float fadeTime = 1.5f;
 
         // 홀드
         yield return new WaitForSeconds(holdTime);
@@ -525,8 +644,7 @@ public class GameUI : MonoBehaviour
             float alpha = 1f - (elapsed / fadeTime);
             overlayMainText.color = new Color(mainColor.r, mainColor.g, mainColor.b, alpha);
             overlaySubText.color = new Color(1f, 1f, 1f, alpha * 0.8f);
-            if (isStage5)
-                overlayBg.color = new Color(0, 0, 0, 0.4f * alpha);
+            overlayBg.color = new Color(0, 0, 0, 0.4f * alpha);
             yield return null;
         }
 
