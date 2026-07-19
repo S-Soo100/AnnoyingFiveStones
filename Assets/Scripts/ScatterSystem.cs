@@ -44,6 +44,7 @@ public class ScatterSystem : MonoBehaviour
     private bool gaugeGoingUp = true;
     private InputAction pressAction;
     private HandController handController;
+    private ScatterRangeIndicator rangeIndicator;
 
     public float CurrentGaugeValue => currentGaugeValue;
     public bool IsGaugeActive => isGaugeActive;
@@ -55,6 +56,7 @@ public class ScatterSystem : MonoBehaviour
         waitingForPress = false;
         currentGaugeValue = 0f;
         GaugeBarUI.Instance?.Hide();
+        rangeIndicator?.Hide();
     }
 
     private void Awake()
@@ -64,6 +66,11 @@ public class ScatterSystem : MonoBehaviour
         pressAction.AddBinding("<Touchscreen>/primaryTouch/press");
 
         handController = FindFirstObjectByType<HandController>();
+
+        // 뿌리기 범위 표시 링 (순수 시각 레이어)
+        var go = new GameObject("ScatterRangeIndicator");
+        rangeIndicator = go.AddComponent<ScatterRangeIndicator>();
+        rangeIndicator.Hide();
     }
 
     private void OnEnable()
@@ -96,6 +103,7 @@ public class ScatterSystem : MonoBehaviour
         }
 
         GaugeBarUI.Instance?.SetValue(currentGaugeValue);
+        rangeIndicator?.UpdateRing(Mathf.Lerp(RMinUV, RMaxUV, currentGaugeValue));
         AudioManager.Instance?.PlayGaugeTick();
     }
 
@@ -149,6 +157,7 @@ public class ScatterSystem : MonoBehaviour
             isGaugeActive = true;
             currentGaugeValue = 0f;
             gaugeGoingUp = true;
+            rangeIndicator?.Show();
             Debug.Log("[ScatterSystem] Gauge started!");
         }
     }
@@ -163,6 +172,7 @@ public class ScatterSystem : MonoBehaviour
 
         isGaugeActive = false;
         GaugeBarUI.Instance?.Hide();
+        rangeIndicator?.Hide();
         AudioManager.Instance?.PlayGaugeConfirm();
         // v14: 게이지 값을 그대로 넘김. 퍼짐/낙은 DoScatter에서 코루틴 토스로 결정.
         float gauge = currentGaugeValue;
