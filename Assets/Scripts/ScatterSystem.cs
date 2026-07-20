@@ -201,7 +201,7 @@ public class ScatterSystem : MonoBehaviour
             currentGaugeValue = 0f;
             gaugeGoingUp = true;
             waitingForPress = true;
-            GaugeBarUI.Instance?.Hide();
+            GaugeBarUI.Instance?.SetValue(0f); // 바는 유지(재대기), 값만 0으로 — Hide하면 다음 Press에 안 켜져 사라짐
             rangeIndicator?.Hide();
             return;
         }
