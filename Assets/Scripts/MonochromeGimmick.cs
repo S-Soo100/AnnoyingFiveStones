@@ -41,6 +41,14 @@ public class MonochromeGimmick : StageGimmick
     private List<GameObject> textLabels = new List<GameObject>();
     private Stone[] additionalStones;
 
+    // v16: 흑백 전환 후 "타겟을 찾아 줍는" 시간을 확보하기 위한 낙하 시간 연장.
+    //   기본 낙하 1.0s + 상승 0.8s = 체공 1.8s인데 메모리 타임이 최대 1.6s라
+    //   흑백 전환 시점엔 이미 착지 직전 → 줍을 시간이 0.45s뿐이라 매번 UNDERPICK FAIL로
+    //   스테이지 진행 자체가 불가능했음. 낙하를 2.2s로 늘려 줍기 창을 1.4~2.2s 확보.
+    //   (난이도는 의도대로 memoryTimePerRound 암기 시간으로만 조절됨)
+    private const float MonochromeFallDuration = 2.2f;
+    private HandController handController;
+
     public override void OnStageStart(int stageInLoop)
     {
         currentStageInLoop = stageInLoop;
@@ -60,7 +68,13 @@ public class MonochromeGimmick : StageGimmick
 
         AssignDesigns(active);
 
-        Debug.Log($"[MonochromeGimmick] Stage {stageInLoop} started: {active.Length} stones with 3 design types.");
+        // v16: 낙하 시간 연장 (흑백 전환 후 줍기 창 확보). GravityGimmick과 동일 패턴.
+        handController = gameManager?.GetComponentInChildren<HandController>();
+        if (handController == null)
+            handController = Object.FindFirstObjectByType<HandController>();
+        handController?.SetThrowDownDurationOverride(MonochromeFallDuration);
+
+        Debug.Log($"[MonochromeGimmick] Stage {stageInLoop} started: {active.Length} stones with 3 design types. FallDuration={MonochromeFallDuration}s");
     }
 
     public override void OnThrowStart(Stone thrownStone)
@@ -144,6 +158,10 @@ public class MonochromeGimmick : StageGimmick
 
     public override void OnStageEnd()
     {
+        // v16: 낙하 시간 오버라이드 해제 (다른 스테이지에 누수 방지)
+        if (handController != null)
+            handController.SetThrowDownDurationOverride(-1f);
+
         // TextMesh 라벨 정리
         foreach (var label in textLabels)
         {
