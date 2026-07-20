@@ -13,12 +13,18 @@ public class ScatterRangeIndicator : MonoBehaviour
     private const int SEG = 48;
     private const float RingZ = 0.03f;
 
+    // 스윗 밴드 정적 목표 도넛(항상 표시) — 유저가 겨냥할 안전 반경대.
+    private const float GuideInnerUV = 0.30f;
+    private const float GuideOuterUV = 0.50f;
+
     // 게이지바와 톤 통일한 팔레트
     private static readonly Color mint  = new Color(0.40f, 0.85f, 0.70f);
     private static readonly Color amber = new Color(0.95f, 0.75f, 0.30f);
     private static readonly Color coral = new Color(0.95f, 0.40f, 0.35f);
 
     private LineRenderer lr;
+    private LineRenderer guideInner;
+    private LineRenderer guideOuter;
 
     private void Awake()
     {
@@ -35,22 +41,53 @@ public class ScatterRangeIndicator : MonoBehaviour
         // LineRenderer는 vertex-color·투명이 Sprites/Default에서 가장 안정적.
         lr.material = new Material(Shader.Find("Sprites/Default"));
         lr.enabled = false; // 시작은 숨김
+
+        // 스윗 밴드 정적 도넛 2개 (라이브 링과 동일 세팅, 더 얇고 흐린 회백색).
+        guideInner = CreateGuide("ScatterGuideInner");
+        guideOuter = CreateGuide("ScatterGuideOuter");
+    }
+
+    /// <summary>정적 가이드용 자식 LineRenderer 생성 (라이브 링과 동일 세팅, 얇고 흐림).</summary>
+    private LineRenderer CreateGuide(string name)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(transform, false);
+        var g = go.AddComponent<LineRenderer>();
+        g.useWorldSpace = true;
+        g.loop = true;
+        g.positionCount = SEG;
+        g.widthMultiplier = 0.03f; // 라이브 링보다 얇게
+        g.numCornerVertices = 4;
+        g.numCapVertices = 0;
+        g.alignment = LineAlignment.View;
+        g.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        g.receiveShadows = false;
+        g.material = new Material(Shader.Find("Sprites/Default"));
+        var faint = new Color(1f, 1f, 1f, 0.25f);
+        g.startColor = faint;
+        g.endColor = faint;
+        g.enabled = false; // 시작은 숨김
+        return g;
     }
 
     /// <summary>게이지 시작 시 표시. 여러 번 호출돼도 무해.</summary>
     public void Show()
     {
         lr.enabled = true;
+        if (guideInner != null) guideInner.enabled = true;
+        if (guideOuter != null) guideOuter.enabled = true;
     }
 
     /// <summary>게이지 종료/리셋 시 숨김. 여러 번 호출돼도 무해.</summary>
     public void Hide()
     {
         if (lr != null) lr.enabled = false;
+        if (guideInner != null) guideInner.enabled = false;
+        if (guideOuter != null) guideOuter.enabled = false;
     }
 
-    /// <summary>게이지 값에 대응하는 산개 반경(UV)으로 링을 갱신.</summary>
-    public void UpdateRing(float radiusUV)
+    /// <summary>게이지 값에 대응하는 산개 반경(UV)으로 링을 갱신. centerUV = 산개 중심(커서/손 위치).</summary>
+    public void UpdateRing(float radiusUV, Vector2 centerUV)
     {
         // 1) 게임의 실제 보드 4꼭짓점 (ScatterSystem.DoScatter와 동일 방식).
         Vector2 cBL = BoardBounds.QuadPoint(0f, 0f);
@@ -58,13 +95,17 @@ public class ScatterRangeIndicator : MonoBehaviour
         Vector2 cFL = BoardBounds.QuadPoint(0f, 1f);
         Vector2 cFR = BoardBounds.QuadPoint(1f, 1f);
 
+        // 1.5) 정적 스윗 밴드 도넛 갱신 (중심도 커서 따라 이동 — 라이브 링과 동일 원점).
+        BuildGuide(guideInner, GuideInnerUV, centerUV, cBL, cBR, cFL, cFR);
+        BuildGuide(guideOuter, GuideOuterUV, centerUV, cBL, cBR, cFL, cFR);
+
         // 2) SEG개 점 배치 + 낙 위험(보드 밖) 카운트.
         int outside = 0;
         for (int i = 0; i < SEG; i++)
         {
             float theta = 2f * Mathf.PI * i / SEG;
-            float u = 0.5f + radiusUV * Mathf.Cos(theta);
-            float v = 0.5f + radiusUV * Mathf.Sin(theta);
+            float u = centerUV.x + radiusUV * Mathf.Cos(theta);
+            float v = centerUV.y + radiusUV * Mathf.Sin(theta);
             Vector2 world = TrapPoint(u, v, cBL, cBR, cFL, cFR);
             lr.SetPosition(i, new Vector3(world.x, world.y, RingZ));
 
@@ -73,12 +114,32 @@ public class ScatterRangeIndicator : MonoBehaviour
 
         float dangerFrac = (float)outside / SEG;
 
-        // 3) 색: radiusUV로 mint→amber, 밖으로 넘치면(dangerFrac) amber→coral.
-        Color c = Color.Lerp(mint, amber, Mathf.InverseLerp(0.30f, 0.55f, radiusUV));
-        if (dangerFrac > 0f) c = Color.Lerp(c, coral, Mathf.Clamp01(dangerFrac * 3f));
+        // 3) 3밴드 색: 뭉침(coral)→스윗(mint)→경계앰버→낙(coral). 실제 넘침은 coral 강조.
+        Color c;
+        if (radiusUV < 0.30f)
+            c = Color.Lerp(coral, mint, Mathf.InverseLerp(0.18f, 0.30f, radiusUV)); // 뭉침→스윗 진입
+        else if (radiusUV <= 0.50f)
+            c = Color.Lerp(mint, amber, Mathf.InverseLerp(0.42f, 0.50f, radiusUV)); // 스윗, 경계 근처 앰버 경고
+        else
+            c = coral; // 낙
+        if (dangerFrac > 0f) c = Color.Lerp(c, coral, Mathf.Clamp01(dangerFrac * 3f)); // 실제 넘침 강조
         c.a = 0.85f;
         lr.startColor = c;
         lr.endColor = c;
+    }
+
+    /// <summary>정적 가이드 도넛을 반경 rUV로 보드 폴리곤에 배치. centerUV = 산개 중심(커서).</summary>
+    private void BuildGuide(LineRenderer g, float rUV, Vector2 centerUV, Vector2 bl, Vector2 br, Vector2 fl, Vector2 fr)
+    {
+        if (g == null) return;
+        for (int i = 0; i < SEG; i++)
+        {
+            float theta = 2f * Mathf.PI * i / SEG;
+            float u = centerUV.x + rUV * Mathf.Cos(theta);
+            float v = centerUV.y + rUV * Mathf.Sin(theta);
+            Vector2 world = TrapPoint(u, v, bl, br, fl, fr);
+            g.SetPosition(i, new Vector3(world.x, world.y, RingZ));
+        }
     }
 
     /// <summary>보드 폴리곤 bilinear 매핑 (ScatterSystem.TrapPoint와 동일).

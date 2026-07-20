@@ -1941,7 +1941,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0b02cb13ad9654c62a3860add04dc972, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ScatterSystem
-  gaugeSpeed: 2
+  gaugeSpeed: 1.3
   minScatterForce: 0.3
   maxScatterForce: 5
   baseSpreadRadius: 0.4

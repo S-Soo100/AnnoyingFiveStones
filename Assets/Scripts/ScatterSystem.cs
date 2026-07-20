@@ -14,7 +14,7 @@ using UnityEngine.InputSystem;
 public class ScatterSystem : MonoBehaviour
 {
     [Header("Gauge Settings")]
-    [SerializeField] private float gaugeSpeed = 2f;
+    [SerializeField] private float gaugeSpeed = 1.3f;
     [SerializeField] private float minScatterForce = 1.0f; // (v14 미사용 — 씬 직렬화 잔존, 무해)
     [SerializeField] private float maxScatterForce = 3.0f; // (v14 미사용)
 
@@ -33,15 +33,28 @@ public class ScatterSystem : MonoBehaviour
     [SerializeField] private bool isGaugeActive;
 
     // ── v14 토스 튜닝 상수 (씬 오버라이드 함정 회피 위해 코드 상수) ──
-    private const float RMinUV       = 0.14f; // 게이지 0: 손 근처 뭉침(uv 중심±0.14)
-    private const float RMaxUV       = 0.60f; // 게이지 1: uv 중심±0.60 → 일부 [0,1] 밖 = 낙
-    private const float TossDuration = 0.42f; // 돌 하나 비행 시간(초)
-    private const float TossStagger  = 0.035f; // 돌 간 출발 지연(캐스케이드 느낌)
-    private const float LiftHeight   = 0.55f; // 비행 중 아치 최고 높이(화면 Y)
-    private const float TargetSep    = 0.7f;  // 안착 목표 최소 간격(world)
+    // ── v15 뿌리기 밸런스 재설계 ("안 B 양끝위험 왕복") ──
+    //   저게이지=뭉침(픽업실패) / 스윗스팟=안전 / 고게이지=낙. 100%=거의 확정 낙.
+    private const float RUvBase = 0.12f;  // g=0 (뭉침)
+    private const float RUvSpan = 0.60f;  // g=1 → 0.72 (경계 0.50 초과 = 전낙)
+    private static float RadiusUV(float g) => RUvBase + RUvSpan * Mathf.Clamp01(g);
+
+    private const float TossDuration = 0.50f; // 돌 하나 비행 시간(초) — v15 여유있는 아치
+    private const float TossStagger  = 0.05f; // 돌 간 출발 지연(캐스케이드 느낌)
+    private const float LiftHeight   = 0.55f; // (v15 미사용 — per-stone liftH로 대체)
     private const float NakMargin    = 0.25f; // 이만큼 사다리꼴 밖으로 나가야 낙(경계 애매낙 방지)
 
+    // 저게이지=간격 좁음(손바닥폭~1.0 아래=뭉침 픽업실패), 스윗=간격 확보
+    private static float TargetSepForGauge(float g)
+    {
+        float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.10f, 0.50f, g));
+        return Mathf.Lerp(0.40f, 1.05f, t);
+    }
+
     private bool gaugeGoingUp = true;
+    // 딸깍 방지: 게이지가 활성된 시간이 이 값 미만이면 던지지 않고 재대기(캔슬)
+    private float gaugeActiveTime;
+    private const float MinGaugeHold = 0.2f;
     private InputAction pressAction;
     private HandController handController;
     private ScatterRangeIndicator rangeIndicator;
@@ -91,6 +104,8 @@ public class ScatterSystem : MonoBehaviour
     {
         if (!isGaugeActive) return;
 
+        gaugeActiveTime += Time.deltaTime;
+
         if (gaugeGoingUp)
         {
             currentGaugeValue += gaugeSpeed * Time.deltaTime;
@@ -103,7 +118,15 @@ public class ScatterSystem : MonoBehaviour
         }
 
         GaugeBarUI.Instance?.SetValue(currentGaugeValue);
-        rangeIndicator?.UpdateRing(Mathf.Lerp(RMinUV, RMaxUV, currentGaugeValue));
+        // 링 중심도 커서(손) 위치 — DoScatter의 centerUV와 동일 계산/clamp로 프리뷰 정합.
+        Vector2 ringCenter = new Vector2(0.5f, 0.5f);
+        if (handController != null)
+        {
+            ringCenter = BoardUV(new Vector2(handController.transform.position.x, handController.transform.position.y));
+            ringCenter.x = Mathf.Clamp(ringCenter.x, 0.12f, 0.88f);
+            ringCenter.y = Mathf.Clamp(ringCenter.y, 0.12f, 0.88f);
+        }
+        rangeIndicator?.UpdateRing(RadiusUV(currentGaugeValue), ringCenter);
         AudioManager.Instance?.PlayGaugeTick();
     }
 
@@ -157,6 +180,7 @@ public class ScatterSystem : MonoBehaviour
             isGaugeActive = true;
             currentGaugeValue = 0f;
             gaugeGoingUp = true;
+            gaugeActiveTime = 0f;
             rangeIndicator?.Show();
             Debug.Log("[ScatterSystem] Gauge started!");
         }
@@ -169,6 +193,18 @@ public class ScatterSystem : MonoBehaviour
         if (GameManager.Instance.IsTransitioning) return;
         if (GameManager.Instance.CurrentPhase != GameManager.GamePhase.Scatter) return;
         if (!isGaugeActive) return;
+
+        // 딸깍 방지: 너무 짧게 눌렀다 놓으면 던지지 않고 재대기(다음 Press에 다시 게이지 시작)
+        if (gaugeActiveTime < MinGaugeHold)
+        {
+            isGaugeActive = false;
+            currentGaugeValue = 0f;
+            gaugeGoingUp = true;
+            waitingForPress = true;
+            GaugeBarUI.Instance?.Hide();
+            rangeIndicator?.Hide();
+            return;
+        }
 
         isGaugeActive = false;
         GaugeBarUI.Instance?.Hide();
@@ -195,8 +231,6 @@ public class ScatterSystem : MonoBehaviour
             yield break;
         }
 
-        float spreadT = Mathf.Clamp01(gauge);
-
         // ── 1) 목표 uv 계산 (셔플 슬롯으로 각도 균등 분포) ──
         int slotCount = Mathf.Max(10, n * 2);
         int[] slots = new int[slotCount];
@@ -220,21 +254,56 @@ public class ScatterSystem : MonoBehaviour
         Vector2 cFL = BoardBounds.QuadPoint(0f, 1f);
         Vector2 cFR = BoardBounds.QuadPoint(1f, 1f);
 
+        // ★산개 중심 = 커서(손) 위치. 손이 없으면 보드 중앙(0.5,0.5) 폴백.
+        //   테이블 밖 산개로 전-낙되는 것 방지 위해 [0.12,0.88]로 clamp(플레이 가능성 보존).
+        //   밸런스(반경·간격·낙 판정)는 전부 불변 — 링/목표의 원점만 이동.
+        Vector2 centerUV = new Vector2(0.5f, 0.5f);
+        if (handController != null)
+        {
+            Vector2 handPos = new Vector2(handController.transform.position.x, handController.transform.position.y);
+            centerUV = BoardUV(handPos);
+            centerUV.x = Mathf.Clamp(centerUV.x, 0.12f, 0.88f);
+            centerUV.y = Mathf.Clamp(centerUV.y, 0.12f, 0.88f);
+        }
+
+        // v15: 각도만 유기화(반경 매핑·낙 파이프라인 불변). 매 throw 방향 랜덤 + 지터 확대 + 뭉침 클럼프.
+        float baseRot = Random.Range(0f, 360f); // 매 throw 방향 랜덤(단조 방어)
+        float[] angDeg = new float[n];
+        float[] rads = new float[n];
         for (int i = 0; i < n; i++)
         {
-            float angle = (slotAngleStep * slots[i] + Random.Range(-12f, 12f)) * Mathf.Deg2Rad;
-            float radius = Mathf.Lerp(RMinUV, RMaxUV, spreadT) * Random.Range(0.82f, 1.18f);
-            float u = 0.5f + Mathf.Cos(angle) * radius;
-            float v = 0.5f + Mathf.Sin(angle) * radius;
-
-            // provisional (분리 그룹핑용). 최종 낙은 아래에서 IsOutsideMat로 재판정.
+            angDeg[i] = slotAngleStep * slots[i] + baseRot + Random.Range(-22f, 22f); // 지터 ±12→±22
+            rads[i]   = RadiusUV(gauge) * Random.Range(0.92f, 1.08f);                 // 반경 매핑 불변
+            float a = angDeg[i] * Mathf.Deg2Rad;
+            float u = centerUV.x + Mathf.Cos(a) * rads[i];
+            float v = centerUV.y + Mathf.Sin(a) * rads[i];
+            isNak[i] = (u < 0f || u > 1f || v < 0f || v > 1f);   // provisional
+            targets[i] = TrapPoint(u, v, cBL, cBR, cFL, cFR);
+        }
+        // 클럼프: 비-낙 스톤 ~40%를 각도상 가장 가까운 다른 스톤 쪽으로 당겨 뭉침/빈틈 생성 (반경 불변)
+        int clumpCount = Mathf.RoundToInt(n * 0.4f);
+        for (int c = 0; c < clumpCount; c++)
+        {
+            int i = Random.Range(0, n);
+            if (isNak[i]) continue;
+            int best = -1; float bestD = 999f;
+            for (int j = 0; j < n; j++)
+            {
+                if (j == i || isNak[j]) continue;
+                float d = Mathf.Abs(Mathf.DeltaAngle(angDeg[i], angDeg[j]));
+                if (d < bestD) { bestD = d; best = j; }
+            }
+            if (best < 0) continue;
+            angDeg[i] = Mathf.LerpAngle(angDeg[i], angDeg[best], 0.35f);
+            float a = angDeg[i] * Mathf.Deg2Rad;
+            float u = centerUV.x + Mathf.Cos(a) * rads[i], v = centerUV.y + Mathf.Sin(a) * rads[i];
             isNak[i] = (u < 0f || u > 1f || v < 0f || v > 1f);
             targets[i] = TrapPoint(u, v, cBL, cBR, cFL, cFR);
-
-            startPos[i] = new Vector2(stones[i].transform.position.x, stones[i].transform.position.y);
         }
 
         // ── 2) 안착 목표 최소 간격 보장 (낙 목표는 건드리지 않음 — 어차피 보드 밖) ──
+        // v15: 간격을 게이지 함수로 → 저게이지=뭉침(픽업실패), 스윗=간격 확보.
+        float sep = TargetSepForGauge(gauge);
         for (int pass = 0; pass < 8; pass++)
         {
             bool adjusted = false;
@@ -246,9 +315,9 @@ public class ScatterSystem : MonoBehaviour
                     if (isNak[b]) continue;
                     Vector2 diff = targets[a] - targets[b];
                     float dist = diff.magnitude;
-                    if (dist < TargetSep && dist > 0.001f)
+                    if (dist < sep && dist > 0.001f)
                     {
-                        Vector2 push = diff.normalized * (TargetSep - dist) * 0.5f;
+                        Vector2 push = diff.normalized * (sep - dist) * 0.5f;
                         targets[a] += push;
                         targets[b] -= push;
                         adjusted = true;
@@ -258,20 +327,39 @@ public class ScatterSystem : MonoBehaviour
             if (!adjusted) break;
         }
 
+        // ── 2.4) 우발낙 방어 (donts/game.md #19 SOT): 간격 확대가 비-낙 돌을 경계 밖으로 밀 수 있음.
+        //   원래 uv 내부(provisional isNak==false)였는데 밀려난 돌만 보드 중심 C 쪽으로 회수.
+        //   의도된 낙(provisional true)은 건드리지 않음.
+        Vector2 C = TrapPoint(centerUV.x, centerUV.y, cBL, cBR, cFL, cFR);
+        for (int i = 0; i < n; i++)
+        {
+            if (isNak[i]) continue; // 의도된 낙은 그대로
+            int guard = 0;
+            while (BoardBounds.IsOutsideMat(targets[i], 0.2f) && guard++ < 10)
+                targets[i] = Vector2.Lerp(targets[i], C, 0.18f);
+        }
+
         // ── 2.5) 최종 낙 판정: 게임 감시와 "완전히 동일한" IsOutsideMat 사용 → scatter 낙 = play 낙 100% 일치.
         // 분리 패스가 밀어낸 것도 반영. IsOutsideMat 자체 마진(0.2)이 경계 애매낙을 흡수.
         for (int i = 0; i < n; i++)
             isNak[i] = BoardBounds.IsOutsideMat(targets[i], 0.2f);
 
+        // v16: 놓는 즉시 던지기 — 윈드업 대기 제거. 아래 준비 루프에서 즉시 detach + startPos(현재 손=커서 위치)
+        //   재캡처 + 토스 시작 → 유저 릴리스와 돌 발사 타이밍 일치(체감 딜레이 제거).
+        //   손 캐스트 연출(DoScatterThrow)은 돌과 무관하게 병렬 진행.
+
         // ── 3) 준비: 모든 돌 InHand(kinematic) + 콜라이더 반경 + 랜덤 스핀 ──
         var spin = new float[n];
+        var liftH = new float[n]; // per-stone 아치 최고 높이(화면 Y)
         for (int i = 0; i < n; i++)
         {
             stones[i].SetState(Stone.State.InHand); // kinematic, 콜라이더 off
             stones[i].transform.SetParent(null); // 손에서 분리 (world 위치 유지 → 손 위치가 출발점)
+            startPos[i] = new Vector2(stones[i].transform.position.x, stones[i].transform.position.y); // 캐스트 끝 손위치
             var col = stones[i].GetComponent<SphereCollider>();
             if (col != null) col.radius = 0.9f;
             spin[i] = Random.Range(180f, 540f) * (Random.value < 0.5f ? -1f : 1f);
+            liftH[i] = Random.Range(1.2f, 1.8f);
         }
 
         // ── 4) 코루틴 토스 애니메이션 (캐스케이드 stagger) ──
@@ -292,7 +380,7 @@ public class ScatterSystem : MonoBehaviour
                 float t = Mathf.Clamp01(st / TossDuration);
                 float te = 1f - (1f - t) * (1f - t); // ease-out (던진 뒤 감속)
                 Vector2 p = Vector2.Lerp(startPos[i], targets[i], te);
-                float lift = Mathf.Sin(t * Mathf.PI) * LiftHeight; // 아치
+                float lift = Mathf.Sin(Mathf.Pow(t, 0.8f) * Mathf.PI) * liftH[i]; // 아치(피크 t≈0.4, 1.2~1.8)
 
                 stones[i].transform.position = new Vector3(p.x, p.y + lift, 0f);
                 stones[i].transform.rotation = Quaternion.Euler(0f, spin[i] * t, 0f);
@@ -312,9 +400,9 @@ public class ScatterSystem : MonoBehaviour
                         stones[i].SetState(Stone.State.OnBoard); // 상태만 OnBoard
                         stones[i].Rb.linearVelocity = Vector3.zero;
                         stones[i].Rb.angularVelocity = Vector3.zero;
-                        // v14: 안착 후 kinematic 고정 → 콜라이더 겹침 물리 사출/드리프트 차단.
+                        // v15: 착지 여운(hop+squash) 후 kinematic 고정. SettleStone이 최종 isKinematic=true.
                         // (드리프트로 SafeZone 밖으로 밀려 플레이 중 낙나던 버그 해결. 줍힐 때 InHand로 전환됨.)
-                        stones[i].Rb.isKinematic = true;
+                        StartCoroutine(SettleStone(stones[i], targets[i]));
                     }
                 }
             }
@@ -346,10 +434,47 @@ public class ScatterSystem : MonoBehaviour
         }
         else
         {
+            // v15: 착지 여운(SettleStone 0.16s)이 끝나 모든 돌이 안착된 뒤 픽업 페이즈로.
+            yield return new WaitForSeconds(0.16f);
             Debug.Log("[ScatterSystem] Scatter complete. All stones on board.");
             GameManager.Instance.CurrentGimmick?.OnScatterComplete(stones);
             GameManager.Instance.SetPhase(GameManager.GamePhase.PickThrowStone);
         }
+    }
+
+    /// <summary>v15 착지 여운: 안착 지점에서 1회 hop + squash·stretch 후 kinematic 고정.
+    /// 경계 근처(board-out 위험)면 hop 생략하고 squash만 → 안착 후 밀려나 낙나는 것 방지.</summary>
+    private IEnumerator SettleStone(Stone s, Vector2 target)
+    {
+        Vector3 baseScale = s.transform.localScale;
+        // 경계 근처면 hop 생략(스쿼시만) — board-out 방어
+        float hop = BoardBounds.IsOutsideMat(target, 0.5f) ? 0f : 0.09f;
+        float dur = 0.16f, e = 0f;
+        while (e < dur)
+        {
+            e += Time.deltaTime; float u = Mathf.Clamp01(e / dur);
+            float y = target.y + Mathf.Sin(u * Mathf.PI) * hop * (1f - u); // 1회 튐 후 감쇠
+            s.transform.position = new Vector3(target.x, y, 0f);
+            float sq = Mathf.Sin(u * Mathf.PI); // 0→1→0
+            s.transform.localScale = new Vector3(baseScale.x * (1f + 0.15f * sq), baseScale.y * (1f - 0.20f * sq), baseScale.z);
+            yield return null;
+        }
+        s.transform.position = new Vector3(target.x, target.y, 0f);
+        s.transform.localScale = baseScale;
+        s.Rb.isKinematic = true; // 드리프트 방지 최종 고정
+    }
+
+    /// <summary>보드 사다리꼴 역매핑 (앞/뒤 변 수평 가정 — 이 게임 보드 구조). world → uv.
+    /// 산개 중심을 커서(손) 위치로 옮기기 위한 순정 역함수. clamp는 호출부에서.</summary>
+    private static Vector2 BoardUV(Vector2 p)
+    {
+        Vector2 bl = BoardBounds.QuadPoint(0f, 0f), fl = BoardBounds.QuadPoint(0f, 1f);
+        Vector2 br = BoardBounds.QuadPoint(1f, 0f), fr = BoardBounds.QuadPoint(1f, 1f);
+        float v = Mathf.Approximately(fl.y, bl.y) ? 0.5f : (p.y - bl.y) / (fl.y - bl.y);
+        float leftX  = Mathf.Lerp(bl.x, fl.x, v);
+        float rightX = Mathf.Lerp(br.x, fr.x, v);
+        float u = Mathf.Approximately(rightX, leftX) ? 0.5f : (p.x - leftX) / (rightX - leftX);
+        return new Vector2(u, v);
     }
 
     /// <summary>보드 폴리곤 bilinear 매핑. u,v∈[0,1]=내부. LerpUnclamped라 밖이면 외삽(낙 목표).

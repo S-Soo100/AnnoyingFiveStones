@@ -39,6 +39,7 @@ public class HandController : MonoBehaviour
     private bool isOnBoard;
     private bool isCatchMode;
     private bool isHolding;  // 클릭 Hold 상태
+    private bool suppressCursorFollow; // 뿌리기 토스 중 커서추종 OFF (손 position을 코루틴이 직접 제어)
 
     // === 5단 꺾기 전용 ===
     [Header("Stage 5 Settings")]
@@ -131,7 +132,7 @@ public class HandController : MonoBehaviour
         if (phase == GameManager.GamePhase.PickStones)
         {
             // catch mode가 아닐 때만 위치 갱신 (catch mode는 LateUpdate에서 처리)
-            if (!isCatchMode) UpdatePosition();
+            if (!isCatchMode && !suppressCursorFollow) UpdatePosition();
 
             // v11-fix2: 하늘 경계 = BoardBounds.SkyFloorY (=-2.45, 보드 메시 상단)
             // 히스테리시스 0.2 unit: 한 번 catch 모드면 (SkyFloor - 0.2 = -2.65) 아래로 가야 해제 → chattering 방지
@@ -151,7 +152,7 @@ public class HandController : MonoBehaviour
                 handModel?.SetCollidersEnabled(false);
             }
         }
-        else if (!isCatchMode)
+        else if (!isCatchMode && !suppressCursorFollow)
         {
             UpdatePosition();
         }
@@ -1404,30 +1405,62 @@ public class HandController : MonoBehaviour
     public void PlayScatterFlick()
     {
         if (flickCoroutine != null) StopCoroutine(flickCoroutine);
-        flickCoroutine = StartCoroutine(DoScatterFlick());
+        flickCoroutine = StartCoroutine(DoScatterThrow());
     }
 
-    private IEnumerator DoScatterFlick()
+    /// <summary>
+    /// 뿌리기 던지기 안무: 윈드업(뒤/위 젖힘) → 캐스트(앞/아래 스냅, 손가락 펼침) → 팔로스루(커서 복귀).
+    /// 캐스트 끝(≈0.22s)에 ScatterSystem.DoScatter가 돌을 detach+토스 시작 → 타이밍 정렬.
+    /// suppressCursorFollow로 토스 동안 손 position을 코루틴이 직접 제어.
+    /// </summary>
+    private IEnumerator DoScatterThrow()
     {
-        // 손가락 살짝 펴는 fling 느낌 (선택적, 과하지 않게)
+        suppressCursorFollow = true;          // 토스 동안 커서추종 OFF (손 position 제어)
+        Vector3 P0 = transform.position;      // 릴리스 시작점(=현재 커서 위치)
+        float biasX = Mathf.Clamp((0f - P0.x) * 0.15f, -0.4f, 0.4f); // 보드중심 쪽 살짝
+        Vector3 castPos = P0 + new Vector3(biasX, -0.35f, 0f); // 앞/아래로 살짝
+
         AnimateFingerFold(false);
-
-        Quaternion startRot = Quaternion.Euler(0f, 0f, 18f); // 손목 z축 꺾기
-        float duration = 0.2f;
-        float elapsed = 0f;
-        transform.rotation = startRot;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            float eased = 1f - (1f - t) * (1f - t); // EaseOut
-            transform.rotation = Quaternion.Slerp(startRot, Quaternion.identity, eased);
-            yield return null;
-        }
+        // v16: 윈드업 제거 — 돌은 이미 날아감(DoScatter 즉시 토스). 놓는 즉시 캐스트 스냅 → 팔로스루 복귀.
+        yield return LerpHand(P0, castPos, 0f, -22f, 0.10f, easeOut: false);
+        Vector3 cursorNow = ReadCursorWorld();
+        yield return LerpHand(castPos, cursorNow, -22f, 0f, 0.15f, easeOut: true);
 
         transform.rotation = Quaternion.identity;
+        suppressCursorFollow = false;         // 커서추종 재개
         flickCoroutine = null;
+    }
+
+    /// <summary>손 position/손목회전(z)을 dur 동안 보간. z는 -0.5 유지. easeOut=1-(1-t)², else t².</summary>
+    private IEnumerator LerpHand(Vector3 from, Vector3 to, float rotZfrom, float rotZto, float dur, bool easeOut)
+    {
+        float elapsed = 0f;
+        while (elapsed < dur)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / dur);
+            float e = easeOut ? 1f - (1f - t) * (1f - t) : t * t;
+            Vector3 p = Vector3.Lerp(from, to, e);
+            p.z = -0.5f;
+            transform.position = p;
+            transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(rotZfrom, rotZto, e));
+            handModel?.SyncHitboxPosition(transform.position);
+            yield return null;
+        }
+        Vector3 end = to;
+        end.z = -0.5f;
+        transform.position = end;
+        transform.rotation = Quaternion.Euler(0f, 0f, rotZto);
+        handModel?.SyncHitboxPosition(transform.position);
+    }
+
+    /// <summary>현재 커서의 월드 좌표(z=-0.5). UpdatePosition과 동일 방식.</summary>
+    private Vector3 ReadCursorWorld()
+    {
+        Vector2 screenPos = pointerAction.ReadValue<Vector2>();
+        Vector3 world = mainCamera.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 10f));
+        world.z = -0.5f;
+        return world;
     }
 
     private void AnimateFingerFold(bool fold)
@@ -1546,6 +1579,7 @@ public class HandController : MonoBehaviour
             flickCoroutine = null;
         }
         transform.rotation = Quaternion.identity;
+        suppressCursorFollow = false; // 커서추종 복원 (토스 중 리셋 안전망)
         // 손가락 펼침 상태로 즉시 복원
         if (handModel != null && handModel.Fingers != null)
         {
