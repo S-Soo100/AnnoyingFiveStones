@@ -482,7 +482,9 @@ public class AudioManager : MonoBehaviour
 
         jingleSource.Stop();
         jingleSource.clip = clip;
-        jingleSource.volume = jingleVolume * volumeScale;
+        // 징글(스테이지 인트로/클리어 "띵동")도 SFX 슬라이더로 조절되게 sfxVolume 사용.
+        // (기존 jingleVolume은 설정 UI에 노출된 슬라이더가 없어 조절 불가였음)
+        jingleSource.volume = sfxVolume * volumeScale;
         jingleSource.pitch = 1f;
         jingleSource.Play();
 

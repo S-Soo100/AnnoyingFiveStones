@@ -89,6 +89,15 @@ public class StoneShadow : MonoBehaviour
             Destroy(shadowObj);
     }
 
+    /// <summary>돌이 비활성화되면(StonePool.SetActive(false)/스테이지 정리) 독립 루트인 shadowObj도 숨김.
+    /// shadowObj가 부모 없는 루트라 Stone 비활성화만으론 안 꺼져 그림자가 누적되던 버그 방지.
+    /// 재활성화 시엔 Stone.SetState→UpdateVisibility가 상태에 맞게 다시 표시.</summary>
+    private void OnDisable()
+    {
+        if (shadowObj != null)
+            shadowObj.SetActive(false);
+    }
+
     /// <summary>Stone.SetState에서 호출: OnBoard(접지)/InAir/Bouncing(낙하)이면 활성화, 나머지 비활성화</summary>
     public void UpdateVisibility(Stone.State newState)
     {
