@@ -214,6 +214,24 @@ namespace FiveStones.Tests
         }
 
         [Test]
+        public void 높이_오를수록_앞뒤_크기차이가_줄어든다()
+        {
+            // 위로 뜬 물체는 카메라 눈높이에 가까워지므로 앞뒤 깊이 차이가 줄어든다.
+            // 이게 없으면 "뒤에서 던지면 돌이 계속 작다"는 어색함이 남는다.
+            var b = MakeBoard();
+            float hd = b.Depth * 0.5f;
+            var back  = new Vector2(0f, -hd);
+            var front = new Vector2(0f,  hd);
+
+            float groundRatio = b.PerspectiveScale(back, 0f) / b.PerspectiveScale(front, 0f);
+            float highRatio   = b.PerspectiveScale(back, 10f) / b.PerspectiveScale(front, 10f);
+
+            Assert.Less(groundRatio, 1f, "지면에서는 뒤가 작아야 한다");
+            Assert.Greater(highRatio, groundRatio, "높이 오르면 차이가 줄어야 한다");
+            Assert.LessOrEqual(highRatio, 1f, "그래도 뒤가 앞보다 커지면 안 된다");
+        }
+
+        [Test]
         public void 논리_공간에서는_이동이_균일하다()
         {
             // 사다리꼴이 만들던 문제: 뒤쪽에서 커서를 조금만 움직여도 보드상 훅 지나감.

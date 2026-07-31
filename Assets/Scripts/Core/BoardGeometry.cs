@@ -105,6 +105,13 @@ namespace FiveStones.Core
         /// 카메라에 가까워져 커져야 한다. ⚠️ 재튜닝 대상.</summary>
         private const float HeightGain = 0.030f;
 
+        /// <summary>높이 1당 "앞쪽으로 당겨지는" 정도.
+        ///
+        /// 위로 뜬 물체는 카메라 눈높이에 가까워지므로 **앞뒤 깊이 차이가 줄어든다**.
+        /// 이게 없으면 뒤에서 던진 돌이 최고점에서까지 앞에서 던진 돌보다 계속 작아,
+        /// "던진 위치에 따라 돌 크기가 다르다"는 어색함이 남는다. ⚠️ 재튜닝 대상.</summary>
+        private const float HeightConverge = 0.070f;
+
         /// <summary>그 위치에서의 원근 배율.
         ///
         /// - **깊이**: 뒤(v=0)에서 가장 작고 앞(v=1)에서 1. 보드가 사다리꼴로 보이는 것과
@@ -115,9 +122,15 @@ namespace FiveStones.Core
         ///   묶인 채 하늘에 떠 있어 계속 작아 보인다.</summary>
         public float PerspectiveScale(Vector2 boardPos, float height = 0f)
         {
+            float h = Mathf.Max(0f, height) * heightScale;
             float v = boardPos.y / Depth + 0.5f;
-            float depthScale = Mathf.LerpUnclamped(backHalfWidth, frontHalfWidth, v) / frontHalfWidth;
-            return depthScale * (1f + Mathf.Max(0f, height) * heightScale * HeightGain);
+
+            // 위로 뜰수록 카메라 눈높이에 가까워져 앞뒤 깊이 차이가 줄어든다.
+            // 지면(h=0)에서는 원래 깊이 그대로, 높이 오를수록 앞변(v=1)으로 수렴.
+            float effectiveV = Mathf.Min(1f, v + h * HeightConverge);
+
+            float depthScale = Mathf.LerpUnclamped(backHalfWidth, frontHalfWidth, effectiveV) / frontHalfWidth;
+            return depthScale * (1f + h * HeightGain);
         }
 
         /// <summary>화면 좌표 → 보드 좌표. 지면(height 0) 기준의 역변환 — 마우스 입력용.
