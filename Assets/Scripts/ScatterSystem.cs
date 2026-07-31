@@ -37,6 +37,10 @@ public class ScatterSystem : MonoBehaviour
     //   저게이지=뭉침(픽업실패) / 스윗스팟=안전 / 고게이지=낙. 100%=거의 확정 낙.
     private const float RUvBase = 0.12f;  // g=0 (뭉침)
     private const float RUvSpan = 0.60f;  // g=1 → 0.72 (경계 0.50 초과 = 전낙)
+    /// <summary>낙 판정 마진(보드 단위). 경계에 아슬아슬하게 걸친 돌을 살려준다.
+    /// 구 화면 단위 0.2와 대응. ⚠️ 재튜닝 대상.</summary>
+    private const float BoardMarginUnits = 0.2f;
+
     private static float RadiusUV(float g) => RUvBase + RUvSpan * Mathf.Clamp01(g);
 
     private const float TossDuration = 0.50f; // 돌 하나 비행 시간(초) — v15 여유있는 아치
@@ -252,10 +256,10 @@ public class ScatterSystem : MonoBehaviour
         //      폴리곤은 같고 "하늘 면제"만 뺀 것 — 안착 돌엔 그 면제가 틀리기 때문. 되돌리지 말 것.
         //      뿌리기가 감시보다 엄격해야 안전하다(통과한 돌은 감시에서도 통과 → 안착 직후 오낙 없음).
         //   QuadPoint로 4꼭짓점을 얻어 LerpUnclamped bilinear(TrapPoint)로 매핑 → uv>1은 보드 밖 외삽(낙 목표).
-        Vector2 cBL = BoardBounds.QuadPoint(0f, 0f);
-        Vector2 cBR = BoardBounds.QuadPoint(1f, 0f);
-        Vector2 cFL = BoardBounds.QuadPoint(0f, 1f);
-        Vector2 cFR = BoardBounds.QuadPoint(1f, 1f);
+        // v17: 목표를 **보드 좌표**로 계산하고 화면 위치는 투영으로 파생시킨다.
+        //   uv로 계산하던 기존 구조를 그대로 살리되, 마지막 변환만 BoardSpace로 바꾼 것.
+        //   이렇게 해야 안착한 돌이 자기 BoardPos를 갖고, 그림자가 실제 착지 지점에 찍힌다.
+        var boardTargets = new Vector2[n];
 
         // ★산개 중심 = 커서(손) 위치. 손이 없으면 보드 중앙(0.5,0.5) 폴백.
         //   테이블 밖 산개로 전-낙되는 것 방지 위해 [0.12,0.88]로 clamp(플레이 가능성 보존).
@@ -281,7 +285,7 @@ public class ScatterSystem : MonoBehaviour
             float u = centerUV.x + Mathf.Cos(a) * rads[i];
             float v = centerUV.y + Mathf.Sin(a) * rads[i];
             isNak[i] = (u < 0f || u > 1f || v < 0f || v > 1f);   // provisional
-            targets[i] = TrapPoint(u, v, cBL, cBR, cFL, cFR);
+            boardTargets[i] = BoardSpace.Current.UvToBoard(new Vector2(u, v));
         }
         // 클럼프: 비-낙 스톤 ~40%를 각도상 가장 가까운 다른 스톤 쪽으로 당겨 뭉침/빈틈 생성 (반경 불변)
         int clumpCount = Mathf.RoundToInt(n * 0.4f);
@@ -301,7 +305,7 @@ public class ScatterSystem : MonoBehaviour
             float a = angDeg[i] * Mathf.Deg2Rad;
             float u = centerUV.x + Mathf.Cos(a) * rads[i], v = centerUV.y + Mathf.Sin(a) * rads[i];
             isNak[i] = (u < 0f || u > 1f || v < 0f || v > 1f);
-            targets[i] = TrapPoint(u, v, cBL, cBR, cFL, cFR);
+            boardTargets[i] = BoardSpace.Current.UvToBoard(new Vector2(u, v));
         }
 
         // ── 2) 안착 목표 최소 간격 보장 (낙 목표는 건드리지 않음 — 어차피 보드 밖) ──
@@ -316,13 +320,13 @@ public class ScatterSystem : MonoBehaviour
                 for (int b = a + 1; b < n; b++)
                 {
                     if (isNak[b]) continue;
-                    Vector2 diff = targets[a] - targets[b];
+                    Vector2 diff = boardTargets[a] - boardTargets[b];
                     float dist = diff.magnitude;
                     if (dist < sep && dist > 0.001f)
                     {
                         Vector2 push = diff.normalized * (sep - dist) * 0.5f;
-                        targets[a] += push;
-                        targets[b] -= push;
+                        boardTargets[a] += push;
+                        boardTargets[b] -= push;
                         adjusted = true;
                     }
                 }
@@ -333,13 +337,13 @@ public class ScatterSystem : MonoBehaviour
         // ── 2.4) 우발낙 방어 (donts/game.md #19 SOT): 간격 확대가 비-낙 돌을 경계 밖으로 밀 수 있음.
         //   원래 uv 내부(provisional isNak==false)였는데 밀려난 돌만 보드 중심 C 쪽으로 회수.
         //   의도된 낙(provisional true)은 건드리지 않음.
-        Vector2 C = TrapPoint(centerUV.x, centerUV.y, cBL, cBR, cFL, cFR);
+        Vector2 C = BoardSpace.Current.UvToBoard(centerUV);
         for (int i = 0; i < n; i++)
         {
             if (isNak[i]) continue; // 의도된 낙은 그대로
             int guard = 0;
-            while (BoardBounds.IsOutsideMatStrict(targets[i], 0.2f) && guard++ < 10)
-                targets[i] = Vector2.Lerp(targets[i], C, 0.18f);
+            while (!BoardSpace.Current.ContainsWithMargin(boardTargets[i], BoardMarginUnits) && guard++ < 10)
+                boardTargets[i] = Vector2.Lerp(boardTargets[i], C, 0.18f);
         }
 
         // ── 2.5) 최종 낙 판정 ──
@@ -352,7 +356,10 @@ public class ScatterSystem : MonoBehaviour
         //   Strict는 SkyFloor 면제 없이 사다리꼴 내부만 본다 — 마진(0.2)은 그대로라 경계 애매낙 흡수도 동일.
         //   (v12에서 Flee 돌이 같은 이유로 +Y로 새어 IsOutsideMatStrict를 만든 것과 동일 패턴.)
         for (int i = 0; i < n; i++)
-            isNak[i] = BoardBounds.IsOutsideMatStrict(targets[i], 0.2f);
+        {
+            isNak[i] = !BoardSpace.Current.ContainsWithMargin(boardTargets[i], BoardMarginUnits);
+            targets[i] = BoardSpace.ToScreen(boardTargets[i], 0f); // 애니메이션용 화면 좌표(파생)
+        }
 
         // v16: 놓는 즉시 던지기 — 윈드업 대기 제거. 아래 준비 루프에서 즉시 detach + startPos(현재 손=커서 위치)
         //   재캡처 + 토스 시작 → 유저 릴리스와 돌 발사 타이밍 일치(체감 딜레이 제거).
@@ -412,7 +419,7 @@ public class ScatterSystem : MonoBehaviour
                         stones[i].Rb.angularVelocity = Vector3.zero;
                         // v15: 착지 여운(hop+squash) 후 kinematic 고정. SettleStone이 최종 isKinematic=true.
                         // (드리프트로 SafeZone 밖으로 밀려 플레이 중 낙나던 버그 해결. 줍힐 때 InHand로 전환됨.)
-                        StartCoroutine(SettleStone(stones[i], targets[i]));
+                        StartCoroutine(SettleStone(stones[i], boardTargets[i]));
                     }
                 }
             }
@@ -454,13 +461,19 @@ public class ScatterSystem : MonoBehaviour
 
     /// <summary>v15 착지 여운: 안착 지점에서 1회 hop + squash·stretch 후 kinematic 고정.
     /// 경계 근처(board-out 위험)면 hop 생략하고 squash만 → 안착 후 밀려나 낙나는 것 방지.</summary>
-    private IEnumerator SettleStone(Stone s, Vector2 target)
+    /// <summary>v17: 목표를 **보드 좌표**로 받는다. 마지막에 SetBoardMotion으로 고정하므로
+    /// 안착한 돌이 자기 BoardPos를 갖게 되고, 그림자가 실제 착지 지점에 찍힌다.</summary>
+    private IEnumerator SettleStone(Stone s, Vector2 boardTarget)
     {
+        Vector2 target = BoardSpace.ToScreen(boardTarget, 0f);
         Vector3 baseScale = s.transform.localScale;
-        // 경계 근처면 hop 생략(스쿼시만) — board-out 방어
-        // v16: 위 2.5)와 동일 사유로 Strict 사용. 안착 연출이므로 "하늘 면제"를 받으면 안 된다
-        //      (뒷변 너머에 앉는 돌이 면제를 받아 hop까지 튀던 것 차단).
-        float hop = BoardBounds.IsOutsideMatStrict(target, 0.5f) ? 0f : 0.09f;
+        // 경계 근처면 hop 생략(스쿼시만) — 튀다가 보드 밖으로 나가는 것 방어.
+        //
+        // ⚠️ v17에서 동작이 바뀌었다. 구 코드는 `IsOutsideMatStrict(target, 0.5f)`로
+        //    "보드를 0.5 **넓힌** 영역 밖"일 때만 hop을 껐다 — 안착 돌은 항상 보드 안이라
+        //    사실상 hop이 꺼지지 않아, 주석("경계 근처면 생략")과 반대로 동작했다.
+        //    여기서는 보드를 0.5 **좁힌** 영역 기준으로 판정해 원래 의도대로 만든다.
+        float hop = BoardSpace.Current.ContainsWithMargin(boardTarget, -0.5f) ? 0.09f : 0f;
         float dur = 0.16f, e = 0f;
         while (e < dur)
         {
@@ -471,7 +484,7 @@ public class ScatterSystem : MonoBehaviour
             s.transform.localScale = new Vector3(baseScale.x * (1f + 0.15f * sq), baseScale.y * (1f - 0.20f * sq), baseScale.z);
             yield return null;
         }
-        s.transform.position = new Vector3(target.x, target.y, 0f);
+        s.SetBoardMotion(boardTarget, 0f); // v17: 화면 위치는 투영으로 파생 + BoardPos 보유
         s.transform.localScale = baseScale;
         s.Rb.isKinematic = true; // 드리프트 방지 최종 고정
     }

@@ -68,9 +68,17 @@ namespace FiveStones.Core
         /// <summary>보드 좌표가 직사각형 안인가. **이것이 유일한 낙 판정 근거다.**
         /// height는 인자로 받지 않는다 — 떠 있는 돌은 애초에 이 함수를 호출하지 않는다
         /// (height == 0이 되는 순간에만 판정). 그래서 "하늘 면제" 예외가 필요 없다.</summary>
-        public bool Contains(Vector2 boardPos)
-            => Mathf.Abs(boardPos.x) <= Width * 0.5f
-            && Mathf.Abs(boardPos.y) <= Depth * 0.5f;
+        public bool Contains(Vector2 boardPos) => ContainsWithMargin(boardPos, 0f);
+
+        /// <summary>마진을 준 내부 판정. margin &gt; 0이면 보드가 그만큼 넓어진 것으로 친다
+        /// (경계에 아슬아슬하게 걸친 돌을 살려주는 용도).
+        ///
+        /// ⚠️ <see cref="Contains"/>의 오버로드로 만들지 않았다. Contains가 인자를 하나만 받는다는 것
+        /// 자체가 불변식(테스트로 잠겨 있음)이라 — 높이를 받는 순간 "하늘 면제" 예외가 되살아난다.
+        /// 이름을 분리해 그 잠금을 유지한다.</summary>
+        public bool ContainsWithMargin(Vector2 boardPos, float margin)
+            => Mathf.Abs(boardPos.x) <= Width * 0.5f + margin
+            && Mathf.Abs(boardPos.y) <= Depth * 0.5f + margin;
 
         // ── 표현 ────────────────────────────────────────────────────────────────
 

@@ -61,6 +61,22 @@ namespace FiveStones.Tests
                 "Contains는 보드 좌표 하나만 받아야 한다. 높이를 받는 순간 '면제 규칙'이 되살아난다.");
         }
 
+        [Test]
+        public void 마진은_보드를_넓히기만_한다()
+        {
+            // 경계 밖 점이라도 마진 안이면 살아난다. 마진 0이면 Contains와 완전히 같아야 한다.
+            var b = MakeBoard();
+            var justOutside = new Vector2(b.Width * 0.5f + 0.1f, 0f);
+
+            Assert.IsFalse(b.Contains(justOutside), "마진 없으면 밖");
+            Assert.IsFalse(b.ContainsWithMargin(justOutside, 0.05f), "마진이 모자라면 여전히 밖");
+            Assert.IsTrue(b.ContainsWithMargin(justOutside, 0.2f), "마진이 충분하면 안");
+
+            foreach (var p in new[] { Vector2.zero, justOutside, new Vector2(0f, 99f) })
+                Assert.AreEqual(b.Contains(p), b.ContainsWithMargin(p, 0f),
+                    "마진 0은 Contains와 동일해야 한다");
+        }
+
         // ── 좌표계 왕복 ──────────────────────────────────────────────────────
 
         [Test]
