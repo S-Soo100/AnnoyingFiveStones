@@ -40,8 +40,11 @@ public class ScatterSystem : MonoBehaviour
     //   (보드를 납작하게 만들면서 이 불균형이 드러남).
     //   보드 단위 원 = "돗자리 위에 사방으로 고르게 퍼진다"는 물리적 의미와 일치.
     //   보드 반너비 8 / 반깊이 4.5 → 4.5를 넘으면 앞뒤로 낙이 난다.
+    //   v17-b 튜닝: Span 4.00 → 3.00. 플레이 결과 게이지 0.54에서도 낙이 나서
+    //   성공 구간이 0.4 이하뿐이었다(게이지가 왕복하는 걸 감안하면 너무 좁다).
+    //   3.00이면 g=0.5에서 반경 2.60 — 중심이 앞쪽이어도 앞변(4.5) 안에 들어온다.
     private const float RBoardBase = 1.10f;  // g=0 (뭉침)
-    private const float RBoardSpan = 4.00f;  // g=1 → 5.10 (반깊이 4.5 초과 = 전낙)
+    private const float RBoardSpan = 3.00f;  // g=1 → 4.10 (반깊이 4.5에 근접 = 고게이지 낙)
     /// <summary>낙 판정 마진(보드 단위). 경계에 아슬아슬하게 걸친 돌을 살려준다.
     /// 구 화면 단위 0.2와 대응. ⚠️ 재튜닝 대상.</summary>
     private const float BoardMarginUnits = 0.2f;
