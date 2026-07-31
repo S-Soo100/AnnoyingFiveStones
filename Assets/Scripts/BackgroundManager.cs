@@ -160,8 +160,13 @@ public class BackgroundManager : MonoBehaviour
         float depth  = Mathf.Abs(BoardSpace.FrontScreenY - BoardSpace.BackScreenY);
         float centerY = (BoardSpace.BackScreenY + BoardSpace.FrontScreenY) * 0.5f;
 
-        t.position   = new Vector3(BoardSpace.CenterScreenX, centerY, t.position.z);
-        t.localScale = new Vector3(width, depth, 1f);
+        // ⚠️ 판정 quad(ApplyBoardOverride)와 **똑같은 live 보정**을 적용해야 한다.
+        // 한쪽에만 적용하면 라이브 튜닝을 켜는 순간 "보이는 돗자리 ≠ 판정 영역"이 되어
+        // 방금 없앤 버그 클래스가 그대로 되살아난다. 튜닝 중에도 둘은 항상 같아야 한다.
+        t.position   = new Vector3(BoardSpace.CenterScreenX + liveBoardOffset.x,
+                                   centerY + liveBoardOffset.y,
+                                   t.position.z);
+        t.localScale = new Vector3(width * liveBoardScale.x, depth * liveBoardScale.y, 1f);
 
         clothRenderer.enabled = true; // 배경 이미지 유무와 무관하게 항상 보이는 "돗자리"
     }
@@ -370,6 +375,7 @@ public class BackgroundManager : MonoBehaviour
 
         // 보드 override 라이브 갱신 (BoardBoundsDebugDrawer 빨간 박스가 즉시 반영)
         ApplyBoardOverride();
+        SyncBoardMat(); // v17: 돗자리도 함께 — 보이는 것과 판정이 튜닝 중에도 어긋나지 않게
     }
 
     private void ClearProps()
