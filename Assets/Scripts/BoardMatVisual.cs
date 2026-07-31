@@ -14,7 +14,14 @@ using UnityEngine;
 [RequireComponent(typeof(MeshRenderer))]
 public class BoardMatVisual : MonoBehaviour
 {
-    private const int TexSize = 256;
+    // ⚠️ 텍스처 비율은 **보드의 화면 점유 비율과 같아야** 픽셀이 월드에서 정사각형이 된다.
+    // 1:1로 만들면 4:1 면에 붙으면서 가로로 4배 늘어나 테두리 두께가 좌우만 두꺼워진다.
+    // 디자이너에게 외주 줄 때도 동일 스펙(직사각형, 아래 비율, 테두리는 텍스처 안에)으로 요청한다.
+    private static float BoardAspect =>
+        (BoardSpace.FrontHalfWidth * 2f) / Mathf.Abs(BoardSpace.FrontScreenY - BoardSpace.BackScreenY);
+
+    private const int TexHeight = 256;
+    private static int TexWidth => Mathf.RoundToInt(TexHeight * BoardAspect);
 
     // 돗자리 배색 — 기획서 v2의 "빨간 보드"를 유지하되 질감을 준다.
     private static readonly Color MatBase   = new Color(0.62f, 0.20f, 0.18f);
@@ -54,21 +61,23 @@ public class BoardMatVisual : MonoBehaviour
     /// <summary>테두리 + 안쪽 실 + 짜임(위빙) 패턴을 가진 돗자리 텍스처.</summary>
     private static Texture2D CreateMatTexture()
     {
-        var tex = new Texture2D(TexSize, TexSize, TextureFormat.RGBA32, false)
+        int W = TexWidth, H = TexHeight;
+        var tex = new Texture2D(W, H, TextureFormat.RGBA32, false)
         {
             wrapMode = TextureWrapMode.Clamp,
             filterMode = FilterMode.Bilinear
         };
 
-        int border = Mathf.RoundToInt(TexSize * BorderRatio);
-        int trim   = Mathf.RoundToInt(TexSize * TrimRatio);
-        var px = new Color[TexSize * TexSize];
+        // 테두리 두께는 **짧은 변(세로) 기준**으로 잡아야 사방이 같은 두께로 보인다.
+        int border = Mathf.RoundToInt(H * BorderRatio);
+        int trim   = Mathf.RoundToInt(H * TrimRatio);
+        var px = new Color[W * H];
 
-        for (int y = 0; y < TexSize; y++)
+        for (int y = 0; y < H; y++)
         {
-            for (int x = 0; x < TexSize; x++)
+            for (int x = 0; x < W; x++)
             {
-                int edge = Mathf.Min(Mathf.Min(x, TexSize - 1 - x), Mathf.Min(y, TexSize - 1 - y));
+                int edge = Mathf.Min(Mathf.Min(x, W - 1 - x), Mathf.Min(y, H - 1 - y));
                 Color c;
 
                 if (edge < border)
@@ -88,7 +97,7 @@ public class BoardMatVisual : MonoBehaviour
                     float grain = (Mathf.PerlinNoise(x * 0.09f, y * 0.09f) - 0.5f) * 0.05f;
                     c = new Color(c.r + grain, c.g + grain, c.b + grain, 1f);
                 }
-                px[y * TexSize + x] = c;
+                px[y * W + x] = c;
             }
         }
         tex.SetPixels(px);
