@@ -91,9 +91,10 @@ public class Stone : MonoBehaviour
         var p = BoardSpace.ToScreen(boardPos, height);
         transform.position = new Vector3(p.x, p.y, 0f);
 
-        // 원근: 뒤에 있을수록 작게. 보드가 좁아지는 비율과 같은 값이라 함께 일관된다.
-        // 높이는 반영하지 않는다 — 위로 떠도 깊이는 그대로이므로 크기가 변하면 안 된다.
-        transform.localScale = baseScale * BoardSpace.Current.PerspectiveScale(boardPos);
+        // 원근: 뒤에 있을수록 작게, 위로 뜰수록 크게.
+        // 내려다보는 시점이라 뜨면 카메라에 가까워진다 — 높이를 빼면 던진 돌이
+        // 중간 깊이의 축소율에 묶인 채 하늘에 떠 있어 계속 작아 보인다.
+        transform.localScale = baseScale * BoardSpace.Current.PerspectiveScale(boardPos, height);
     }
 
     /// <summary>보드 좌표 관리 해제 — 옛 화면 좌표 경로(뿌리기·5단 등)로 돌아갈 때.</summary>

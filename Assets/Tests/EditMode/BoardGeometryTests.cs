@@ -194,6 +194,26 @@ namespace FiveStones.Tests
         }
 
         [Test]
+        public void 위로_뜬_물체는_더_크게_보인다()
+        {
+            // 내려다보는 시점이라 물체가 뜨면 카메라에 가까워진다.
+            // 이걸 빼면 던진 돌이 중간 깊이의 축소율에 묶인 채 하늘에 떠 있어 계속 작아 보인다.
+            var b = MakeBoard();
+            var p = new Vector2(0f, 0f);
+
+            float ground = b.PerspectiveScale(p, 0f);
+            Assert.AreEqual(b.PerspectiveScale(p), ground, 1e-5f, "높이 0은 인자 생략과 같아야 한다");
+
+            float prev = ground;
+            foreach (float h in new[] { 1f, 3f, 6f, 10f })
+            {
+                float s = b.PerspectiveScale(p, h);
+                Assert.Greater(s, prev, $"height {h}에서 더 커져야 한다");
+                prev = s;
+            }
+        }
+
+        [Test]
         public void 논리_공간에서는_이동이_균일하다()
         {
             // 사다리꼴이 만들던 문제: 뒤쪽에서 커서를 조금만 움직여도 보드상 훅 지나감.

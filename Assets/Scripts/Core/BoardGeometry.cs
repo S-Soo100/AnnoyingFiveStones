@@ -101,15 +101,23 @@ namespace FiveStones.Core
             return new Vector2(screenX, screenY);
         }
 
-        /// <summary>그 깊이에서의 원근 축소 배율. 뒤(v=0)에서 가장 작고 앞(v=1)에서 1.
+        /// <summary>높이 1당 커지는 비율. 보드를 **내려다보는** 시점이므로 물체가 위로 뜨면
+        /// 카메라에 가까워져 커져야 한다. ⚠️ 재튜닝 대상.</summary>
+        private const float HeightGain = 0.030f;
+
+        /// <summary>그 위치에서의 원근 배율.
         ///
-        /// 보드가 사다리꼴로 보이는 것과 **정확히 같은 비율**(뒷변폭/앞변폭)이다.
-        /// 보드만 좁아지고 그 위의 물체는 안 작아지면 뒤쪽 돌이 앞쪽 돌과 같은 크기로 보여
-        /// 원근이 깨진다. 물체 스케일에 이 값을 곱해 그 어긋남을 없앤다.</summary>
-        public float PerspectiveScale(Vector2 boardPos)
+        /// - **깊이**: 뒤(v=0)에서 가장 작고 앞(v=1)에서 1. 보드가 사다리꼴로 보이는 것과
+        ///   **정확히 같은 비율**(뒷변폭/앞변폭)이다. 보드만 좁아지고 그 위 물체는 안 작아지면
+        ///   뒤쪽 돌이 앞쪽 돌과 같은 크기로 보여 원근이 깨진다.
+        /// - **높이**: 위로 뜰수록 커진다. 이 보드는 내려다보는 시점(그래서 사다리꼴)이라
+        ///   물체가 뜨면 카메라에 가까워진다. 높이를 무시하면 던진 돌이 중간 깊이의 축소율에
+        ///   묶인 채 하늘에 떠 있어 계속 작아 보인다.</summary>
+        public float PerspectiveScale(Vector2 boardPos, float height = 0f)
         {
             float v = boardPos.y / Depth + 0.5f;
-            return Mathf.LerpUnclamped(backHalfWidth, frontHalfWidth, v) / frontHalfWidth;
+            float depthScale = Mathf.LerpUnclamped(backHalfWidth, frontHalfWidth, v) / frontHalfWidth;
+            return depthScale * (1f + Mathf.Max(0f, height) * heightScale * HeightGain);
         }
 
         /// <summary>화면 좌표 → 보드 좌표. 지면(height 0) 기준의 역변환 — 마우스 입력용.
