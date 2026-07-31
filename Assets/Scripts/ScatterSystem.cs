@@ -499,8 +499,9 @@ public class ScatterSystem : MonoBehaviour
             s.transform.localScale = new Vector3(baseScale.x * (1f + 0.15f * sq), baseScale.y * (1f - 0.20f * sq), baseScale.z);
             yield return null;
         }
-        s.SetBoardMotion(boardTarget, 0f); // v17: 화면 위치는 투영으로 파생 + BoardPos 보유
-        s.transform.localScale = baseScale;
+        // ⚠️ SetBoardMotion이 위치와 **원근 크기**를 함께 정한다. 그 뒤에 localScale을
+        //    baseScale로 덮으면 원근이 지워져 뒤쪽 돌이 다시 커진다(스쿼시 복원은 여기 불필요).
+        s.SetBoardMotion(boardTarget, 0f);
         s.Rb.isKinematic = true; // 드리프트 방지 최종 고정
     }
 

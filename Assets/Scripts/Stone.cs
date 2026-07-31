@@ -239,14 +239,21 @@ public class Stone : MonoBehaviour
         currentState = newState;
 
         // v17: 상태가 바뀌면 보드 좌표 관리를 해제한다.
-        // 던지기 코루틴은 매 프레임 SetBoardMotion을 다시 부르므로 영향이 없고,
-        // 뿌리기/줍기/받기 등 아직 안 옮긴 경로로 넘어간 돌이 **낡은 BoardPos를 들고 있어
-        // 그림자가 엉뚱한 곳에 찍히는 것**을 막는다.
-        HasBoardMotion = false;
+        // 보드 좌표 관리를 놓아야 하는 상태에서만 해제한다.
+        //   InHand/Caught: 손에 붙어 보드를 떠남.
+        //   Bouncing: 물리가 위치를 몰아 보드 좌표가 곧 낡은 값이 됨.
+        //   OnBoard/InAir는 유지 — 보드 위 유효한 좌표를 갖고 있고(안착 돌),
+        //   던진 돌은 코루틴이 매 프레임 다시 세팅한다. 여기서 무조건 지우면
+        //   안착 직후 그림자가 근사 폴백으로 튄다.
+        if (newState == State.InHand || newState == State.Caught || newState == State.Bouncing)
+            HasBoardMotion = false;
 
-        // 원근 크기도 함께 원복. 손에 쥐어지거나(InHand) 보드를 떠난 돌이
-        // 마지막 깊이의 축소 배율을 그대로 들고 있으면 크기가 어긋나 보인다.
-        if (baseScaleCaptured) transform.localScale = baseScale;
+        // 원근 크기 원복은 **손에 들린 상태에서만** 한다.
+        //   InHand/Caught: 돌이 보드 평면을 떠나 손에 붙으므로 깊이 개념이 없다 → 고유 크기.
+        //   OnBoard/InAir/Bouncing: 여전히 보드 위 어느 깊이에 있으므로 원근을 유지해야 한다.
+        //   (여기서 무조건 원복하면 안착·낙 순간 돌이 갑자기 커진다)
+        if (baseScaleCaptured && (newState == State.InHand || newState == State.Caught))
+            transform.localScale = baseScale;
 
         // v6-1: InAir/Bouncing일 때 그림자 활성
         shadow?.UpdateVisibility(newState);
