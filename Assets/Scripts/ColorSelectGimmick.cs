@@ -139,7 +139,9 @@ public class ColorSelectGimmick : StageGimmick
             // 물리 안정화: Kinematic → 이동 → 복원
             bool wasKinematic = rb.isKinematic;
             rb.isKinematic = true;
-            stone.transform.position = new Vector3(x, y, boardZ);
+            // v17: 화면 좌표 대신 보드 좌표로 놓아 원근 크기가 붙게 한다.
+            //   (안 붙이면 이 단은 돌이 18개라 앞뒤가 같은 크기로 보여 어색함이 크다)
+            stone.SetBoardMotion(BoardSpace.ToBoard(new Vector2(x, y)), 0f);
             rb.linearVelocity   = Vector3.zero;
             rb.angularVelocity  = Vector3.zero;
             rb.isKinematic = wasKinematic;

@@ -113,7 +113,13 @@ public class FleeMovement : MonoBehaviour
                     move.z = 0f;
                 }
 
-                if (rb != null)
+                // v17: 위치를 보드 좌표로 확정해 **원근 크기가 붙게** 하고,
+                //   돌이 유효한 BoardPos를 갖게 한다(그림자가 발밑에 정확히 찍힌다).
+                //   이동·튕김 계산 자체는 위 로직 그대로 — 감각을 안 건드린다.
+                var fleeStone = stone;
+                if (fleeStone != null)
+                    fleeStone.SetBoardMotion(BoardSpace.ToBoard(new Vector2(move.x, move.y)), 0f);
+                else if (rb != null)
                     rb.MovePosition(move);
 
                 yield return new WaitForFixedUpdate();

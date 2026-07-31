@@ -398,7 +398,8 @@ public class MonochromeGimmick : StageGimmick
 
             // Kinematic 텔레포트 후 복원 (기존 패턴 유지)
             stone.Rb.isKinematic = true;
-            stone.transform.position = new Vector3(pos.x, pos.y, 0f);
+            // v17: 보드 좌표로 놓아 원근 크기가 붙게 한다 (이 단은 돌이 20개다).
+            stone.SetBoardMotion(BoardSpace.ToBoard(pos), 0f);
             stone.Rb.isKinematic = false;
             stone.Rb.useGravity = false;
             stone.Rb.linearDamping = 3f;
