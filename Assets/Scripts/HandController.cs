@@ -459,7 +459,10 @@ public class HandController : MonoBehaviour
         // ⚠️ 보드 좌표는 **손의 위치**에서 뽑는다. 위에서 stone을 옮긴 Cloth의 y(boardY)는
         //    보드 전체에 공통인 고정 화면 y라, 그걸 역투영하면 손이 앞쪽에 있어도
         //    항상 같은 깊이로 해석된다(= 그림자가 엉뚱한 곳에 생김).
-        Vector2 throwBoardPos = BoardSpace.ToBoard(new Vector2(transform.position.x, transform.position.y));
+        // 던지는 순간 손이 이미 하늘(보드 뒷변 위)에 있을 수 있으므로 보드 안으로 클램프한다.
+        // (클램프 없으면 v<0이 되어 그림자가 보드 밖 위쪽에 생긴다 — 실측 로그 y=-2.9 사례)
+        Vector2 throwBoardPos = BoardSpace.ClampToBoard(
+            BoardSpace.ToBoard(new Vector2(transform.position.x, transform.position.y)));
         Vector2 groundScreen  = BoardSpace.ToScreen(throwBoardPos, 0f);
         float peakHeight      = Mathf.Max(0.1f, throwPeakY - groundScreen.y);
 
@@ -551,8 +554,9 @@ public class HandController : MonoBehaviour
             // 구 방식은 2.5D 평면 물리라 결국 "화면 겹침"이었고, 1px만 어긋나도
             // "분명히 손 위인데" 못 받았다(= 진단 3 불공평의 직접 원인).
             //
-            // 손이 받는 높이(CatchHeight)에 돌이 내려온 순간 딱 한 번 판정한다.
-            if (h <= CatchHeight)
+            // 떨어지는 돌이 손의 화면 높이를 통과하는 순간 판정한다.
+            // (손이 하늘로 들려 있으므로 "특정 h"가 아니라 "손 높이 통과"가 시각적으로 맞다)
+            if (IsAtCatchMoment(p.y))
             {
                 var verdict = JudgeBoardCatch(throwBoardPos);
                 if (verdict != BoardCatchVerdict.Miss)
@@ -563,9 +567,10 @@ public class HandController : MonoBehaviour
                     }
                     else // Finger — 가장자리로 받아 튕김 (기획 3-5 유지)
                     {
-                        Vector2 handBoard = CatchHandBoardPos();
-                        Vector2 away = (throwBoardPos - handBoard).normalized;
-                        catchSystem?.OnFingerBounce(stone, new Vector3(away.x, 1f, 0f).normalized);
+                        // 손 중심에서 멀어지는 방향으로 튕긴다. 손이 왼쪽에 있으면 오른쪽으로.
+                        float awayX = Mathf.Sign(p.x - transform.position.x);
+                        if (Mathf.Approximately(awayX, 0f)) awayX = 1f;
+                        catchSystem?.OnFingerBounce(stone, new Vector3(awayX, 1f, 0f).normalized);
                     }
                     throwCoroutine = null;
                     yield break;
@@ -604,10 +609,7 @@ public class HandController : MonoBehaviour
 
     // === v17 보드 좌표 받기 판정 ===
 
-    /// <summary>손이 돌을 받는 높이(h). 이 높이에 돌이 내려온 순간 판정한다. ⚠️ 재튜닝 대상.</summary>
-    private const float CatchHeight = 0.6f;
-
-    /// <summary>손 전체 판정 반경 (보드 단위). 이 밖이면 못 받는다. ⚠️ 재튜닝 대상.</summary>
+    /// <summary>손 전체 판정 반경 (보드 단위, 가로). 이 밖이면 못 받는다. ⚠️ 재튜닝 대상.</summary>
     private const float CatchHandRadius = 1.6f;
 
     /// <summary>손바닥(안전) 반경. 결정 6-15 "손바닥 : 손가락 = 절반씩" → 전체의 1/2. ⚠️ 재튜닝 대상.</summary>
@@ -615,25 +617,33 @@ public class HandController : MonoBehaviour
 
     private enum BoardCatchVerdict { Miss, Finger, Palm }
 
-    /// <summary>받기 시점의 손 보드 좌표.
-    /// 받기 중 손은 하늘로 들려 있으므로, 화면 y에서 든 높이를 뺀 뒤 지면으로 역투영해야
-    /// "손이 보드의 어디 위에 있는가"가 나온다. 이 보정을 빼먹으면 손이 보드 뒤쪽으로 해석된다.</summary>
-    private Vector2 CatchHandBoardPos()
-    {
-        var s = new Vector2(transform.position.x,
-                            transform.position.y - CatchHeight * BoardSpace.HeightScale);
-        return BoardSpace.ToBoard(s);
-    }
-
-    /// <summary>돌의 보드 좌표와 손의 보드 좌표 거리로 받기 판정.
-    /// 화면 겹침이 아니라 **보드 위 거리**라 원근에 관계없이 일관된다.</summary>
+    /// <summary>받기 판정 — **보드 가로 거리** 기준.
+    ///
+    /// ⚠️ 왜 2D 거리가 아니라 가로 거리인가:
+    /// 이 게임은 받을 때 손을 **하늘로 들어올린다**(`inSky` = 손 y > SkyFloorY).
+    /// 그래서 손의 화면 좌표를 지면으로 역투영하면 보드 뒤쪽(v&lt;0)이 나와 깊이를 알 수 없다.
+    /// 반면 던진 돌은 **수직으로** 떨어지므로(boardPos 고정) 조준의 의미 있는 축은 가로다.
+    /// → 손의 화면 x를 "돌과 같은 깊이"에서 해석해 보드 x를 얻고, 그 거리로 판정한다.
+    ///
+    /// 화면 겹침(구 물리 충돌)과 달리 **보드 단위 거리**라 돌이 앞에 있든 뒤에 있든 관대함이 같다.
+    /// (깊이까지 맞추는 판정은 손을 하늘로 들지 않는 구조로 바꾼 뒤에 검토 — 미결)
+    /// </summary>
     private BoardCatchVerdict JudgeBoardCatch(Vector2 stoneBoardPos)
     {
-        float dist = Vector2.Distance(CatchHandBoardPos(), stoneBoardPos);
+        float groundY = BoardSpace.ToScreen(stoneBoardPos, 0f).y;
+        Vector2 handBoard = BoardSpace.ToBoard(new Vector2(transform.position.x, groundY));
+
+        float dist = Mathf.Abs(handBoard.x - stoneBoardPos.x);
         if (dist <= CatchPalmRadius) return BoardCatchVerdict.Palm;
         if (dist <= CatchHandRadius) return BoardCatchVerdict.Finger;
         return BoardCatchVerdict.Miss;
     }
+
+    /// <summary>받기 판정을 시작할 시점인가 — 떨어지는 돌이 손의 화면 높이를 지나는 순간.
+    /// 손이 하늘에 있으므로 "돌이 h=0.6까지 내려왔을 때"가 아니라 "손 높이를 통과할 때"가
+    /// 시각적으로 맞는 순간이다.</summary>
+    private bool IsAtCatchMoment(float stoneScreenY)
+        => isCatchMode && stoneScreenY <= transform.position.y;
 
     // === Catch 모드: 좌우 이동 ===
 

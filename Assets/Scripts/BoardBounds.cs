@@ -163,6 +163,7 @@ public static class BoardBounds
         //          이로써 "보이는 보드 바로 위 = 하늘"이 코드와 일치.
         if (quad != null && quad.Length == 4)
             SkyFloorY = Mathf.Max(quad[0].y, quad[1].y); // backY (BL.y, BR.y 중 큰 값)
+        BoardSpace.Invalidate(); // v17: 보드가 바뀌면 BoardGeometry 재생성
     }
 
     /// <summary>플레이 영역을 명시적 Rect로 덮어쓴다(예: Stage 2 책상 wood). InnerRect/IsOutsideMat도 자동으로 이 영역 사용.
@@ -174,6 +175,7 @@ public static class BoardBounds
         // v11-fix3 후보강 (Codex 리뷰): Rect override 시 SkyFloorY를 rect.yMax로 동기화
         // (이전엔 quad 시절 값 잔존 → API 일관성 결함)
         SkyFloorY = rect.yMax;
+        BoardSpace.Invalidate(); // v17
     }
 
     /// <summary>override 해제 → Cloth.bounds 기반 복귀.</summary>
@@ -182,6 +184,7 @@ public static class BoardBounds
         overrideRect = null;
         overrideQuad = null; // v9 추가
         SkyFloorY = -3.95f; // v11-fix3: quad 해제 시 폴백 복귀
+        BoardSpace.Invalidate(); // v17
     }
 
     /// <summary>매트가 변경되면(예: Cloth 위치 변경) 호출. 일반적으로 자동 캐싱 사용.</summary>

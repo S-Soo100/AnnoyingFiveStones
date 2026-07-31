@@ -76,6 +76,15 @@ public static class BoardSpace
     /// <summary>보드 좌표 + 높이 → 화면 좌표(월드 XY).</summary>
     public static Vector2 ToScreen(Vector2 boardPos, float height) => Current.Project(boardPos, height);
 
+    /// <summary>보드 좌표를 직사각형 안으로 클램프.
+    /// 손은 하늘(보드 뒷변 위)에 있을 수 있어 역투영이 v&lt;0을 낼 수 있다.
+    /// "보드 위 어디에서 던졌는가" 같은 값은 반드시 보드 안이어야 하므로 여기서 걸러준다.</summary>
+    public static Vector2 ClampToBoard(Vector2 boardPos)
+    {
+        float hw = LogicalWidth * 0.5f, hd = LogicalDepth * 0.5f;
+        return new Vector2(Mathf.Clamp(boardPos.x, -hw, hw), Mathf.Clamp(boardPos.y, -hd, hd));
+    }
+
     /// <summary>화면 y로부터 높이를 역산. 보드 좌표를 알고 있을 때만 정확하다
     /// (같은 화면 y라도 보드 앞/뒤에 따라 지면 높이가 다르기 때문).</summary>
     public static float HeightFromScreen(Vector2 boardPos, float screenY)
