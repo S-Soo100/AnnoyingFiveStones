@@ -770,7 +770,13 @@ public class GameUI : MonoBehaviour
         overlayMainText.color = new Color(1f, 1f, 1f, 0f);
 
         // v9(260703): 역할×4. 실제 이름은 추후 교체(placeholder).
-        overlaySubText.text = "Game Design    ___\nArt            ___\nProgramming    ___\nSound          ___";
+        // v16 정렬 수정: overlaySubText는 Center 정렬이라 <pos=%>가 줄마다 어긋난다.
+        // <mspace>로 전 문자 고정폭 → 공백 패딩만으로 이름 열이 정확히 맞음 (가변폭 깨짐 해결).
+        overlaySubText.text =
+            "<mspace=0.62em>Game Design   ___\n" +
+            "Art           ___\n" +
+            "Programming   ___\n" +
+            "Sound         ___</mspace>";
         overlaySubText.enableAutoSizing = false;
         overlaySubText.fontSize = 30;
         overlaySubText.textWrappingMode = TextWrappingModes.Normal;

@@ -162,7 +162,7 @@ public class DebugHUD : MonoBehaviour
         float btnH = 26f;
         float padding = 6f;
         float panelW = 220f;
-        float panelH = btnH * 5f + padding * 6f; // 버튼 5개 (연습 토글 + 스테이지 스킵 + 주마등 + 이름입력 + 묘지 미리보기)
+        float panelH = btnH * 6f + padding * 7f; // v16: 버튼 6개 (연습 토글 + 스테이지 스킵 + 주마등 + 이름입력 + 묘지 미리보기 + 보드 외곽선)
         float panelX = Screen.width - panelW - 10f;
         float panelY = RightColumnTop() + 72f; // 스테이지(40+gap10) + 토글(28+gap4) = 40+28+4
 
@@ -225,6 +225,16 @@ public class DebugHUD : MonoBehaviour
         GUI.backgroundColor = new Color(0.7f, 0.9f, 0.8f, 0.8f);
         if (GUI.Button(new Rect(x, y, btnW, btnH), "묘지 미리보기", btnStyle))
             GraveyardUI.Instance?.ShowPreview();
+        y += btnH + padding;
+
+        // v16: 보드 영역(BoardBounds 판정 폴리곤) 빨간 외곽선 토글 — 모든 스테이지 공통.
+        // "보이는 테이블"과 "판정 영역" 어긋남을 눈으로 대조하기 위한 도구.
+        bool outline = BoardBoundsDebugDrawer.Enabled;
+        GUI.backgroundColor = outline
+            ? new Color(1f, 0.35f, 0.35f, 0.85f)
+            : new Color(0.45f, 0.45f, 0.45f, 0.7f);
+        if (GUI.Button(new Rect(x, y, btnW, btnH), outline ? "보드 외곽선: ON" : "보드 외곽선: OFF", btnStyle))
+            BoardBoundsDebugDrawer.Enabled = !BoardBoundsDebugDrawer.Enabled;
 
         GUI.backgroundColor = origBg;
     }

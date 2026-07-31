@@ -126,16 +126,36 @@ public class StageConfig
             Gimmick=GimmickType.Flee, TotalStones=5,
             SkyBottom=new Color(0.7f,0.9f,1.0f), SkyTop=new Color(0.3f,0.65f,0.95f),
             TableColor=new Color(0.4f,0.7f,0.35f), ClothColor=new Color(0.4f,0.75f,0.7f),
-            BackgroundImage="StageBackgrounds/Life/age20", // v11 나이대별 배경 (⚠️기존 완성본: "StageBackgrounds/Stage03_Campus" — age20은 임시 스케치)
-            // v11 B정렬 (ImageMagick 측정 기반): age20 "실제 플레이 영역" 빨간 아웃라인에 맞춤.
+            BackgroundImage="StageBackgrounds/Life/age20", // v16: 정식 렌더로 교체(20살배경newrender — 기존 돗자리 스케치 대체)
+            // ⚠️ v16 배경 교체 시 재측정: 새 렌더의 중앙 테이블 상판은 back y≈+0.19 / front y≈-6.75,
+            //    front 반폭 ≈±8.2 (구 스케치보다 넓고 깊음). 아래 quad는 그 상판 "안쪽"에 들어가므로
+            //    시각 이탈 없음(앞변만 0.15 아래로 살짝 넘침 — IsOutsideMat 마진 0.2 내부). 플레이 영역을
+            //    새 테이블 전체로 넓히려면 Flee 난이도·SafeZone 캡 재검토 후 별도 튜닝 필요.
+            // v11 B정렬 (ImageMagick 측정 기반): 구 age20 "실제 플레이 영역" 빨간 아웃라인에 맞춤.
             // 뒷변 -2.10: 그리드 back(~-1.98)이 SafeZone yMax(-2.0) 초과 → 0.1 margin 캡. 앞변 -6.90: 그리드 front(88.5% 높이).
-            // X는 그리드가 SafeZone(±5.3)보다 넓어 캡 유지(±4.4/±5.2). quad ⊆ SafeZone → Flee 튕김 안전. SkyFloorY 자동 -2.10.
-            // 되돌리려면 -3.95/-7.10로 복구.
+            // SkyFloorY 자동 -2.10. 되돌리려면 -3.95/-7.10로 복구.
+            //
+            // ⚠️ v16 앞변 X 캡 해제: ±5.20 → ±7.20.
+            //  - 구 캡의 근거였던 "quad ⊆ SafeZone(±5.3)"은 **v14에서 이미 무효**가 됐다. 낙 판정이
+            //    GameManager.SafeZone → BoardBounds.IsOutsideMat(quad 기반)으로 옮겨갔고, Stage 3 경로
+            //    (FleeGimmick/FleeMovement/ScatterSystem/ScatterRangeIndicator)는 전부 quad만 읽는다.
+            //    GameManager.SafeZoneMin/Max의 유일한 잔존 소비자는 MonochromeGimmick(10단)뿐.
+            //  - 새 age20 렌더 실측(16:9, cam ortho 7 / y=-1.5 기준): 상판 앞변 좌 -7.84 / 우 +8.22,
+            //    뒷변 좌 -4.72 / 우 +4.44. 즉 **뒷변은 이미 정확**했고 앞변만 캡에 눌려 있었다.
+            //  - ±7.20 근거: 앞변 코너를 픽셀로 재검증 — ±7.20은 상판 위(여유 좌 0.64/우 1.02),
+            //    ±7.80은 좌측 코너가 테이블 모서리 곡면으로 올라가 이탈. 원근비도 7.20/4.44=1.62로
+            //    실제 테이블 원근(7.84/4.72=1.66)에 근접 → 돌·그림자 배치가 시각적으로 맞아떨어짐.
+            //  - ⚠️ 배경 quad는 카메라 비율로 스트레치되는데 BoardQuad는 월드 고정이라, 16:9가 아닌
+            //    비율에서는 테이블 위치가 어긋난다. 현재 ScreenManager가 창모드를 16:9로 강제하고
+            //    (EnforceAspectRatio) 개발기 디스플레이도 2560x1440이라 안전. 16:10 노트북 전체화면
+            //    등 더 좁은 비율을 지원하게 되면 앞변을 ±6.6 수준으로 낮춰야 한다.
+            //  - 난이도: 플레이 면적 +21%(46.3→55.9). Flee가 도망칠 공간이 늘어 3단이 다소 어려워진다.
+            //    되돌리려면 앞변 X만 5.20으로 복구(다른 값은 손대지 않았음).
             BoardQuad = new Vector2[] {
                 new Vector2(-4.40f, -2.10f),  // BL 뒤-좌
                 new Vector2( 4.48f, -2.10f),  // BR 뒤-우
-                new Vector2(-5.20f, -6.90f),  // FL 앞-좌 (X는 Flee SafeZone ±5.3 내부 유지)
-                new Vector2( 5.20f, -6.90f),  // FR 앞-우
+                new Vector2(-7.20f, -6.90f),  // FL 앞-좌 (v16: 실측 테이블 앞변 -7.84 안쪽)
+                new Vector2( 7.20f, -6.90f),  // FR 앞-우 (v16: 실측 테이블 앞변 +8.22 안쪽)
             },
             Props=new BackgroundProp[]
             {
@@ -155,12 +175,18 @@ public class StageConfig
             TableColor=new Color(0.5f,0.45f,0.4f), ClothColor=new Color(0.85f,0.78f,0.65f),
             BackgroundImage = "StageBackgrounds/Life/age25", // v11 나이대별 배경 (⚠️ WIP: 무채색 렌더)
             // v11 B정렬: age25 마우스패드에 맞춤 (ImageMagick CC 측정: back 57.6%/front 85.5%). 빗금 매트 제거 — 마우스패드(배경)가 플레이면.
-            // X는 마우스패드가 SafeZone(±5.3)보다 넓어 캡. 되돌리려면 mat 복원 + BoardQuad -3.95/-7.10.
+            // 되돌리려면 mat 복원 + BoardQuad -3.95/-7.10.
+            //
+            // ⚠️ v16 X 캡 해제 (Stage 3와 동일 사유 — SafeZone 근거는 v14에 소멸. 상세는 Stage 3 주석).
+            //  - age25 마우스패드 실측(16:9): 뒷변 좌 -5.45 / 우 +5.69, 앞변 좌 -7.16 / 우 +7.63.
+            //    Y(-2.55 / -6.47)는 재측정 결과 패드(py 548~815)와 정확히 일치 → 불변.
+            //  - 대칭 quad라 "좁은 쪽 - 0.2 마진" 기준: 뒷변 5.45-0.2=5.25, 앞변 7.16-0.2=6.95.
+            //  - 되돌리려면 X만 4.60 / 5.20으로 복구.
             BoardQuad = new Vector2[] {
-                new Vector2(-4.60f, -2.55f),  // BL 뒤-좌
-                new Vector2( 4.60f, -2.55f),  // BR 뒤-우
-                new Vector2(-5.20f, -6.47f),  // FL 앞-좌 (X SafeZone 캡)
-                new Vector2( 5.20f, -6.47f),  // FR 앞-우
+                new Vector2(-5.25f, -2.55f),  // BL 뒤-좌 (v16: 실측 뒷변 -5.45 안쪽)
+                new Vector2( 5.25f, -2.55f),  // BR 뒤-우
+                new Vector2(-6.95f, -6.47f),  // FL 앞-좌 (v16: 실측 앞변 -7.16 안쪽)
+                new Vector2( 6.95f, -6.47f),  // FR 앞-우
             },
             Props=new BackgroundProp[]
             {
@@ -179,13 +205,23 @@ public class StageConfig
             SkyBottom=new Color(0.2f,0.3f,0.55f), SkyTop=new Color(0.1f,0.15f,0.3f),
             TableColor=new Color(0.25f,0.35f,0.5f), ClothColor=new Color(0.6f,0.7f,0.85f),
             BackgroundImage="StageBackgrounds/Life/age30", // v11 나이대별 배경 (기존: "StageBackgrounds/Stage05_Office" — 둘 다 임시)
-            // v11 B정렬: age30 마우스패드에 맞춤 (CC 측정: back 57.6%/front 85%). X는 SafeZone 캡.
+            // v11 B정렬: age30 마우스패드에 맞춤 (CC 측정: back 57.6%/front 85%).
             // ⚠️ ObstacleGimmick 방해물 영역이 BoardBounds 기반이라 함께 이동/축소됨. 되돌리려면 -3.95/-7.10.
+            //
+            // ⚠️ v16 앞변 X 캡 해제 (Stage 3와 동일 사유 — SafeZone 근거는 v14에 소멸).
+            //  - age30 마우스패드 실측(16:9): 뒷변 좌 -5.47 / 우 +4.83, 앞변 좌 -7.00 / 우 +6.45.
+            //    Y(-2.55 / -6.40)는 패드(py 548~811)와 일치 → 불변.
+            //  - **패드가 좌로 약 0.3 치우쳐 있음.** 대칭 quad 유지(centroid x=0 전제인 Flee/Obstacle
+            //    중심 계산을 건드리지 않기 위해) → "좁은 쪽(우) - 0.2 마진" 기준.
+            //    뒷변: 4.83-0.2=4.63 ≈ 현재 4.60 → **변경 없음**. 앞변: 6.45-0.2=6.25.
+            //  - ObstacleGimmick 영향: 방해물 halfW = MatRect.width*0.5*0.65 → 3.38 → 4.06 (+20%).
+            //    centroid(-4.475) 높이의 패드 폭 안쪽이라 이탈은 없으나 방해물이 더 넓게 퍼진다.
+            //  - 되돌리려면 앞변 X만 5.20으로 복구.
             BoardQuad = new Vector2[] {
-                new Vector2(-4.60f, -2.55f),  // BL 뒤-좌
+                new Vector2(-4.60f, -2.55f),  // BL 뒤-좌 (실측 우측 +4.83 기준 — 유지)
                 new Vector2( 4.60f, -2.55f),  // BR 뒤-우
-                new Vector2(-5.20f, -6.40f),  // FL 앞-좌 (X SafeZone 캡)
-                new Vector2( 5.20f, -6.40f),  // FR 앞-우
+                new Vector2(-6.25f, -6.40f),  // FL 앞-좌 (v16: 실측 우측 +6.45 기준)
+                new Vector2( 6.25f, -6.40f),  // FR 앞-우
             },
             Props=new BackgroundProp[]
             {

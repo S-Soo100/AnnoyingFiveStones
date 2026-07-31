@@ -157,5 +157,9 @@ public static class LocalizationManager
         // === 타이틀 토스트 (영어 확정, 2026-07-06 사용자 승인) ===
         ["title.toast"] = ("놀지 말고 공기놀이를 시작하시는게 어떨까요?",
                            "How about starting the game instead of playing around?"),
+
+        // === 타이틀 말풍선 장식 (v16) — 만화풍 감탄사. 좁은 말풍선에 들어가야 하므로 짧게.
+        ["title.bubble_left"]  = ("마참내", "FINALLY!"),   // "마침내"의 밈 표기 — 영어도 감탄조로
+        ["title.bubble_right"] = ("즐겁다", "SO FUN!"),
     };
 }

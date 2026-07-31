@@ -12,7 +12,7 @@ public class AudioManager : MonoBehaviour
 
     [Header("Volume")]
     [SerializeField] private float sfxVolume = 0.5f;
-    [SerializeField] private float jingleVolume = 0.5f;
+    // v16: jingleVolume 제거 — 징글도 SFX 슬라이더(sfxVolume)로 조절되도록 통합되어 실사용처가 없어짐.
 
     private const string SFXVolumePrefKey = "sfx_volume";
     private const float DefaultSFXVolume = 0.5f; // sfxVolume 인스턴스 초기값과 일치

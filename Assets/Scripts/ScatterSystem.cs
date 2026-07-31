@@ -247,7 +247,10 @@ public class ScatterSystem : MonoBehaviour
         var startPos = new Vector2[n];
 
         // 뿌리기 보드 = 게임 BoardBounds 실제 폴리곤 (quad=사다리꼴 = 보이는 노란 테이블 / 없으면 AABB).
-        //   게임 낙 감시(IsOutsideMat)와 "동일 폴리곤" → placement·낙·play감시 3자 완전 일치.
+        //   게임 낙 감시와 "동일 폴리곤" → placement·낙·play감시 3자 완전 일치.
+        //   ⚠️ v16: 단, 뿌리기 판정은 IsOutsideMat이 아니라 **IsOutsideMatStrict**를 쓴다(2.5 참고).
+        //      폴리곤은 같고 "하늘 면제"만 뺀 것 — 안착 돌엔 그 면제가 틀리기 때문. 되돌리지 말 것.
+        //      뿌리기가 감시보다 엄격해야 안전하다(통과한 돌은 감시에서도 통과 → 안착 직후 오낙 없음).
         //   QuadPoint로 4꼭짓점을 얻어 LerpUnclamped bilinear(TrapPoint)로 매핑 → uv>1은 보드 밖 외삽(낙 목표).
         Vector2 cBL = BoardBounds.QuadPoint(0f, 0f);
         Vector2 cBR = BoardBounds.QuadPoint(1f, 0f);
@@ -335,14 +338,21 @@ public class ScatterSystem : MonoBehaviour
         {
             if (isNak[i]) continue; // 의도된 낙은 그대로
             int guard = 0;
-            while (BoardBounds.IsOutsideMat(targets[i], 0.2f) && guard++ < 10)
+            while (BoardBounds.IsOutsideMatStrict(targets[i], 0.2f) && guard++ < 10)
                 targets[i] = Vector2.Lerp(targets[i], C, 0.18f);
         }
 
-        // ── 2.5) 최종 낙 판정: 게임 감시와 "완전히 동일한" IsOutsideMat 사용 → scatter 낙 = play 낙 100% 일치.
-        // 분리 패스가 밀어낸 것도 반영. IsOutsideMat 자체 마진(0.2)이 경계 애매낙을 흡수.
+        // ── 2.5) 최종 낙 판정 ──
+        // v16 수정: IsOutsideMat → IsOutsideMatStrict.
+        //   IsOutsideMat에는 "뒷변 위(SkyFloorY 초과)는 하늘이라 outside 면제" 규칙이 있는데,
+        //   그건 **던져서 날아가는 중인 돌**을 보호하려는 것이다. 뿌려서 **안착하는** 돌은
+        //   날아가는 중이 아니므로 이 면제를 받으면 안 된다. 면제를 받는 바람에
+        //   보이는 보드 뒷변 너머(예: 옆 테이블 위)에 앉아도 낙이 아니게 되어
+        //   "판정 영역이 보이는 것보다 훨씬 커 보이는" 증상이 났다.
+        //   Strict는 SkyFloor 면제 없이 사다리꼴 내부만 본다 — 마진(0.2)은 그대로라 경계 애매낙 흡수도 동일.
+        //   (v12에서 Flee 돌이 같은 이유로 +Y로 새어 IsOutsideMatStrict를 만든 것과 동일 패턴.)
         for (int i = 0; i < n; i++)
-            isNak[i] = BoardBounds.IsOutsideMat(targets[i], 0.2f);
+            isNak[i] = BoardBounds.IsOutsideMatStrict(targets[i], 0.2f);
 
         // v16: 놓는 즉시 던지기 — 윈드업 대기 제거. 아래 준비 루프에서 즉시 detach + startPos(현재 손=커서 위치)
         //   재캡처 + 토스 시작 → 유저 릴리스와 돌 발사 타이밍 일치(체감 딜레이 제거).
@@ -448,7 +458,9 @@ public class ScatterSystem : MonoBehaviour
     {
         Vector3 baseScale = s.transform.localScale;
         // 경계 근처면 hop 생략(스쿼시만) — board-out 방어
-        float hop = BoardBounds.IsOutsideMat(target, 0.5f) ? 0f : 0.09f;
+        // v16: 위 2.5)와 동일 사유로 Strict 사용. 안착 연출이므로 "하늘 면제"를 받으면 안 된다
+        //      (뒷변 너머에 앉는 돌이 면제를 받아 hop까지 튀던 것 차단).
+        float hop = BoardBounds.IsOutsideMatStrict(target, 0.5f) ? 0f : 0.09f;
         float dur = 0.16f, e = 0f;
         while (e < dur)
         {

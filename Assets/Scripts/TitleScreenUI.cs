@@ -299,8 +299,14 @@ public class TitleScreenUI : MonoBehaviour
             textRt.offsetMax = new Vector2(-15f, -15f);
 
             var tmp = textGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = "마참내";
-            tmp.fontSize = 36f;
+            tmp.text = LocalizationManager.L("title.bubble_left");
+            RegisterLocalized(tmp, "title.bubble_left");
+            // v16: 한/영 글자 폭 차이("마참내" 3자 vs "FINALLY!" 8자)를 말풍선 안에 흡수.
+            // NoWrap + 오토사이즈 → 언어 전환 시 줄바꿈 대신 축소.
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
+            tmp.enableAutoSizing = true;
+            tmp.fontSizeMin = 18f;
+            tmp.fontSizeMax = 36f;
             tmp.fontStyle = FontStyles.Bold;
             tmp.color = Color.red;
             tmp.alignment = TextAlignmentOptions.Center;
@@ -338,8 +344,12 @@ public class TitleScreenUI : MonoBehaviour
             textRt.offsetMax = new Vector2(-10f, -10f);
 
             var tmp = textGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = "즐겁다";
-            tmp.fontSize = 30f;
+            tmp.text = LocalizationManager.L("title.bubble_right");
+            RegisterLocalized(tmp, "title.bubble_right");
+            tmp.textWrappingMode = TextWrappingModes.NoWrap; // v16: 위 말풍선과 동일 사유
+            tmp.enableAutoSizing = true;
+            tmp.fontSizeMin = 16f;
+            tmp.fontSizeMax = 30f;
             tmp.fontStyle = FontStyles.Bold;
             tmp.color = Color.white;
             tmp.alignment = TextAlignmentOptions.Center;
