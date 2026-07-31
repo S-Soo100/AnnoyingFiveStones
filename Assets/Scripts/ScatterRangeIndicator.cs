@@ -14,8 +14,9 @@ public class ScatterRangeIndicator : MonoBehaviour
     private const float RingZ = 0.03f;
 
     // 스윗 밴드 정적 목표 도넛(항상 표시) — 유저가 겨냥할 안전 반경대.
-    private const float GuideInnerUV = 0.30f;
-    private const float GuideOuterUV = 0.50f;
+    // v17: uv → 보드 단위. 보드 반깊이 4.5가 앞뒤 낙의 경계다.
+    private const float GuideInnerBoard = 2.50f; // 뭉침 탈출 = 스윗 진입
+    private const float GuideOuterBoard = 4.00f; // 스윗 끝 (이 위는 경계 경고)
 
     // 게이지바와 톤 통일한 팔레트
     private static readonly Color mint  = new Color(0.40f, 0.85f, 0.70f);
@@ -86,40 +87,36 @@ public class ScatterRangeIndicator : MonoBehaviour
         if (guideOuter != null) guideOuter.enabled = false;
     }
 
-    /// <summary>게이지 값에 대응하는 산개 반경(UV)으로 링을 갱신. centerUV = 산개 중심(커서/손 위치).</summary>
-    public void UpdateRing(float radiusUV, Vector2 centerUV)
+    /// <summary>게이지 값에 대응하는 산개 반경(**보드 단위**)으로 링을 갱신.
+    /// centerBoard = 산개 중심(커서/손 위치의 보드 좌표).
+    /// v17: 보드 공간의 진짜 원을 그린다 → 화면에서는 원근에 눌린 타원으로 보이는데,
+    /// 그게 "돗자리 위에 그린 원"의 올바른 모습이고 실제 산개와 정확히 일치한다.</summary>
+    public void UpdateRing(float radiusBoard, Vector2 centerBoard)
     {
-        // 1) 게임의 실제 보드 4꼭짓점 (ScatterSystem.DoScatter와 동일 방식).
-        Vector2 cBL = BoardBounds.QuadPoint(0f, 0f);
-        Vector2 cBR = BoardBounds.QuadPoint(1f, 0f);
-        Vector2 cFL = BoardBounds.QuadPoint(0f, 1f);
-        Vector2 cFR = BoardBounds.QuadPoint(1f, 1f);
-
-        // 1.5) 정적 스윗 밴드 도넛 갱신 (중심도 커서 따라 이동 — 라이브 링과 동일 원점).
-        BuildGuide(guideInner, GuideInnerUV, centerUV, cBL, cBR, cFL, cFR);
-        BuildGuide(guideOuter, GuideOuterUV, centerUV, cBL, cBR, cFL, cFR);
+        // 1) 스윗 밴드 도넛 (중심도 커서 따라 이동 — 라이브 링과 동일 원점).
+        BuildGuide(guideInner, GuideInnerBoard, centerBoard);
+        BuildGuide(guideOuter, GuideOuterBoard, centerBoard);
 
         // 2) SEG개 점 배치 + 낙 위험(보드 밖) 카운트.
         int outside = 0;
         for (int i = 0; i < SEG; i++)
         {
             float theta = 2f * Mathf.PI * i / SEG;
-            float u = centerUV.x + radiusUV * Mathf.Cos(theta);
-            float v = centerUV.y + radiusUV * Mathf.Sin(theta);
-            Vector2 world = TrapPoint(u, v, cBL, cBR, cFL, cFR);
+            Vector2 bp = centerBoard + new Vector2(Mathf.Cos(theta), Mathf.Sin(theta)) * radiusBoard;
+            Vector2 world = BoardSpace.ToScreen(bp, 0f);
             lr.SetPosition(i, new Vector3(world.x, world.y, RingZ));
 
-            if (BoardBounds.IsOutsideMat(world, 0.2f)) outside++;
+            if (!BoardSpace.Current.Contains(bp)) outside++;
         }
 
         float dangerFrac = (float)outside / SEG;
 
         // 3) 3밴드 색: 뭉침(coral)→스윗(mint)→경계앰버→낙(coral). 실제 넘침은 coral 강조.
         Color c;
-        if (radiusUV < 0.30f)
-            c = Color.Lerp(coral, mint, Mathf.InverseLerp(0.18f, 0.30f, radiusUV)); // 뭉침→스윗 진입
-        else if (radiusUV <= 0.50f)
-            c = Color.Lerp(mint, amber, Mathf.InverseLerp(0.42f, 0.50f, radiusUV)); // 스윗, 경계 근처 앰버 경고
+        if (radiusBoard < GuideInnerBoard)
+            c = Color.Lerp(coral, mint, Mathf.InverseLerp(1.6f, GuideInnerBoard, radiusBoard)); // 뭉침→스윗 진입
+        else if (radiusBoard <= 4.50f)
+            c = Color.Lerp(mint, amber, Mathf.InverseLerp(GuideOuterBoard, 4.50f, radiusBoard)); // 스윗, 경계 근처 앰버 경고
         else
             c = coral; // 낙
         if (dangerFrac > 0f) c = Color.Lerp(c, coral, Mathf.Clamp01(dangerFrac * 3f)); // 실제 넘침 강조
@@ -129,15 +126,14 @@ public class ScatterRangeIndicator : MonoBehaviour
     }
 
     /// <summary>정적 가이드 도넛을 반경 rUV로 보드 폴리곤에 배치. centerUV = 산개 중심(커서).</summary>
-    private void BuildGuide(LineRenderer g, float rUV, Vector2 centerUV, Vector2 bl, Vector2 br, Vector2 fl, Vector2 fr)
+    private void BuildGuide(LineRenderer g, float rBoard, Vector2 centerBoard)
     {
         if (g == null) return;
         for (int i = 0; i < SEG; i++)
         {
             float theta = 2f * Mathf.PI * i / SEG;
-            float u = centerUV.x + rUV * Mathf.Cos(theta);
-            float v = centerUV.y + rUV * Mathf.Sin(theta);
-            Vector2 world = TrapPoint(u, v, bl, br, fl, fr);
+            Vector2 bp = centerBoard + new Vector2(Mathf.Cos(theta), Mathf.Sin(theta)) * rBoard;
+            Vector2 world = BoardSpace.ToScreen(bp, 0f);
             g.SetPosition(i, new Vector3(world.x, world.y, RingZ));
         }
     }

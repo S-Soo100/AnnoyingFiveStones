@@ -35,13 +35,18 @@ public class ScatterSystem : MonoBehaviour
     // ── v14 토스 튜닝 상수 (씬 오버라이드 함정 회피 위해 코드 상수) ──
     // ── v15 뿌리기 밸런스 재설계 ("안 B 양끝위험 왕복") ──
     //   저게이지=뭉침(픽업실패) / 스윗스팟=안전 / 고게이지=낙. 100%=거의 확정 낙.
-    private const float RUvBase = 0.12f;  // g=0 (뭉침)
-    private const float RUvSpan = 0.60f;  // g=1 → 0.72 (경계 0.50 초과 = 전낙)
+    // v17: 반경을 uv → **보드 단위**로. uv는 축마다 정규화라 uv 원이 보드에서는
+    //   16:9로 가로로 늘어난 타원이 되고, 화면 원근이 더해져 4.4:1로 납작하게 퍼졌다
+    //   (보드를 납작하게 만들면서 이 불균형이 드러남).
+    //   보드 단위 원 = "돗자리 위에 사방으로 고르게 퍼진다"는 물리적 의미와 일치.
+    //   보드 반너비 8 / 반깊이 4.5 → 4.5를 넘으면 앞뒤로 낙이 난다.
+    private const float RBoardBase = 1.10f;  // g=0 (뭉침)
+    private const float RBoardSpan = 4.00f;  // g=1 → 5.10 (반깊이 4.5 초과 = 전낙)
     /// <summary>낙 판정 마진(보드 단위). 경계에 아슬아슬하게 걸친 돌을 살려준다.
     /// 구 화면 단위 0.2와 대응. ⚠️ 재튜닝 대상.</summary>
     private const float BoardMarginUnits = 0.2f;
 
-    private static float RadiusUV(float g) => RUvBase + RUvSpan * Mathf.Clamp01(g);
+    private static float RadiusBoard(float g) => RBoardBase + RBoardSpan * Mathf.Clamp01(g);
 
     private const float TossDuration = 0.50f; // 돌 하나 비행 시간(초) — v15 여유있는 아치
     private const float TossStagger  = 0.05f; // 돌 간 출발 지연(캐스케이드 느낌)
@@ -130,7 +135,8 @@ public class ScatterSystem : MonoBehaviour
             ringCenter.x = Mathf.Clamp(ringCenter.x, 0.12f, 0.88f);
             ringCenter.y = Mathf.Clamp(ringCenter.y, 0.12f, 0.88f);
         }
-        rangeIndicator?.UpdateRing(RadiusUV(currentGaugeValue), ringCenter);
+        rangeIndicator?.UpdateRing(RadiusBoard(currentGaugeValue),
+                                   BoardSpace.Current.UvToBoard(ringCenter));
         AudioManager.Instance?.PlayGaugeTick();
     }
 
@@ -273,6 +279,8 @@ public class ScatterSystem : MonoBehaviour
             centerUV.y = Mathf.Clamp(centerUV.y, 0.12f, 0.88f);
         }
 
+        Vector2 centerBoard = BoardSpace.Current.UvToBoard(centerUV);
+
         // v15: 각도만 유기화(반경 매핑·낙 파이프라인 불변). 매 throw 방향 랜덤 + 지터 확대 + 뭉침 클럼프.
         float baseRot = Random.Range(0f, 360f); // 매 throw 방향 랜덤(단조 방어)
         float[] angDeg = new float[n];
@@ -280,12 +288,10 @@ public class ScatterSystem : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             angDeg[i] = slotAngleStep * slots[i] + baseRot + Random.Range(-22f, 22f); // 지터 ±12→±22
-            rads[i]   = RadiusUV(gauge) * Random.Range(0.92f, 1.08f);                 // 반경 매핑 불변
+            rads[i]   = RadiusBoard(gauge) * Random.Range(0.92f, 1.08f);
             float a = angDeg[i] * Mathf.Deg2Rad;
-            float u = centerUV.x + Mathf.Cos(a) * rads[i];
-            float v = centerUV.y + Mathf.Sin(a) * rads[i];
-            isNak[i] = (u < 0f || u > 1f || v < 0f || v > 1f);   // provisional
-            boardTargets[i] = BoardSpace.Current.UvToBoard(new Vector2(u, v));
+            boardTargets[i] = centerBoard + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * rads[i];
+            isNak[i] = !BoardSpace.Current.Contains(boardTargets[i]);   // provisional
         }
         // 클럼프: 비-낙 스톤 ~40%를 각도상 가장 가까운 다른 스톤 쪽으로 당겨 뭉침/빈틈 생성 (반경 불변)
         int clumpCount = Mathf.RoundToInt(n * 0.4f);
@@ -303,9 +309,8 @@ public class ScatterSystem : MonoBehaviour
             if (best < 0) continue;
             angDeg[i] = Mathf.LerpAngle(angDeg[i], angDeg[best], 0.35f);
             float a = angDeg[i] * Mathf.Deg2Rad;
-            float u = centerUV.x + Mathf.Cos(a) * rads[i], v = centerUV.y + Mathf.Sin(a) * rads[i];
-            isNak[i] = (u < 0f || u > 1f || v < 0f || v > 1f);
-            boardTargets[i] = BoardSpace.Current.UvToBoard(new Vector2(u, v));
+            boardTargets[i] = centerBoard + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * rads[i];
+            isNak[i] = !BoardSpace.Current.Contains(boardTargets[i]);
         }
 
         // ── 2) 안착 목표 최소 간격 보장 (낙 목표는 건드리지 않음 — 어차피 보드 밖) ──
@@ -337,7 +342,7 @@ public class ScatterSystem : MonoBehaviour
         // ── 2.4) 우발낙 방어 (donts/game.md #19 SOT): 간격 확대가 비-낙 돌을 경계 밖으로 밀 수 있음.
         //   원래 uv 내부(provisional isNak==false)였는데 밀려난 돌만 보드 중심 C 쪽으로 회수.
         //   의도된 낙(provisional true)은 건드리지 않음.
-        Vector2 C = BoardSpace.Current.UvToBoard(centerUV);
+        Vector2 C = centerBoard;
         for (int i = 0; i < n; i++)
         {
             if (isNak[i]) continue; // 의도된 낙은 그대로
