@@ -20,13 +20,15 @@
 ## 프로젝트 개요
 전통 공기놀이를 3D로 재현한 캐주얼 게임. Unity 6 (URP) 프로젝트.
 - MCP Unity 포트: **8091** (손도끼=8090과 독립)
-- 기획 원본: `/Users/baek/ideaBank/game-dev/concepts/annoying-five-stones/기획서-v2.md`
+- 기획 원본(SOT): **[`docs/기획서-v11-통합본.md`](docs/기획서-v11-통합본.md)** — 2026-07-31 통합. ideaBank의 기획서 v1~v10은 이력 보존용이며 **현재 기획의 근거로 인용하지 않는다**
 
 ## ideaBank 연동
 이 프로젝트의 기획 문서와 도구는 ideaBank에 있다. **절대경로로 접근**.
 
 ### 기획 문서 (읽기 전용 — 수정은 ideaBank 터미널에서)
-- 기획서 v2 (단일 원본): `/Users/baek/ideaBank/game-dev/concepts/annoying-five-stones/기획서-v2.md`
+- ⚠️ 기획서 v1~v10 (`/Users/baek/ideaBank/game-dev/concepts/annoying-five-stones/기획서-v*.md`): **이력 보존용, SOT 아님.**
+  v3 이후는 전부 델타 문서라 현재 기획을 한 곳에서 읽을 수 없고, v2는 플레이테스트 이전 문서라 실제와 3건 어긋나 있었다.
+  현재 기획은 프로젝트 내 `docs/기획서-v11-통합본.md` 하나만 본다. 변경 시 새 델타를 만들지 말고 **v11을 직접 갱신**한다.
 - 컨셉 문서: `/Users/baek/ideaBank/game-dev/concepts/003-열받는-공기놀이.md`
 - 리서치 보고서: `/Users/baek/ideaBank/game-dev/research/annoying-five-stones.md`
 - UI 레퍼런스 스크린샷: `/Users/baek/ideaBank/game-dev/concepts/annoying-five-stones/스크린샷*.png`
