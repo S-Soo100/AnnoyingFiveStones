@@ -173,6 +173,11 @@ public class BackgroundManager : MonoBehaviour
         var trap = clothRenderer.GetComponent<TrapezoidQuad>();
         if (trap != null) trap.Rebuild(TrapezoidQuad.NarrowFromBoardSpace);
 
+        // v17: 돗자리 비주얼(테두리·짜임·밑그림자). 배경마다 원근이 달라 변이 나란해질 수 없으므로,
+        // "위에 놓인 물건"으로 읽히게 만들어 그 차이를 흡수한다.
+        if (clothRenderer.GetComponent<BoardMatVisual>() == null)
+            clothRenderer.gameObject.AddComponent<BoardMatVisual>();
+
         clothRenderer.enabled = true; // 배경 이미지 유무와 무관하게 항상 보이는 "돗자리"
     }
 

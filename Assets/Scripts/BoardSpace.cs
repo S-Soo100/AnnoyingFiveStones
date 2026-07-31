@@ -39,9 +39,13 @@ public static class BoardSpace
     // ⚠️ 전부 재튜닝 대상. 뒷변 반폭을 바꾸면 Cloth의 사다리꼴 메시도 자동으로 따라온다
     //    (TrapezoidQuad.NarrowFromBoardSpace) — 손으로 맞추지 말 것.
 
+    // v17-c (A안): 배경에 그려진 면들의 원근을 실측한 결과 0.57~0.80 구간이었다
+    //   (교실책상 0.79 / 30살 패드 0.80 / 25살 패드 ~0.75 / 20살 테이블 0.57).
+    //   v17-b의 0.444는 어느 배경보다도 강해 변이 눈에 띄게 벌어졌다 → 0.583으로 타협.
+    //   구간의 아래쪽(가장 사다리꼴다운 20살 테이블)에 맞춰 "더 사다리꼴" 요청도 최대한 살린다.
     public const float BackScreenY   = -3.30f;
     public const float FrontScreenY  = -6.90f;
-    public const float BackHalfWidth =  3.20f;
+    public const float BackHalfWidth =  4.20f;  // 앞변 대비 0.583
     public const float FrontHalfWidth = 7.20f;
     public const float CenterScreenX =  0f;
 

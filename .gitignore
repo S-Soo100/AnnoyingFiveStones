@@ -44,3 +44,5 @@ mono_crash.*.json
 # 배경 소스 PNG / 테스트 스크린샷 (게임 에셋 아님 — Resources/ 로 복사된 것만 트래킹)
 figma-export/
 screenshots/
+
+Screenshots/gameview.png
