@@ -73,7 +73,11 @@ public class BackgroundManager : MonoBehaviour
         // v8-2f: 보드 영역 override (책상 wood = 플레이 영역). 미설정 stage는 Cloth.bounds 폴백.
         boardBaseCenter = config.BoardCenter;
         boardBaseSize   = config.BoardSize;
-        boardBaseQuad   = config.BoardQuad; // v9: 사다리꼴 캐시
+        // v17 보드 통일: 스테이지별 config.BoardQuad를 더 이상 쓰지 않는다.
+        // 배경 아트마다 손으로 재서 맞추던 것이 v11·v12·v14·v16 버그의 뿌리였다.
+        // 이제 전 스테이지가 BoardSpace 하나를 공유한다 → 1단에서 맞춘 감각이 10단까지 간다.
+        // (config.BoardQuad는 되돌리기용으로 StageConfig에 남겨둔다)
+        boardBaseQuad   = BoardSpace.UnifiedQuad;
         if (Application.isPlaying) { liveBoardOffset = Vector2.zero; liveBoardScale = Vector2.one; }
         ApplyBoardOverride();
 
@@ -126,21 +130,40 @@ public class BackgroundManager : MonoBehaviour
             }
         }
 
-        // ── 공통: Cloth/Table Renderer 가시성 + 매트 레이어 ──
-        // MatImage가 있으면(또는 풀배경 이미지면) Cloth/Table Renderer를 끈다.
-        // GameObject는 active 유지 → BoardBounds(Cloth.bounds) 폴백 캐시 정상.
+        // ── 공통: Table Renderer 가시성 ──
         if (tableRenderer != null) tableRenderer.enabled = !hideTableCloth;
-        if (clothRenderer != null) clothRenderer.enabled = !hideTableCloth;
 
-        if (hasMat)
-        {
-            if (Application.isPlaying) { liveMatOffset = Vector2.zero; liveMatScale = Vector2.one; }
-            ApplyMatImage(config.MatImage, config.MatCenter, config.MatSize);
-        }
-        else if (matImageQuad != null)
+        // ── v17 보드 통일: Cloth를 "전 스테이지 공통 돗자리"로 되살린다 ──────────
+        // 기획서 v11 §2: 배경은 분위기 전용, 보드는 그 위에 깔린 별도 오브젝트.
+        // Cloth는 원래 기획서 v2의 "빨간 보드"였는데 배경 이미지 도입 후 꺼둔 것이었다.
+        // 이제 BoardSpace에 맞춰 항상 보이게 하면, 배경이 무엇이든 노는 자리가 하나가 된다.
+        SyncBoardMat();
+
+        // v17: MatImage(빗금 매트)는 Cloth 돗자리와 겹치므로 쓰지 않는다.
+        if (matImageQuad != null)
         {
             matImageQuad.SetActive(false);
         }
+    }
+
+    /// <summary>v17 — Cloth를 BoardSpace(전 스테이지 공통 보드)에 맞춰 배치하고 항상 보이게 한다.
+    ///
+    /// Cloth에는 이미 <c>TrapezoidQuad</c>가 붙어 있어 윗변이 좁은 사다리꼴 메시를 만든다.
+    /// 그 비율(topNarrow)과 BoardSpace의 뒷변/앞변 반폭 비가 거의 일치하므로,
+    /// 위치·크기만 맞추면 "보이는 돗자리 = 판정 영역"이 성립한다.</summary>
+    private void SyncBoardMat()
+    {
+        if (clothRenderer == null) return;
+
+        var t = clothRenderer.transform;
+        float width  = BoardSpace.FrontHalfWidth * 2f;                              // 앞변 기준(사다리꼴 밑변)
+        float depth  = Mathf.Abs(BoardSpace.FrontScreenY - BoardSpace.BackScreenY);
+        float centerY = (BoardSpace.BackScreenY + BoardSpace.FrontScreenY) * 0.5f;
+
+        t.position   = new Vector3(BoardSpace.CenterScreenX, centerY, t.position.z);
+        t.localScale = new Vector3(width, depth, 1f);
+
+        clothRenderer.enabled = true; // 배경 이미지 유무와 무관하게 항상 보이는 "돗자리"
     }
 
     private void EnsureBgImageQuad()

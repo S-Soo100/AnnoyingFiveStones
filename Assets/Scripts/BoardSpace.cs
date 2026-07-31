@@ -2,91 +2,79 @@ using UnityEngine;
 using FiveStones.Core;
 
 /// <summary>
-/// v17 — 현재 스테이지의 <see cref="BoardGeometry"/> 제공자.
+/// v17 — **전 스테이지 공통** 보드 공간.
 ///
-/// 기존 <see cref="BoardBounds"/>의 사다리꼴 quad로부터 투영 파라미터를 뽑아 만든다.
-/// 따라서 **화면에 보이는 것은 지금과 완전히 동일**하고, 달라지는 것은
-/// "로직이 화면 좌표 대신 보드 좌표로 생각한다"는 점뿐이다.
+/// 기획서 v11 §2: "보드는 배경에서 분리된 별도 오브젝트다. 배경 이미지는 분위기 전용이며
+/// 플레이면이 아니다. 보드는 코드가 그리는 '바닥에 깔린 돗자리'로, 배경이 무엇이든 그 위에 놓인다."
 ///
-/// 논리 직사각형의 실제 치수(Width/Depth)는 밸런스 수치라 v17에서 재튜닝 대상이다.
-/// 현재 값은 결정 6-2("가로로 넓게, 약 16:9")를 따른 시작점일 뿐이다.
+/// ⚠️ **이 값은 스테이지에 따라 바뀌지 않는다.** 그것이 이 재설계의 핵심이다.
+/// 이전에는 배경 아트(책상/돗자리/마우스패드/병상)마다 BoardQuad를 손으로 재서 맞췄고,
+/// 배경을 갈 때마다 다시 재야 했다 — v11·v12·v14·v16 버그가 전부 여기서 나왔다.
+/// 이제 배경이 무엇이든 노는 자리는 하나다. 1단에서 맞춘 감각이 10단까지 그대로 간다.
+///
+/// - **Board Space (논리)**: 완전한 직사각형. 모든 게임 로직이 여기서만 돈다.
+/// - **Screen Space (표현)**: 아래 상수로 정의된 사다리꼴. 렌더링에만 쓴다.
 /// </summary>
 public static class BoardSpace
 {
-    /// <summary>논리 보드 가로 (보드 단위). ⚠️ 재튜닝 대상.</summary>
+    // ── 논리 (판정) — 스테이지 무관 ──────────────────────────────────────────
+
+    /// <summary>논리 보드 가로. 결정 6-2 "가로로 넓게, 약 16:9". ⚠️ 재튜닝 대상.</summary>
     public const float LogicalWidth = 16f;
 
-    /// <summary>논리 보드 세로/깊이 (보드 단위). ⚠️ 재튜닝 대상.</summary>
+    /// <summary>논리 보드 세로/깊이. ⚠️ 재튜닝 대상.</summary>
     public const float LogicalDepth = 9f;
 
     /// <summary>화면 1유닛 = 높이 1유닛. ⚠️ 재튜닝 대상.</summary>
     public const float HeightScale = 1f;
 
-    private static BoardGeometry cached;
-    private static bool hasCached;
+    // ── 표현 (사다리꼴) — 스테이지 무관 ──────────────────────────────────────
+    // 카메라: ortho 7, 중심 y=-1.5 → 화면 y는 +5.5 ~ -8.5 (14유닛).
+    // 결정 6-3 "하늘 54% / 보드 34%"에서 역산:
+    //   뒷변 = 5.5 - 14*0.54 ≈ -2.10 / 앞변 = 뒷변 - 14*0.34 ≈ -6.90
+    // ⚠️ 전부 재튜닝 대상.
 
-    /// <summary>현재 스테이지 기하. BoardBounds quad가 바뀌면 <see cref="Invalidate"/> 후 재생성된다.</summary>
-    public static BoardGeometry Current
+    public const float BackScreenY   = -2.10f;
+    public const float FrontScreenY  = -6.90f;
+    public const float BackHalfWidth =  4.40f;
+    public const float FrontHalfWidth = 7.20f;
+    public const float CenterScreenX =  0f;
+
+    private static readonly BoardGeometry geometry = new BoardGeometry(
+        LogicalWidth, LogicalDepth,
+        BackHalfWidth, FrontHalfWidth,
+        BackScreenY, FrontScreenY,
+        CenterScreenX, HeightScale);
+
+    /// <summary>전 스테이지 공통 기하.</summary>
+    public static BoardGeometry Current => geometry;
+
+    /// <summary>기존 <see cref="BoardBounds"/>에 넘길 사다리꼴 4꼭짓점 [BL, BR, FL, FR].
+    /// 낙 판정·Flee·뿌리기 등 기존 소비자들이 전부 이 하나의 보드를 쓰게 된다.</summary>
+    public static Vector2[] UnifiedQuad => new[]
     {
-        get
-        {
-            if (!hasCached) Rebuild();
-            return cached;
-        }
-    }
+        new Vector2(CenterScreenX - BackHalfWidth,  BackScreenY),   // BL
+        new Vector2(CenterScreenX + BackHalfWidth,  BackScreenY),   // BR
+        new Vector2(CenterScreenX - FrontHalfWidth, FrontScreenY),  // FL
+        new Vector2(CenterScreenX + FrontHalfWidth, FrontScreenY),  // FR
+    };
 
-    /// <summary>스테이지 전환/라이브 튜닝으로 보드가 바뀌면 호출. 다음 접근 시 재생성된다.</summary>
-    public static void Invalidate() => hasCached = false;
-
-    private static void Rebuild()
-    {
-        // quad 4점 → 투영 파라미터. QuadPoint는 quad가 없으면 MatRect AABB를 같은 규약으로 준다.
-        Vector2 bl = BoardBounds.QuadPoint(0f, 0f);
-        Vector2 br = BoardBounds.QuadPoint(1f, 0f);
-        Vector2 fl = BoardBounds.QuadPoint(0f, 1f);
-        Vector2 fr = BoardBounds.QuadPoint(1f, 1f);
-
-        float backHalf  = Mathf.Abs(br.x - bl.x) * 0.5f;
-        float frontHalf = Mathf.Abs(fr.x - fl.x) * 0.5f;
-        float centerX   = (bl.x + br.x + fl.x + fr.x) * 0.25f;
-        float backY     = (bl.y + br.y) * 0.5f;
-        float frontY    = (fl.y + fr.y) * 0.5f;
-
-        // 퇴화 방어: 아직 스테이지가 시작되지 않아 quad가 0이면 캐시하지 않는다.
-        // (BoardBounds.HasQuad는 씬 init 시 false였다가 StartStage 후 true가 된다 — donts/game#19)
-        if (backHalf < 0.01f || frontHalf < 0.01f || Mathf.Abs(frontY - backY) < 0.01f)
-        {
-            cached = new BoardGeometry(LogicalWidth, LogicalDepth, 1f, 2f, 0f, -1f, 0f, HeightScale);
-            return; // hasCached를 세우지 않아 다음 프레임에 다시 시도
-        }
-
-        cached = new BoardGeometry(
-            LogicalWidth, LogicalDepth,
-            backHalf, frontHalf,
-            backY, frontY,
-            centerX, HeightScale);
-        hasCached = true;
-    }
+    /// <summary>보드가 고정이라 무효화할 캐시가 없다. 기존 호출부 호환용 no-op.</summary>
+    public static void Invalidate() { }
 
     // ── 편의 변환 ────────────────────────────────────────────────────────────
 
     /// <summary>화면 좌표(월드 XY) → 보드 좌표. 지면 기준.</summary>
-    public static Vector2 ToBoard(Vector2 screenXY) => Current.Unproject(screenXY);
+    public static Vector2 ToBoard(Vector2 screenXY) => geometry.Unproject(screenXY);
 
     /// <summary>보드 좌표 + 높이 → 화면 좌표(월드 XY).</summary>
-    public static Vector2 ToScreen(Vector2 boardPos, float height) => Current.Project(boardPos, height);
+    public static Vector2 ToScreen(Vector2 boardPos, float height) => geometry.Project(boardPos, height);
 
     /// <summary>보드 좌표를 직사각형 안으로 클램프.
-    /// 손은 하늘(보드 뒷변 위)에 있을 수 있어 역투영이 v&lt;0을 낼 수 있다.
-    /// "보드 위 어디에서 던졌는가" 같은 값은 반드시 보드 안이어야 하므로 여기서 걸러준다.</summary>
+    /// 손은 하늘(보드 뒷변 위)에 있을 수 있어 역투영이 v&lt;0을 낼 수 있다.</summary>
     public static Vector2 ClampToBoard(Vector2 boardPos)
     {
         float hw = LogicalWidth * 0.5f, hd = LogicalDepth * 0.5f;
         return new Vector2(Mathf.Clamp(boardPos.x, -hw, hw), Mathf.Clamp(boardPos.y, -hd, hd));
     }
-
-    /// <summary>화면 y로부터 높이를 역산. 보드 좌표를 알고 있을 때만 정확하다
-    /// (같은 화면 y라도 보드 앞/뒤에 따라 지면 높이가 다르기 때문).</summary>
-    public static float HeightFromScreen(Vector2 boardPos, float screenY)
-        => (screenY - Current.Project(boardPos, 0f).y) / HeightScale;
 }
