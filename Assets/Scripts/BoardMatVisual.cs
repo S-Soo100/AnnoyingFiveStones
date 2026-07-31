@@ -32,6 +32,11 @@ public class BoardMatVisual : MonoBehaviour
     private const float BorderRatio = 0.055f; // 테두리 두께 (텍스처 비율)
     private const float TrimRatio   = 0.018f; // 테두리 안쪽 밝은 실
 
+    /// <summary>돗자리 불투명도. 배경(책상·패드)이 비쳐 "얇게 깔린 천" 느낌이 난다. ⚠️ 재튜닝 대상.</summary>
+    private const float MatAlpha = 0.78f;
+    /// <summary>테두리는 더 진하게 — 가장자리가 흐리면 물건 윤곽이 무너진다.</summary>
+    private const float BorderAlpha = 0.92f;
+
     private GameObject dropShadow;
 
     private void Start()
@@ -56,6 +61,9 @@ public class BoardMatVisual : MonoBehaviour
         mat.EnableKeyword("_EMISSION");
         mat.SetColor("_EmissionColor", Color.white);
         mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+
+        // 반투명 — 배경(책상·마우스패드)이 비쳐 "얇게 깔린 천"으로 읽힌다.
+        SetTransparent(mat);
     }
 
     /// <summary>테두리 + 안쪽 실 + 짜임(위빙) 패턴을 가진 돗자리 텍스처.</summary>
@@ -80,24 +88,26 @@ public class BoardMatVisual : MonoBehaviour
                 int edge = Mathf.Min(Mathf.Min(x, W - 1 - x), Mathf.Min(y, H - 1 - y));
                 Color c;
 
+                float alpha;
                 if (edge < border)
                 {
-                    c = Border;                                  // 바깥 테두리
+                    c = Border; alpha = BorderAlpha;             // 바깥 테두리
                 }
                 else if (edge < border + trim)
                 {
-                    c = Trim;                                    // 밝은 실 — "천으로 감싼 가장자리"
+                    c = Trim; alpha = BorderAlpha;               // 밝은 실 — "천으로 감싼 가장자리"
                 }
                 else
                 {
+                    alpha = MatAlpha;
                     // 짜임: 가로/세로 격자를 번갈아 — 촘촘할수록 직물처럼 보인다.
                     bool warp = ((x / 5) + (y / 5)) % 2 == 0;
                     c = warp ? MatBase : WeaveDark;
                     // 미세한 결 — 완전 균일하면 프린트처럼 보인다.
                     float grain = (Mathf.PerlinNoise(x * 0.09f, y * 0.09f) - 0.5f) * 0.05f;
-                    c = new Color(c.r + grain, c.g + grain, c.b + grain, 1f);
+                    c = new Color(c.r + grain, c.g + grain, c.b + grain);
                 }
-                px[y * W + x] = c;
+                px[y * W + x] = new Color(c.r, c.g, c.b, alpha);
             }
         }
         tex.SetPixels(px);
