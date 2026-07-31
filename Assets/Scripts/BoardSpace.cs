@@ -43,10 +43,13 @@ public static class BoardSpace
     //   (교실책상 0.79 / 30살 패드 0.80 / 25살 패드 ~0.75 / 20살 테이블 0.57).
     //   v17-b의 0.444는 어느 배경보다도 강해 변이 눈에 띄게 벌어졌다 → 0.583으로 타협.
     //   구간의 아래쪽(가장 사다리꼴다운 20살 테이블)에 맞춰 "더 사다리꼴" 요청도 최대한 살린다.
+    // v17-d: 좌우 확대. 배경에 그려진 면들의 앞변 반폭 실측 구간(6.5~8.2)의 위쪽에 맞춰
+    //   7.20 → 8.00 (+11%). 사다리꼴 비율(0.583)은 유지 — 모양은 그대로 두고 폭만 키운다.
+    //   화면 가로 반폭이 12.44(ortho 7 × 16:9)라 여유는 아직 많다.
     public const float BackScreenY   = -3.30f;
     public const float FrontScreenY  = -6.90f;
-    public const float BackHalfWidth =  4.20f;  // 앞변 대비 0.583
-    public const float FrontHalfWidth = 7.20f;
+    public const float BackHalfWidth =  4.66f;  // 앞변 대비 0.583 유지
+    public const float FrontHalfWidth = 8.00f;
     public const float CenterScreenX =  0f;
 
     private static readonly BoardGeometry geometry = new BoardGeometry(
