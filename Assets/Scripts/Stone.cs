@@ -72,14 +72,28 @@ public class Stone : MonoBehaviour
     /// <summary>이 돌이 보드 좌표계로 관리되고 있는가. false면 옛 화면 좌표 경로.</summary>
     public bool HasBoardMotion { get; private set; }
 
-    /// <summary>보드 좌표 + 높이를 지정하고 화면 위치를 투영으로 갱신한다.</summary>
+    /// <summary>원근 스케일 이전의 고유 크기. 보드 뒤쪽 돌을 작게 그리려면 기준 크기가 필요하다.</summary>
+    private Vector3 baseScale = Vector3.one;
+    private bool baseScaleCaptured;
+
+    /// <summary>고유 크기를 다시 잡는다(기믹이 돌 크기를 바꾼 뒤 등).</summary>
+    public void CaptureBaseScale(Vector3 scale) { baseScale = scale; baseScaleCaptured = true; }
+
+    /// <summary>보드 좌표 + 높이를 지정하고 화면 위치·크기를 투영으로 갱신한다.</summary>
     public void SetBoardMotion(Vector2 boardPos, float height)
     {
+        if (!baseScaleCaptured) CaptureBaseScale(transform.localScale);
+
         BoardPos = boardPos;
         Height = height;
         HasBoardMotion = true;
+
         var p = BoardSpace.ToScreen(boardPos, height);
         transform.position = new Vector3(p.x, p.y, 0f);
+
+        // 원근: 뒤에 있을수록 작게. 보드가 좁아지는 비율과 같은 값이라 함께 일관된다.
+        // 높이는 반영하지 않는다 — 위로 떠도 깊이는 그대로이므로 크기가 변하면 안 된다.
+        transform.localScale = baseScale * BoardSpace.Current.PerspectiveScale(boardPos);
     }
 
     /// <summary>보드 좌표 관리 해제 — 옛 화면 좌표 경로(뿌리기·5단 등)로 돌아갈 때.</summary>
@@ -229,6 +243,10 @@ public class Stone : MonoBehaviour
         // 뿌리기/줍기/받기 등 아직 안 옮긴 경로로 넘어간 돌이 **낡은 BoardPos를 들고 있어
         // 그림자가 엉뚱한 곳에 찍히는 것**을 막는다.
         HasBoardMotion = false;
+
+        // 원근 크기도 함께 원복. 손에 쥐어지거나(InHand) 보드를 떠난 돌이
+        // 마지막 깊이의 축소 배율을 그대로 들고 있으면 크기가 어긋나 보인다.
+        if (baseScaleCaptured) transform.localScale = baseScale;
 
         // v6-1: InAir/Bouncing일 때 그림자 활성
         shadow?.UpdateVisibility(newState);

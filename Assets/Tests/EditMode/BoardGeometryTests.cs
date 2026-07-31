@@ -174,6 +174,26 @@ namespace FiveStones.Tests
         }
 
         [Test]
+        public void 뒤쪽_물체가_더_작게_보인다()
+        {
+            // 보드만 사다리꼴이고 그 위 물체가 안 작아지면 원근이 깨진다.
+            var b = MakeBoard();
+            float hd = b.Depth * 0.5f;
+            float back  = b.PerspectiveScale(new Vector2(0f, -hd)); // 뒤
+            float front = b.PerspectiveScale(new Vector2(0f,  hd)); // 앞
+
+            Assert.Less(back, front, "뒤가 앞보다 작아야 한다");
+            Assert.AreEqual(1f, front, 1e-4f, "앞변이 기준(1배)이어야 한다");
+            // 축소 비율은 보드가 좁아지는 비율과 정확히 같아야 한다 — 따로 놀면 안 된다.
+            float backSpan  = b.Project(new Vector2(b.Width * 0.5f, -hd), 0f).x
+                            - b.Project(new Vector2(-b.Width * 0.5f, -hd), 0f).x;
+            float frontSpan = b.Project(new Vector2(b.Width * 0.5f,  hd), 0f).x
+                            - b.Project(new Vector2(-b.Width * 0.5f,  hd), 0f).x;
+            Assert.AreEqual(backSpan / frontSpan, back, 1e-4f,
+                "물체 축소율 = 보드 폭 축소율이어야 원근이 일관된다");
+        }
+
+        [Test]
         public void 논리_공간에서는_이동이_균일하다()
         {
             // 사다리꼴이 만들던 문제: 뒤쪽에서 커서를 조금만 움직여도 보드상 훅 지나감.

@@ -101,6 +101,17 @@ namespace FiveStones.Core
             return new Vector2(screenX, screenY);
         }
 
+        /// <summary>그 깊이에서의 원근 축소 배율. 뒤(v=0)에서 가장 작고 앞(v=1)에서 1.
+        ///
+        /// 보드가 사다리꼴로 보이는 것과 **정확히 같은 비율**(뒷변폭/앞변폭)이다.
+        /// 보드만 좁아지고 그 위의 물체는 안 작아지면 뒤쪽 돌이 앞쪽 돌과 같은 크기로 보여
+        /// 원근이 깨진다. 물체 스케일에 이 값을 곱해 그 어긋남을 없앤다.</summary>
+        public float PerspectiveScale(Vector2 boardPos)
+        {
+            float v = boardPos.y / Depth + 0.5f;
+            return Mathf.LerpUnclamped(backHalfWidth, frontHalfWidth, v) / frontHalfWidth;
+        }
+
         /// <summary>화면 좌표 → 보드 좌표. 지면(height 0) 기준의 역변환 — 마우스 입력용.
         /// <see cref="Project"/>의 정확한 역함수다. 이 왕복이 깨지면
         /// "화면에서 클릭한 곳"과 "실제 판정 위치"가 어긋난다(= 반복돼온 버그 클래스).</summary>

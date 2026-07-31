@@ -385,6 +385,11 @@ public class ScatterSystem : MonoBehaviour
         }
 
         // ── 4) 코루틴 토스 애니메이션 (캐스케이드 stagger) ──
+        // 출발점도 보드 좌표로 — 토스 전체를 보드 공간에서 계산해야 원근 스케일이 따라온다.
+        var startBoard = new Vector2[n];
+        for (int i = 0; i < n; i++)
+            startBoard[i] = BoardSpace.ClampToBoard(BoardSpace.ToBoard(startPos[i]));
+
         var landed = new bool[n];
         var nakStones = new List<Stone>();
         float total = TossDuration + TossStagger * (n - 1);
@@ -400,17 +405,22 @@ public class ScatterSystem : MonoBehaviour
                 if (st <= 0f) continue;
 
                 float t = Mathf.Clamp01(st / TossDuration);
-                float te = 1f - (1f - t) * (1f - t); // ease-out (던진 뒤 감속)
-                Vector2 p = Vector2.Lerp(startPos[i], targets[i], te);
-                float lift = Mathf.Sin(Mathf.Pow(t, 0.8f) * Mathf.PI) * liftH[i]; // 아치(피크 t≈0.4, 1.2~1.8)
 
-                stones[i].transform.position = new Vector3(p.x, p.y + lift, 0f);
+                // v17: 투사체 운동 — 수평 등속 + 높이 포물선.
+                //   구 코드는 수평에 ease-out(감속)을 걸고 높이를 sin 아치로 줬다.
+                //   실제로 던진 물체는 수평 속도가 일정하고 낙하는 가속한다. 감속시키면
+                //   "떠 있다 살포시 놓이는" 느낌이 나서 부자연스러웠다.
+                //   4·H·t·(1-t) = 포물선(피크 t=0.5, 최고 H) — 중력 궤적과 같은 모양.
+                Vector2 bp = Vector2.Lerp(startBoard[i], boardTargets[i], t);
+                float h = 4f * liftH[i] * t * (1f - t);
+
+                stones[i].SetBoardMotion(bp, h); // 화면 위치·원근 크기 모두 여기서 파생
                 stones[i].transform.rotation = Quaternion.Euler(0f, spin[i] * t, 0f);
 
                 if (t >= 1f)
                 {
                     landed[i] = true;
-                    stones[i].transform.position = new Vector3(targets[i].x, targets[i].y, 0f);
+                    stones[i].SetBoardMotion(boardTargets[i], 0f);
                     AudioManager.Instance?.PlayScatterHit(i);
 
                     if (isNak[i])
