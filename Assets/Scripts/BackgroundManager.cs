@@ -168,6 +168,11 @@ public class BackgroundManager : MonoBehaviour
                                    t.position.z);
         t.localScale = new Vector3(width * liveBoardScale.x, depth * liveBoardScale.y, 1f);
 
+        // 사다리꼴 비율도 BoardSpace에서 파생시킨다. 씬 값(topNarrow)을 그대로 두면
+        // 뒷변 폭을 바꿨을 때 "보이는 사다리꼴 ≠ 판정 사다리꼴"이 된다.
+        var trap = clothRenderer.GetComponent<TrapezoidQuad>();
+        if (trap != null) trap.Rebuild(TrapezoidQuad.NarrowFromBoardSpace);
+
         clothRenderer.enabled = true; // 배경 이미지 유무와 무관하게 항상 보이는 "돗자리"
     }
 

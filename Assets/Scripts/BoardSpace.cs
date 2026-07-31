@@ -30,13 +30,18 @@ public static class BoardSpace
 
     // ── 표현 (사다리꼴) — 스테이지 무관 ──────────────────────────────────────
     // 카메라: ortho 7, 중심 y=-1.5 → 화면 y는 +5.5 ~ -8.5 (14유닛).
-    // 결정 6-3 "하늘 54% / 보드 34%"에서 역산:
-    //   뒷변 = 5.5 - 14*0.54 ≈ -2.10 / 앞변 = 뒷변 - 14*0.34 ≈ -6.90
-    // ⚠️ 전부 재튜닝 대상.
+    //
+    // v17-b (사용자 피드백 "좀더 납작하고 좀더 사다리꼴"):
+    //   납작: 깊이 4.80 → 3.60. 뒷변을 내려서 줄였다(앞변 고정) → 하늘이 그만큼 넓어진다.
+    //   사다리꼴: 뒷변 반폭 4.40 → 3.20. 앞변 대비 비율 0.611 → 0.444로 원근이 강해진다.
+    //   ⚠️ 이 때문에 하늘:보드가 결정 6-3(54:34)에서 62:26으로 바뀐다. 사용자 지시 우선.
+    //
+    // ⚠️ 전부 재튜닝 대상. 뒷변 반폭을 바꾸면 Cloth의 사다리꼴 메시도 자동으로 따라온다
+    //    (TrapezoidQuad.NarrowFromBoardSpace) — 손으로 맞추지 말 것.
 
-    public const float BackScreenY   = -2.10f;
+    public const float BackScreenY   = -3.30f;
     public const float FrontScreenY  = -6.90f;
-    public const float BackHalfWidth =  4.40f;
+    public const float BackHalfWidth =  3.20f;
     public const float FrontHalfWidth = 7.20f;
     public const float CenterScreenX =  0f;
 
