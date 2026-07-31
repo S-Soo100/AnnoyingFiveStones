@@ -137,12 +137,26 @@ public class StoneShadow : MonoBehaviour
     /// <summary>InAir/Bouncing: 높이에 따라 크기/투명도가 변하는 낙하 그림자 (중심선 투영).</summary>
     private void UpdateFallingShadow()
     {
-        // v11-fix2: 돌 X 기반 perspective 보정 Y. 사다리꼴 내부 v=0.5 라인 (중심선).
-        float stoneX = transform.position.x;
-        float shadowY = ComputeShadowY(stoneX);
+        float stoneX, shadowY, heightAbove;
 
-        float stoneY  = transform.position.y;
-        float heightAbove = stoneY - shadowY;
+        if (stone != null && stone.HasBoardMotion)
+        {
+            // v17: 돌이 자기 보드 좌표와 높이를 안다 → 그림자는 그 좌표의 지면에 정확히 찍힌다.
+            // 이것이 "그림자 = 조준선"의 근거다. 돌이 아무리 높아도 그림자는 착지 지점에 머문다.
+            var ground = BoardSpace.ToScreen(stone.BoardPos, 0f);
+            stoneX = ground.x;
+            shadowY = ground.y;
+            heightAbove = stone.Height * BoardSpace.HeightScale;
+        }
+        else
+        {
+            // 구 경로(뿌리기·5단 등 아직 안 옮긴 곳): 사다리꼴 v=0.5 중심선으로 근사.
+            // ⚠️ 깊이를 0.5로 고정하므로 실제 착지 지점과 어긋난다. 옮겨오면 이 분기는 사라진다.
+            stoneX = transform.position.x;
+            shadowY = ComputeShadowY(stoneX);
+            heightAbove = transform.position.y - shadowY;
+        }
+
         float normalizedH = Mathf.Clamp01(heightAbove / HeightNormMax);
 
         // 크기: 높이 낮을수록 작게 (가까울수록 실제 그림자처럼 선명하고 작게)

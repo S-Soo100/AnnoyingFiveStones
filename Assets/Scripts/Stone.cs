@@ -58,6 +58,33 @@ public class Stone : MonoBehaviour
     public Rigidbody Rb => rb;
     public int StoneIndex => stoneIndex;
 
+    // ── v17: 보드 좌표 + 높이 ────────────────────────────────────────────────
+    // 화면 y 하나로 "보드 위 위치"와 "높이"를 겸하던 것이 반복 버그의 근원이었다.
+    // 코루틴이 이 두 값을 세팅하면 화면 위치는 투영으로 파생된다.
+    // (아직 전 경로가 옮겨오지 않아, 세팅된 적 없는 돌은 HasBoardMotion=false)
+
+    /// <summary>보드 평면 위 좌표(중심 원점). 던진 돌은 체공 내내 불변이다.</summary>
+    public Vector2 BoardPos { get; private set; }
+
+    /// <summary>보드 평면으로부터의 높이. 0이면 지면.</summary>
+    public float Height { get; private set; }
+
+    /// <summary>이 돌이 보드 좌표계로 관리되고 있는가. false면 옛 화면 좌표 경로.</summary>
+    public bool HasBoardMotion { get; private set; }
+
+    /// <summary>보드 좌표 + 높이를 지정하고 화면 위치를 투영으로 갱신한다.</summary>
+    public void SetBoardMotion(Vector2 boardPos, float height)
+    {
+        BoardPos = boardPos;
+        Height = height;
+        HasBoardMotion = true;
+        var p = BoardSpace.ToScreen(boardPos, height);
+        transform.position = new Vector3(p.x, p.y, 0f);
+    }
+
+    /// <summary>보드 좌표 관리 해제 — 옛 화면 좌표 경로(뿌리기·5단 등)로 돌아갈 때.</summary>
+    public void ClearBoardMotion() => HasBoardMotion = false;
+
     // 레이어 상수: InAir/Bouncing 돌과 손은 layer 8, OnBoard 돌은 Default(0)
     // Layer 8 ↔ Default(0) 충돌 비활성 → 공중 돌이 보드 돌을 밀지 않음
     // Layer 8 ↔ Layer 8 충돌 활성 → 공중 돌끼리 + 공중 돌↔손 충돌 가능
@@ -196,6 +223,12 @@ public class Stone : MonoBehaviour
     public void SetState(State newState)
     {
         currentState = newState;
+
+        // v17: 상태가 바뀌면 보드 좌표 관리를 해제한다.
+        // 던지기 코루틴은 매 프레임 SetBoardMotion을 다시 부르므로 영향이 없고,
+        // 뿌리기/줍기/받기 등 아직 안 옮긴 경로로 넘어간 돌이 **낡은 BoardPos를 들고 있어
+        // 그림자가 엉뚱한 곳에 찍히는 것**을 막는다.
+        HasBoardMotion = false;
 
         // v6-1: InAir/Bouncing일 때 그림자 활성
         shadow?.UpdateVisibility(newState);

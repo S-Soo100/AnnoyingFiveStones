@@ -467,7 +467,7 @@ public class HandController : MonoBehaviour
         float peakHeight      = Mathf.Max(0.1f, throwPeakY - groundScreen.y);
 
         // 출발점도 그 보드 좌표의 지면으로 맞춘다 (그림자와 발밑이 어긋나지 않게).
-        stone.transform.position = new Vector3(groundScreen.x, groundScreen.y, 0f);
+        stone.SetBoardMotion(throwBoardPos, 0f);
         startX = groundScreen.x;
         startY = groundScreen.y;
 
@@ -490,8 +490,7 @@ public class HandController : MonoBehaviour
             float eased = 1f - (1f - t) * (1f - t);
             // v17: 화면 y가 아니라 높이(h)를 보간하고, 화면 위치는 투영으로 얻는다.
             float h = Mathf.Lerp(0f, peakHeight, eased);
-            var p = BoardSpace.ToScreen(throwBoardPos, h);
-            stone.transform.position = new Vector3(p.x, p.y, 0f);
+            stone.SetBoardMotion(throwBoardPos, h);
             yield return null;
         }
 
@@ -546,8 +545,8 @@ public class HandController : MonoBehaviour
             };
             // v17: 화면 y가 아니라 높이(h)를 보간한다. 보드 좌표는 고정.
             float h = Mathf.Lerp(peakHeight, 0f, eased);
-            var p = BoardSpace.ToScreen(throwBoardPos, h);
-            stone.transform.position = new Vector3(p.x, p.y, 0f);
+            stone.SetBoardMotion(throwBoardPos, h);
+            var p = new Vector2(stone.transform.position.x, stone.transform.position.y);
 
             // ── v17 받기 판정 ────────────────────────────────────────────────
             // 물리 충돌(콜라이더 겹침)을 폐기하고 **보드 좌표 거리**로 판정한다.
