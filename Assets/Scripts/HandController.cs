@@ -45,8 +45,10 @@ public class HandController : MonoBehaviour
     [Header("Stage 5 Settings")]
     [SerializeField] private float stage5CatchRadius = 1.8f;    // 5개 동시 캐치 반경 (기본값, 손등 받기 시 2배)
     [SerializeField] private float stage5BackhandScaleMultiplier = 2f; // 손등 받기 시 손 크기 배율
-    [SerializeField] private float stage5SpreadRange = 1.2f;     // 돌 퍼짐 범위 (카시오페이아급 밀집)
-    [SerializeField] private float stage5MinSpacing = 0.3f;      // 돌 최소 간격
+    // v17: 화면 단위 → **보드 단위**. 보드 반너비가 8이므로 같은 숫자라도 의미가 달라진다
+    //   (구 화면 1.2 ≈ 보드 1.2 수준으로 비슷하나, 깊이에 따라 화면 폭이 달라지던 문제가 사라진다).
+    [SerializeField] private float stage5SpreadRange = 1.4f;     // 돌 퍼짐 범위 (보드 단위)
+    [SerializeField] private float stage5MinSpacing = 0.35f;     // 돌 최소 간격 (보드 단위)
     [SerializeField] private float stage5MissThreshold = 3.5f;   // catchAreaY - 이 값 아래로 지나가면 실패 (보드 근처까지 허용)
 
     private bool stage5ClickPending;
@@ -810,20 +812,28 @@ public class HandController : MonoBehaviour
     /// </summary>
     private IEnumerator DoStage5Toss(Stone[] stones, int count, float peakY, bool spreadX)
     {
-        float[] targetX = spreadX ? GenerateSpreadPositions(count) : new float[count];
-        float[] startX = new float[count];
-        float[] startY = new float[count]; // 각 돌의 실제 시작 world position
-        float[] peakOffset = new float[count];
+        // v17: 5단도 보드 좌표 + 높이로. 화면 y로 계산하면 원근 스케일이 안 붙고
+        //   1~4단과 궤적 규칙이 달라진다. 깊이는 손이 있는 깊이에 고정하고(수직 토스)
+        //   퍼짐은 **보드 x**로만 준다.
+        Vector2 handBoard = BoardSpace.ClampToBoard(
+            BoardSpace.ToBoard(new Vector2(transform.position.x, transform.position.y)));
+
+        float[] targetBX = spreadX ? GenerateSpreadPositions(count) : new float[count];
+        float[] startBX  = new float[count];
+        float[] peakH    = new float[count];
 
         for (int i = 0; i < count; i++)
         {
-            // SetParent(null) 전에 world position 읽기
-            startX[i] = stones[i].transform.position.x;
-            startY[i] = stones[i].transform.position.y;
+            var bp = BoardSpace.ClampToBoard(BoardSpace.ToBoard(
+                new Vector2(stones[i].transform.position.x, stones[i].transform.position.y)));
+            startBX[i] = bp.x;
 
-            if (!spreadX) targetX[i] = startX[i]; // X 고정: 현재 위치 유지
+            if (spreadX) targetBX[i] += handBoard.x; // 손 기준 좌우 퍼짐
+            else         targetBX[i]  = bp.x;        // X 고정: 현재 위치에서 수직
 
-            peakOffset[i] = Random.Range(-stage5HeightStep, stage5HeightStep);
+            // 화면 기준 peakY를 그 보드 깊이의 지면 대비 '높이'로 환산.
+            float groundY = BoardSpace.ToScreen(new Vector2(bp.x, handBoard.y), 0f).y;
+            peakH[i] = Mathf.Max(0.1f, peakY + Random.Range(-stage5HeightStep, stage5HeightStep) - groundY);
 
             stones[i].transform.SetParent(null);
             stones[i].SetState(Stone.State.InAir); // layer=AirLayer, col=true
@@ -831,7 +841,7 @@ public class HandController : MonoBehaviour
             stones[i].Rb.useGravity = false;
         }
 
-        // 올라가기 (EaseOut)
+        // 올라가기 (EaseOut — 중력에 거슬러 감속하는 상승. 물리적으로 맞다)
         float elapsed = 0f;
         while (elapsed < throwUpDuration)
         {
@@ -841,22 +851,15 @@ public class HandController : MonoBehaviour
 
             for (int i = 0; i < count; i++)
             {
-                float peak = peakY + peakOffset[i];
-                float y = Mathf.Lerp(startY[i], peak, eased); // 각 돌의 실제 시작 Y
-                float x = spreadX
-                    ? Mathf.Lerp(startX[i], targetX[i], eased) // 손 위치에서 퍼짐
-                    : targetX[i];
-                stones[i].transform.position = new Vector3(x, y, 0f);
+                float bx = spreadX ? Mathf.Lerp(startBX[i], targetBX[i], eased) : targetBX[i];
+                stones[i].SetBoardMotion(new Vector2(bx, handBoard.y), Mathf.Lerp(0f, peakH[i], eased));
             }
             yield return null;
         }
 
         // 최고점 고정
         for (int i = 0; i < count; i++)
-        {
-            stones[i].transform.position = new Vector3(
-                targetX[i], peakY + peakOffset[i], 0f);
-        }
+            stones[i].SetBoardMotion(new Vector2(targetBX[i], handBoard.y), peakH[i]);
 
         Debug.Log($"[Stage5] Toss complete — stones at peak. peakY={peakY:F1}, spreadX={spreadX}");
     }
@@ -934,8 +937,14 @@ public class HandController : MonoBehaviour
 
         float[] stoneStartY = new float[count];
         float[] stoneX = new float[count];
+        // v17: 5단 낙하도 보드 좌표 + 높이로. 토스가 SetBoardMotion으로 끝나므로
+        //   돌이 이미 BoardPos/Height를 들고 있다 — 그대로 이어받는다.
+        var stoneBoard = new Vector2[count];
+        var startH = new float[count];
         for (int i = 0; i < count; i++)
         {
+            stoneBoard[i] = stones[i].BoardPos;
+            startH[i] = stones[i].Height;
             stoneStartY[i] = stones[i].transform.position.y;
             stoneX[i] = stones[i].transform.position.x;
         }
@@ -981,8 +990,11 @@ public class HandController : MonoBehaviour
                 stoneElapsed[i] += Time.deltaTime;
                 float t = Mathf.Clamp01(stoneElapsed[i] / downDuration[i]);
                 float eased = t * t;  // EaseIn 가속 낙하
-                float y = Mathf.Lerp(stoneStartY[i], landY - 1f, eased);
-                stones[i].transform.position = new Vector3(stoneX[i], y, 0f);
+
+                // v17: 화면 y가 아니라 높이를 보간하고 위치·원근 크기는 투영으로 파생.
+                //   보드 좌표는 고정(수직 낙하) — 1~4단 던지기와 같은 규칙이다.
+                stones[i].SetBoardMotion(stoneBoard[i], Mathf.Lerp(startH[i], -1f, eased));
+                float y = stones[i].transform.position.y;
 
                 // v11-fix5 (옵션 C): catch window를 손 위치(palmTopY) 기반으로 변경.
                 //   원인 (v11-fix4 진단 오류 후 재분석): 기존 절대 y(catchAreaY+0.5) 기준은 손이 어디 있든 돌이 y≤2.5에서 잡힘
@@ -995,7 +1007,12 @@ public class HandController : MonoBehaviour
                 if (y <= palmTopY + 0.3f && y >= palmTopY - 0.5f && y >= BoardBounds.SkyFloorY)
                 {
                     bool handRaised = transform.position.y >= BoardBounds.SkyFloorY;
-                    float distX = Mathf.Abs(stoneX[i] - transform.position.x);
+                    // v17: 화면 x 거리 → **보드 x 거리**. 돌과 같은 깊이에서 손의 화면 x를
+                    //   해석해 보드 x를 얻는다(손은 하늘에 들려 있어 지면 역투영이 불가).
+                    //   보드 단위라 돌이 앞/뒤 어디에 있든 관대함이 같다 — 1~4단 받기와 동일 원리.
+                    float groundY5 = BoardSpace.ToScreen(stoneBoard[i], 0f).y;
+                    float handBX = BoardSpace.ToBoard(new Vector2(transform.position.x, groundY5)).x;
+                    float distX = Mathf.Abs(stoneBoard[i].x - handBX);
                     if (handRaised && distX <= stage5CatchRadius)
                     {
                         caught[i] = true;
@@ -1118,8 +1135,14 @@ public class HandController : MonoBehaviour
         int caughtCount = 0;
 
         float minStartY = float.MaxValue, maxStartY = float.MinValue;
+        // v17: 5단 낙하도 보드 좌표 + 높이로. 토스가 SetBoardMotion으로 끝나므로
+        //   돌이 이미 BoardPos/Height를 들고 있다 — 그대로 이어받는다.
+        var stoneBoard = new Vector2[count];
+        var startH = new float[count];
         for (int i = 0; i < count; i++)
         {
+            stoneBoard[i] = stones[i].BoardPos;
+            startH[i] = stones[i].Height;
             stoneStartY[i] = stones[i].transform.position.y;
             stoneX[i] = stones[i].transform.position.x;
             stoneElapsed[i] = 0f;
@@ -1156,8 +1179,9 @@ public class HandController : MonoBehaviour
                 if (caught[i]) continue;
                 stoneElapsed[i] += Time.deltaTime;
                 float t = Mathf.Clamp01(stoneElapsed[i] / downDuration[i]);
-                float y = Mathf.Lerp(stoneStartY[i], landY - 1f, t * t);
-                stones[i].transform.position = new Vector3(stoneX[i], y, 0f);
+                // v17: 높이를 보간하고 위치·원근 크기는 투영으로 파생 (보드 좌표 고정 = 수직 낙하).
+                stones[i].SetBoardMotion(stoneBoard[i], Mathf.Lerp(startH[i], -1f, t * t));
+                float y = stones[i].transform.position.y;
 
                 if (y <= landY)
                     anyReachedFloor = true;
@@ -1177,6 +1201,9 @@ public class HandController : MonoBehaviour
             if (isGrabbing && pressed)
             {
                 // 홀드 중 → 매 프레임 손 근처 돌 체크
+                // ⚠️ 여기는 보드 거리로 바꾸지 않는다. 낚아채기는 "손으로 쓸어 담는" 제스처라
+                //    화면에서 손과 돌이 겹치는지가 곧 판정이다(받기처럼 '밑에 대는' 동작이 아님).
+                //    돌들은 모두 손과 같은 깊이에서 던져지므로 깊이에 따른 편차도 없다.
                 Vector2 handPos = new Vector2(transform.position.x, transform.position.y);
                 for (int i = 0; i < count; i++)
                 {
