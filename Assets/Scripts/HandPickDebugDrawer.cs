@@ -16,7 +16,8 @@ public class HandPickDebugDrawer : MonoBehaviour
     private const float LineZ = -0.6f;   // 손보다 앞
     private const float LineWidth = 0.03f;
 
-    private LineRenderer line;
+    private LineRenderer line;    // 줍기 원 / 받기 손바닥 원
+    private LineRenderer line2;   // 받기 손 전체(튕김) 원
     private HandController hand;
     private HandModelBuilder model;
 
@@ -40,21 +41,29 @@ public class HandPickDebugDrawer : MonoBehaviour
 
     private void Awake()
     {
-        line = gameObject.AddComponent<LineRenderer>();
-        line.useWorldSpace = true;
-        line.loop = true;
-        line.positionCount = Segments;
-        line.widthMultiplier = LineWidth;
-        line.alignment = LineAlignment.View;
-        line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        line.receiveShadows = false;
+        line = MakeLine(gameObject, new Color(0.2f, 1f, 1f, 1f));           // 청록: 확실히 잡히는 범위
+        var outerGo = new GameObject("CatchOuter");
+        outerGo.transform.SetParent(transform, false);
+        line2 = MakeLine(outerGo, new Color(1f, 0.75f, 0.2f, 1f));          // 주황: 튕김 경계
+    }
+
+    private static LineRenderer MakeLine(GameObject go, Color color)
+    {
+        var lr = go.AddComponent<LineRenderer>();
+        lr.useWorldSpace = true;
+        lr.loop = true;
+        lr.positionCount = Segments;
+        lr.widthMultiplier = LineWidth;
+        lr.alignment = LineAlignment.View;
+        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        lr.receiveShadows = false;
 
         var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        var cyan = new Color(0.2f, 1f, 1f, 1f);
-        mat.SetColor("_BaseColor", cyan);
-        line.material = mat;
-        line.startColor = cyan;
-        line.endColor = cyan;
+        mat.SetColor("_BaseColor", color);
+        lr.material = mat;
+        lr.startColor = color;
+        lr.endColor = color;
+        return lr;
     }
 
     private void LateUpdate()
@@ -62,24 +71,36 @@ public class HandPickDebugDrawer : MonoBehaviour
         if (hand == null) hand = FindFirstObjectByType<HandController>();
         if (hand != null && model == null) model = hand.GetComponent<HandModelBuilder>();
 
-        // 줍기 판정이 실제로 도는 상황에서만 보여준다 — 받기 모드엔 이 원이 의미가 없다.
-        bool show = GateOpen() && BoardBoundsDebugDrawer.Enabled
-                    && model != null && hand != null && !hand.IsCatchMode;
+        bool show = GateOpen() && BoardBoundsDebugDrawer.Enabled && model != null && hand != null;
+        bool catching = show && hand.IsCatchMode;
         if (line.enabled != show) line.enabled = show;
+        if (line2.enabled != catching) line2.enabled = catching;
         if (!show) return;
 
         Vector3 palm = model.GetPalmCenter();
-        // 판정은 보드 단위 반경 → 화면에서의 반경은 손이 있는 깊이의 원근 배율을 곱한 값.
+
+        if (catching)
+        {
+            // 받기: 안쪽=손바닥 안착, 바깥=손 가장자리(튕김). 손끝이 바깥 원에 닿아야 정상이다.
+            Draw(line, palm, hand.DebugCatchPalmScreenRadius);
+            Draw(line2, palm, hand.DebugCatchHandScreenRadius);
+            return;
+        }
+
+        // 줍기: 판정은 보드 단위 반경 → 화면 반경은 손이 있는 깊이의 원근 배율을 곱한 값.
         Vector2 board = BoardSpace.ToBoard(new Vector2(palm.x, palm.y));
         board.y = Mathf.Clamp(board.y, -BoardSpace.LogicalDepth * 0.5f, BoardSpace.LogicalDepth * 0.5f);
-        float screenRadius = model.PalmRadiusBase * BoardSpace.Current.PerspectiveScale(board, 0f);
+        Draw(line, palm, model.PalmRadiusBase * BoardSpace.Current.PerspectiveScale(board, 0f));
+    }
 
+    private static void Draw(LineRenderer lr, Vector3 center, float radius)
+    {
         for (int i = 0; i < Segments; i++)
         {
             float a = i / (float)Segments * Mathf.PI * 2f;
-            line.SetPosition(i, new Vector3(
-                palm.x + Mathf.Cos(a) * screenRadius,
-                palm.y + Mathf.Sin(a) * screenRadius,
+            lr.SetPosition(i, new Vector3(
+                center.x + Mathf.Cos(a) * radius,
+                center.y + Mathf.Sin(a) * radius,
                 LineZ));
         }
     }

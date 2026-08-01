@@ -108,6 +108,20 @@ public class HandRig
     public float PalmRadius
         => Vector3.Distance(Proximal[Index].position, Proximal[Pinky].position) * 0.5f;
 
+    /// <summary>손바닥 중심에서 가장 먼 손끝까지의 거리(월드) — 손이 "닿는" 범위.
+    /// 받기 판정은 손 중심 기준 거리라, 이 값이 곧 화면에 그려진 손의 판정 대응 반경이다.</summary>
+    public float TipReach
+    {
+        get
+        {
+            Vector3 c = PalmCenter;
+            float max = 0f;
+            for (int i = 0; i < FingerCount; i++)
+                max = Mathf.Max(max, Vector3.Distance(c, FingerTip(i)));
+            return max;
+        }
+    }
+
     /// <summary>손가락 끝(월드). 끝 마디 뼈는 관절 위치라 손끝이 아니므로 한 마디만큼 연장한다.
     /// 커서 핫스팟(가리키는 지점)을 잡을 때 쓴다.</summary>
     public Vector3 FingerTip(int finger)

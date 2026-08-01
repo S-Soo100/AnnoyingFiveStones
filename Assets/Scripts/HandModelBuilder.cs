@@ -111,10 +111,11 @@ public class HandModelBuilder : MonoBehaviour
         // "손바닥을 올렸는데 안 잡히고 손가락을 올려야 잡히는" 어긋남이 생긴다.
         go.transform.localPosition -= modelPivot.InverseTransformPoint(Rig.PalmCenter);
         PalmRadiusBase = Rig.PalmRadius;
+        TipReachBase = Rig.TipReach;
 
         UsingModel = true;
         Debug.Log($"[HandModelBuilder] 3D 손 모델 연결 (마디 {Rig.JointCount}개, " +
-                  $"스케일 {go.transform.localScale.x:F3}, 손바닥반경 {Rig.PalmRadius:F2})");
+                  $"스케일 {go.transform.localScale.x:F3}, 손바닥반경 {PalmRadiusBase:F2}, 손끝거리 {TipReachBase:F2})");
         return true;
     }
 
@@ -356,7 +357,32 @@ public class HandModelBuilder : MonoBehaviour
     /// 빌드 시점에 한 번만 잰다.</summary>
     public float PalmRadiusBase { get; private set; } = 0.5f;
 
-    /// <summary>원근 스케일 적용 (1 = 기본). 보드 뒤쪽일수록 작게 그려 돌과 같은 원근을 따르게 한다.
+    /// <summary>원근 스케일 1일 때 손 중심에서 손끝까지의 거리(월드).
+    /// 받기 판정 반경을 "그려진 손끝"에 맞출 때 기준이 된다.</summary>
+    public float TipReachBase { get; private set; } = 1f;
+
+    /// <summary>지금 자세에서 **화면상** 손끝 반경(월드) — 손바닥 중심에서 가장 먼 손끝까지의 x/y 거리.
+    ///
+    /// TipReachBase(정면·펼친 손)와 달리 회전·접힘이 반영된다. 받기 모드는 손을 눕혀서 잡으므로
+    /// 정면 기준 길이를 쓰면 화면에 보이는 것보다 크게 잡힌다. 판정 원에 손끝을 정확히 맞추려면
+    /// 지금 보이는 값을 재야 한다.</summary>
+    public float CurrentScreenTipReach
+    {
+        get
+        {
+            if (!UsingModel || Rig == null) return TipReachBase;
+            Vector3 c = Rig.PalmCenter;
+            float max = 0f;
+            for (int i = 0; i < HandRig.FingerCount; i++)
+            {
+                Vector3 t = Rig.FingerTip(i);
+                max = Mathf.Max(max, new Vector2(t.x - c.x, t.y - c.y).magnitude);
+            }
+            return max;
+        }
+    }
+
+    /// <summary>모델 크기 배율 (1 = 기본). 줍기에선 원근, 받기에선 판정 반경 맞춤에 쓴다.
     /// 손 루트가 아니라 모델 피벗에 걸어 5단의 손 크기 연출과 충돌하지 않는다.</summary>
     public void SetPerspectiveScale(float k)
     {

@@ -486,6 +486,10 @@ public partial class HandController : MonoBehaviour
         Vector2 groundScreen  = BoardSpace.ToScreen(throwBoardPos, 0f);
         float peakHeight      = Mathf.Max(0.1f, throwPeakY - groundScreen.y);
 
+        // 이 던지기의 받기 판정은 이 깊이에서 일어난다 → 손도 그 깊이 크기로 그린다.
+        catchDepthBoard = throwBoardPos;
+        if (isCatchMode) ApplyCatchVisualScale();
+
         // 출발점도 그 보드 좌표의 지면으로 맞춘다 (그림자와 발밑이 어긋나지 않게).
         stone.SetBoardMotion(throwBoardPos, 0f);
         startX = groundScreen.x;
@@ -634,6 +638,43 @@ public partial class HandController : MonoBehaviour
     /// <summary>손바닥(안전) 반경. 결정 6-15 "손바닥 : 손가락 = 절반씩" → 전체의 1/2. ⚠️ 재튜닝 대상.</summary>
     private const float CatchPalmRadius = CatchHandRadius * 0.5f;
 
+    /// <summary>이번 받기 판정이 일어나는 보드 깊이. 던진 돌은 수직 낙하라 던질 때 확정된다.
+    /// 기본값(0,0)=보드 중앙 — 5단처럼 돌이 여러 개인 경우에 쓴다.</summary>
+    private Vector2 catchDepthBoard = Vector2.zero;
+
+    /// <summary>받기 모드에서 손을 그릴 배율 — **손끝이 판정 경계에 오도록** 맞춘다.
+    ///
+    /// 왜: 받기 판정은 손 중심에서의 거리(1.6 보드 단위)인데 손은 기본 크기로 그려져,
+    /// 손끝 바깥으로 지나간 돌이 잡히는 순간이 있었다. 난이도(판정 숫자)는 그대로 두고
+    /// **그림을 판정에 맞춘다**. 두 값 중 하나가 바뀌어도 자동으로 따라온다.
+    ///
+    /// ⚠️ 깊이를 곱하는 이유: 판정은 보드 단위라 같은 1.6이라도 뒤쪽 돌에서는 화면상 더 좁다
+    /// (뒤가 좁은 사다리꼴). 앞쪽 기준으로만 맞추면 뒤쪽에서 "손 안인데 못 받는" 반대 어긋남이 생긴다.
+    /// 돌이 떨어질 깊이의 원근 배율을 곱해야 모든 깊이에서 손끝 = 판정 경계가 된다.
+    ///
+    /// 5단도 같은 배율을 받는다 — 받기인 건 같아서 손 크기가 단수마다 달라지면 더 이상하다.
+    /// (5단은 손등 전환 시 손 루트를 2배로 키우는데, 그건 이 배율과 곱해져 비율이 유지된다)</summary>
+    private void ApplyCatchVisualScale()
+    {
+        if (handModel == null) return;
+
+        // 배율 1에서 **지금 자세의** 화면 손끝 반경을 잰 뒤, 그 값이 판정 반경이 되도록 다시 건다.
+        // 받기 자세는 손을 눕히므로(-60°) 정면 길이로 계산하면 실제보다 크게 나온다.
+        handModel.SetPerspectiveScale(1f);
+        float reach = handModel.CurrentScreenTipReach;
+        if (reach < 0.01f) return;
+
+        float target = CatchHandRadius * BoardSpace.Current.PerspectiveScale(catchDepthBoard, 0f);
+        handModel.SetPerspectiveScale(target / reach);
+    }
+
+    /// <summary>디버그 표시용 — 받기 판정의 **화면 반경**(손바닥/손 전체).
+    /// 판정은 보드 단위라 깊이에 따라 화면상 크기가 달라진다. 그 값을 그대로 노출한다.</summary>
+    public float DebugCatchPalmScreenRadius
+        => CatchPalmRadius * BoardSpace.Current.PerspectiveScale(catchDepthBoard, 0f);
+    public float DebugCatchHandScreenRadius
+        => CatchHandRadius * BoardSpace.Current.PerspectiveScale(catchDepthBoard, 0f);
+
     private enum BoardCatchVerdict { Miss, Finger, Palm }
 
     /// <summary>받기 판정 — **보드 가로 거리** 기준.
@@ -698,6 +739,19 @@ public partial class HandController : MonoBehaviour
 
     /// <summary>에디터 검증 전용 — 손바닥 기준점(판정 중심).</summary>
     public Vector3 DebugPalmCenter => handModel != null ? handModel.GetPalmCenter() : transform.position;
+
+    /// <summary>에디터 검증 전용 — 받기 모드를 강제로 켜고 손을 하늘에 세운다.
+    /// "그려진 손끝이 판정 경계에 오는가"를 스크린샷으로 확인하기 위한 것.</summary>
+    public void DebugForceCatchMode(Vector2 stoneBoardPos)
+    {
+        catchDepthBoard = stoneBoardPos;
+        suppressCursorFollow = true;
+        var ground = BoardSpace.ToScreen(stoneBoardPos, 0f);
+        transform.position = new Vector3(ground.x, BoardBounds.SkyFloorY + 1.5f, -0.5f);
+        SetCatchMode(true);
+        ApplyCatchVisualScale(); // 회전이 적용된 뒤 다시 재야 자세 반영값이 나온다
+        handModel?.SyncHitboxPosition(transform.position);
+    }
 #endif
 
     /// <summary>손이 이 돌을 덮고 있는가 — 보드 좌표 거리로 판정.
@@ -718,6 +772,8 @@ public partial class HandController : MonoBehaviour
     {
         if (!isCatchMode) return;
         if (GameManager.Instance != null && GameManager.Instance.IsPaused) return; // [P4]
+        // 코루틴이 손 위치를 직접 몰고 있으면(뿌리기 토스 등) 커서 추종이 덮어쓰면 안 된다.
+        if (suppressCursorFollow) return;
 
         // 5단 받기: stage5CatchActive일 때 XY 자유 추종
         if (stage5CatchActive)
@@ -822,8 +878,8 @@ public partial class HandController : MonoBehaviour
             transform.localEulerAngles = new Vector3(-60f, 0f, 90f);
             // 받기 모드: 불투명
             handModel?.SetVisualAlpha(1f);
-            // 받기는 하늘에서 일어나 보드 깊이가 없다 → 원근 스케일 해제(5단 손 크기 연출과도 충돌 방지)
-            handModel?.SetPerspectiveScale(1f);
+            // 받기는 하늘에서 일어나 보드 깊이가 없다 → 원근 대신 **판정 반경에 맞춘 크기**로 그린다.
+            ApplyCatchVisualScale();
         }
         else
         {
@@ -1034,6 +1090,7 @@ public partial class HandController : MonoBehaviour
         suppressCursorFollow = false; // 커서추종 복원 (토스 중 리셋 안전망)
         // 손가락 펼침 상태로 즉시 복원
         handModel?.Rig?.ResetAll();
+        catchDepthBoard = Vector2.zero; // 다음 던지기 전까지는 보드 중앙 기준
 
         SetCatchMode(false);
         isHolding = false;
