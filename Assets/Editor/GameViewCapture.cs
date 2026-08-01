@@ -25,8 +25,49 @@ public static class GameViewCapture
         var path = Path.Combine(dir, "gameview.png");
         if (File.Exists(path)) File.Delete(path);
 
+        // 에디터가 포커스를 잃으면 게임 뷰가 멈춰 프레임이 안 그려지고, 그러면 파일이 생기지 않는다.
+        // (MCP로 조작할 땐 항상 포커스가 없다) → 백그라운드 실행을 켜고 게임 뷰를 강제로 다시 그린다.
+        Application.runInBackground = true;
+        RepaintGameView();
+
         ScreenCapture.CaptureScreenshot(path);
         Debug.Log($"[GameViewCapture] 저장 요청: {path} (다음 프레임에 기록됨)");
+    }
+
+    /// <summary>타이틀 손 커서를 그리는 RenderTexture를 그대로 저장한다.
+    /// 커서는 마우스가 게임 뷰 밖이면 화면에 안 나와서 일반 스크린샷으로는 확인이 안 된다.</summary>
+    [MenuItem("Tools/Capture 손 커서 (RT)")]
+    public static void CaptureCursor()
+    {
+        var ui = Object.FindFirstObjectByType<HandCursorUI>();
+        if (ui == null || ui.CursorTexture == null)
+        {
+            Debug.LogError("[GameViewCapture] 손 커서 RT 없음 (Play 중인지, 3D 커서가 구성됐는지 확인)");
+            return;
+        }
+
+        var rt = ui.CursorTexture;
+        var prevActive = RenderTexture.active;
+        RenderTexture.active = rt;
+        var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+        tex.Apply();
+        RenderTexture.active = prevActive;
+
+        var dir = Path.Combine(Directory.GetCurrentDirectory(), OutDir);
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "handcursor.png");
+        File.WriteAllBytes(path, tex.EncodeToPNG());
+        Object.DestroyImmediate(tex);
+        Debug.Log($"[GameViewCapture] 손 커서 저장: {path}");
+    }
+
+    private static void RepaintGameView()
+    {
+        var type = typeof(UnityEditor.EditorWindow).Assembly.GetType("UnityEditor.GameView");
+        if (type == null) return;
+        foreach (var w in Resources.FindObjectsOfTypeAll(type))
+            ((UnityEditor.EditorWindow)w).Repaint();
     }
 
     /// <summary>Play를 켜지 않고 즉시 저장 — 카메라를 RenderTexture에 직접 그린다.

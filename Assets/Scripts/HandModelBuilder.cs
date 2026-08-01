@@ -29,6 +29,9 @@ public class HandModelBuilder : MonoBehaviour
     /// <summary>손가락 굽힘 리그. 접기는 전부 여기를 통한다 (뼈든 프리미티브든 동일 API).</summary>
     public HandRig Rig { get; private set; }
 
+    /// <summary>모델을 담는 피벗 — 원근 스케일 전용. 손 루트 스케일(5단이 조작)과 분리한다.</summary>
+    private Transform modelPivot;
+
     // 시각 참조
     public Renderer PalmRenderer { get; private set; }
     /// <summary>손가락 첫 마디 (엄지→소지 순). 시각 처리용 — 굽힘은 <see cref="Rig"/>가 담당.</summary>
@@ -63,7 +66,14 @@ public class HandModelBuilder : MonoBehaviour
             return false;
         }
 
-        var go = Instantiate(prefab, transform);
+        // 피벗을 한 겹 둔다 — 원근 스케일은 **피벗**에 걸어야 손바닥이 손 루트에 붙어 있는다.
+        // (모델을 직접 스케일하면 정렬 오프셋까지 같이 곱해져 손바닥이 커서에서 떨어진다)
+        // 5단이 transform.localScale을 직접 만지므로 손 루트 스케일과도 분리된다.
+        var pivotGo = new GameObject("HandModelPivot");
+        pivotGo.transform.SetParent(transform, false);
+        modelPivot = pivotGo.transform;
+
+        var go = Instantiate(prefab, modelPivot);
         go.name = "HandModel";
         go.transform.localPosition = Vector3.zero;
         go.transform.localRotation = Quaternion.Euler(HandFrontEuler);
@@ -89,13 +99,22 @@ public class HandModelBuilder : MonoBehaviour
         if (Rig == null)
         {
             Debug.LogWarning("[HandModelBuilder] 손가락 리그 구성 실패 → 프리미티브 폴백");
-            Destroy(go);
+            Destroy(pivotGo);
             PalmRenderer = null;
+            modelPivot = null;
             return false;
         }
 
+        // ── 손바닥 중심을 손 루트에 맞춘다 ──
+        // 모델 원점은 손 전체(손가락 포함)의 중앙이라 손바닥보다 위에 있다. 그대로 두면
+        // 커서·판정은 손바닥을 가리키는데 화면의 손바닥은 그 아래에 그려져,
+        // "손바닥을 올렸는데 안 잡히고 손가락을 올려야 잡히는" 어긋남이 생긴다.
+        go.transform.localPosition -= modelPivot.InverseTransformPoint(Rig.PalmCenter);
+        PalmRadiusBase = Rig.PalmRadius;
+
         UsingModel = true;
-        Debug.Log($"[HandModelBuilder] 3D 손 모델 연결 (마디 {Rig.JointCount}개, 스케일 {go.transform.localScale.x:F3})");
+        Debug.Log($"[HandModelBuilder] 3D 손 모델 연결 (마디 {Rig.JointCount}개, " +
+                  $"스케일 {go.transform.localScale.x:F3}, 손바닥반경 {Rig.PalmRadius:F2})");
         return true;
     }
 
@@ -160,6 +179,7 @@ public class HandModelBuilder : MonoBehaviour
         }
 
         Rig = HandRig.BuildFromPivots(pivots);
+        PalmRadiusBase = palmScale.x * 0.5f;
     }
 
     /// <summary>URP Lit 셰이더로 머테리얼 생성 (빌드 시 Standard 셰이더 스트리핑 방지)</summary>
@@ -322,13 +342,26 @@ public class HandModelBuilder : MonoBehaviour
         return b;
     }
 
-    /// <summary>손바닥 중심(월드). 3D 모델은 손가락까지 bounds에 들어가 중심이 위로 치우치므로
-    /// 아래쪽(손바닥 쪽)으로 보정한다. 줍기 판정 기준점.</summary>
+    /// <summary>손바닥 중심(월드) — 줍기·받기 판정의 기준점.
+    /// 모델은 뼈에서 정확히 구한다(렌더러 bounds는 손가락까지 포함해 위로 치우친다).</summary>
     public Vector3 GetPalmCenter()
     {
+        if (UsingModel && Rig != null) return Rig.PalmCenter;
         if (PalmRenderer == null) return transform.position;
-        var b = PalmRenderer.bounds;
-        return UsingModel ? b.center - new Vector3(0f, b.size.y * 0.18f, 0f) : b.center;
+        return PalmRenderer.bounds.center;
+    }
+
+    /// <summary>원근 스케일 1일 때의 손바닥 반경(월드). 줍기 판정 반경을 이 값에서 끌어온다 —
+    /// 판정 숫자를 따로 두면 눈에 보이는 손과 어긋난다. 스케일이 걸린 뒤 재면 값이 흔들리므로
+    /// 빌드 시점에 한 번만 잰다.</summary>
+    public float PalmRadiusBase { get; private set; } = 0.5f;
+
+    /// <summary>원근 스케일 적용 (1 = 기본). 보드 뒤쪽일수록 작게 그려 돌과 같은 원근을 따르게 한다.
+    /// 손 루트가 아니라 모델 피벗에 걸어 5단의 손 크기 연출과 충돌하지 않는다.</summary>
+    public void SetPerspectiveScale(float k)
+    {
+        if (modelPivot == null) return;
+        modelPivot.localScale = Vector3.one * Mathf.Max(0.01f, k);
     }
 
 #if UNITY_EDITOR

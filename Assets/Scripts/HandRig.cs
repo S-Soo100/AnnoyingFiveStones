@@ -63,7 +63,61 @@ public class HandRig
     /// <summary>손가락 첫 마디 Transform (엄지→소지). 시각 처리용 참조.</summary>
     public Transform[] Proximal { get; } = new Transform[FingerCount];
 
+    /// <summary>손목 뼈. 손바닥 중심을 구하는 기준. 프리미티브 폴백에서는 null.</summary>
+    public Transform Wrist { get; private set; }
+
     private HandRig() { }
+
+    // ==========================================
+    // 손바닥 기하 — 줍기 판정의 기준점
+    // ==========================================
+
+    /// <summary>네 손가락 관절(검지~소지)의 중심 = 손바닥 윗변 중앙.</summary>
+    private Vector3 KnuckleCenter =>
+        (Proximal[Index].position + Proximal[Middle].position
+         + Proximal[Ring].position + Proximal[Pinky].position) * 0.25f;
+
+    /// <summary>손바닥 아래변 — 네 손가락 손허리뼈가 시작하는 지점.
+    /// 손목 뼈를 쓰면 손목 그루터기까지 들어가 중심이 아래로 처진다.</summary>
+    private Vector3 PalmBase
+    {
+        get
+        {
+            Vector3 sum = Vector3.zero;
+            int n = 0;
+            for (int i = Index; i <= Pinky; i++)
+            {
+                var meta = Proximal[i] != null ? Proximal[i].parent : null;
+                if (meta == null) continue;
+                sum += meta.position; n++;
+            }
+            if (n > 0) return sum / n;
+            return Wrist != null ? Wrist.position : KnuckleCenter;
+        }
+    }
+
+    /// <summary>손바닥 중심(월드) — 손바닥 아래변과 관절선의 중간.
+    ///
+    /// ⚠️ 렌더러 bounds의 중심을 쓰면 **손가락까지 포함**돼 실제 손바닥보다 한참 위가 나온다.
+    /// 그 점을 줍기 기준으로 삼으면 "손바닥을 돌 위에 올렸는데 안 잡히고,
+    /// 손가락을 올려야 잡히는" 어긋남이 생긴다. 뼈로 구해야 맞는다.
+    /// 엄지는 제외한다 — 옆으로 벌어져 있어 넣으면 중심이 엄지 쪽으로 끌려간다.</summary>
+    public Vector3 PalmCenter => Vector3.Lerp(PalmBase, KnuckleCenter, 0.5f);
+
+    /// <summary>손바닥 반경(월드) — 검지~소지 관절 폭의 절반.</summary>
+    public float PalmRadius
+        => Vector3.Distance(Proximal[Index].position, Proximal[Pinky].position) * 0.5f;
+
+    /// <summary>손가락 끝(월드). 끝 마디 뼈는 관절 위치라 손끝이 아니므로 한 마디만큼 연장한다.
+    /// 커서 핫스팟(가리키는 지점)을 잡을 때 쓴다.</summary>
+    public Vector3 FingerTip(int finger)
+    {
+        var chain = chains[finger];
+        if (chain == null || chain.Length == 0) return Proximal[finger].position;
+        var last = chain[chain.Length - 1].bone;
+        var prev = chain.Length > 1 ? chain[chain.Length - 2].bone : last.parent;
+        return prev != null ? last.position + (last.position - prev.position) : last.position;
+    }
 
     // ==========================================
     // 빌드
@@ -83,7 +137,7 @@ public class HandRig
             return null;
         }
 
-        var rig = new HandRig();
+        var rig = new HandRig { Wrist = wrist };
         for (int i = 0; i < FingerCount; i++)
         {
             rig.Proximal[i] = FindByName(all, ProximalBoneNames[i]);

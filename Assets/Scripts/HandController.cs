@@ -80,6 +80,7 @@ public partial class HandController : MonoBehaviour
     public Stone ThrowStone => throwStone;
     public bool IsOnBoard => isOnBoard;
     public bool IsHolding => isHolding;
+    public bool IsCatchMode => isCatchMode;
 
     private void Awake()
     {
@@ -229,8 +230,24 @@ public partial class HandController : MonoBehaviour
         finalPos.z = -0.5f;
 
         transform.position = finalPos;
+        ApplyBoardPerspective(finalPos);
         handModel?.SyncHitboxPosition(finalPos);
         ghostPool?.OnHandMoved(finalPos);
+    }
+
+    /// <summary>보드 위 손 크기를 돌과 **같은 원근**으로 맞춘다.
+    ///
+    /// 손만 화면 크기로 고정돼 있으면, 뒤쪽에서 손 그림은 그대로인데 판정(보드 단위)은 좁아져
+    /// "분명히 손 안인데 안 잡히는" 어긋남이 생긴다. 돌이 이미 원근을 따르므로 손도 따라야
+    /// 보이는 것과 판정이 같아진다.</summary>
+    private void ApplyBoardPerspective(Vector3 handPos)
+    {
+        if (handModel == null) return;
+        Vector2 board = BoardSpace.ToBoard(new Vector2(handPos.x, handPos.y));
+        // 손은 보드 밖(하늘·아래 여백)으로도 나가므로 깊이를 보드 범위로 가둔다.
+        // 안 그러면 외삽으로 손이 0에 수렴하거나 과장되게 커진다.
+        board.y = Mathf.Clamp(board.y, -BoardSpace.LogicalDepth * 0.5f, BoardSpace.LogicalDepth * 0.5f);
+        handModel.SetPerspectiveScale(BoardSpace.Current.PerspectiveScale(board, 0f));
     }
 
     // === Hold + Bounds 줍기 입력 ===
@@ -246,7 +263,7 @@ public partial class HandController : MonoBehaviour
         {
             isHolding = true;
             AnimateFingerFold(true); // 손가락 접힘
-            // Collider는 켜지 않음 — GetPalmPickupBounds()로 판정 (물리 밀어냄 방지)
+            // Collider는 켜지 않음 — 손바닥 중심 거리로 판정 (물리 밀어냄 방지)
         }
     }
 
@@ -282,7 +299,6 @@ public partial class HandController : MonoBehaviour
         if (GameManager.Instance.IsTransitioning) return;
         if (handModel == null) return;
 
-        Bounds palmBounds = handModel.GetPalmPickupBounds();
         var allStones = GameManager.Instance.Stones;
         if (allStones == null) return;
 
@@ -344,7 +360,6 @@ public partial class HandController : MonoBehaviour
         if (GameManager.Instance.IsTransitioning) return;
         if (handModel == null) return;
 
-        Bounds palmBounds = handModel.GetPalmPickupBounds();
         var allStones = GameManager.Instance.Stones;
         if (allStones == null) return;
         int required = GameManager.Instance.RequiredPickCount;
@@ -635,7 +650,9 @@ public partial class HandController : MonoBehaviour
     private BoardCatchVerdict JudgeBoardCatch(Vector2 stoneBoardPos)
     {
         float groundY = BoardSpace.ToScreen(stoneBoardPos, 0f).y;
-        Vector2 handBoard = BoardSpace.ToBoard(new Vector2(transform.position.x, groundY));
+        // 가로 기준점도 손바닥 중심 — 손 루트와 x가 어긋나면 "손바닥 한가운데로 받았는데 튕김"이 난다.
+        float palmX = handModel != null ? handModel.GetPalmCenter().x : transform.position.x;
+        Vector2 handBoard = BoardSpace.ToBoard(new Vector2(palmX, groundY));
 
         float dist = Mathf.Abs(handBoard.x - stoneBoardPos.x);
         if (dist <= CatchPalmRadius) return BoardCatchVerdict.Palm;
@@ -651,20 +668,44 @@ public partial class HandController : MonoBehaviour
 
     // === v17 줍기 판정 (보드 좌표) ===
 
-    /// <summary>손이 돌을 덮는 반경 (보드 단위). ⚠️ 재튜닝 대상.
+    /// <summary>손이 돌을 덮는 반경 (보드 단위) — **보이는 손바닥에서 그대로 끌어온다**.
     ///
     /// 왜 보드 단위인가: 손의 줍기 범위가 **화면 크기로 고정**돼 있으면, 원근 때문에
     /// 뒤로 갈수록 좁게 그려지는 보드에서 같은 손이 더 넓은 보드 면적을 덮는다.
     /// 실측: 앞쪽 0.85 vs 뒤쪽 1.46(1.7배). 뿌리기 최소 간격이 1.05라
     /// **뒤쪽에서만 돌 두 개가 한꺼번에 잡혀 초과 줍기로 즉사**했다.
-    /// 같은 조작인데 위치에 따라 죽고 사는 건 "몰라서 죽으면 안 된다" 원칙 위반이다.</summary>
-    private const float PickRadiusBoard = 0.50f;
+    /// 같은 조작인데 위치에 따라 죽고 사는 건 "몰라서 죽으면 안 된다" 원칙 위반이다.
+    ///
+    /// 그런데 보드 단위로만 두면 이번엔 **손 그림이 원근을 안 따라서** 판정과 어긋난다.
+    /// → 손도 돌과 같은 원근 스케일로 그린다(UpdatePosition). 그러면 보드 단위 반경 하나가
+    ///   모든 깊이에서 "보이는 손바닥"과 정확히 일치한다.
+    /// 보드 앞변에서 월드 1 = 보드 1이므로 손바닥 반경(월드)을 그대로 보드 단위로 쓴다.</summary>
+    private float PickRadiusBoard => handModel != null ? handModel.PalmRadiusBase : 0.5f;
 
-    /// <summary>손이 이 돌을 덮고 있는가 — 보드 좌표 거리로 판정.</summary>
+#if UNITY_EDITOR
+    /// <summary>에디터 검증 전용 — 손을 지정 위치에 놓고 커서추종을 멈춘다.
+    /// "판정 원이 그려진 손바닥과 겹치는가"를 스크린샷으로 확인하기 위한 것.</summary>
+    public void DebugPlaceHand(Vector3 worldPos)
+    {
+        suppressCursorFollow = true;
+        transform.position = new Vector3(worldPos.x, worldPos.y, -0.5f);
+        ApplyBoardPerspective(transform.position);
+        handModel?.SyncHitboxPosition(transform.position);
+    }
+
+    /// <summary>에디터 검증 전용 — 줍기 판정 결과를 그대로 노출.</summary>
+    public bool DebugIsStoneUnderHand(Stone stone) => IsStoneUnderHand(stone);
+
+    /// <summary>에디터 검증 전용 — 손바닥 기준점(판정 중심).</summary>
+    public Vector3 DebugPalmCenter => handModel != null ? handModel.GetPalmCenter() : transform.position;
+#endif
+
+    /// <summary>손이 이 돌을 덮고 있는가 — 보드 좌표 거리로 판정.
+    /// 기준점은 손 루트가 아니라 **손바닥 중심**이다(손 루트는 손가락까지 포함한 중앙이라 위로 치우친다).</summary>
     private bool IsStoneUnderHand(Stone stone)
     {
-        Vector2 handBoard = BoardSpace.ToBoard(
-            new Vector2(transform.position.x, transform.position.y));
+        Vector3 palm = handModel != null ? handModel.GetPalmCenter() : transform.position;
+        Vector2 handBoard = BoardSpace.ToBoard(new Vector2(palm.x, palm.y));
         Vector2 stoneBoard = stone.HasBoardMotion
             ? stone.BoardPos
             : BoardSpace.ToBoard(new Vector2(stone.transform.position.x, stone.transform.position.y));
@@ -781,6 +822,8 @@ public partial class HandController : MonoBehaviour
             transform.localEulerAngles = new Vector3(-60f, 0f, 90f);
             // 받기 모드: 불투명
             handModel?.SetVisualAlpha(1f);
+            // 받기는 하늘에서 일어나 보드 깊이가 없다 → 원근 스케일 해제(5단 손 크기 연출과도 충돌 방지)
+            handModel?.SetPerspectiveScale(1f);
         }
         else
         {

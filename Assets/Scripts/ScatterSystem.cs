@@ -234,6 +234,19 @@ public class ScatterSystem : MonoBehaviour
 
     /// <summary>v14: 코루틴 토스 산개. 손 중앙 → 보드 좌표 목표까지 아치 애니메이션.
     /// 목표 uv가 [0,1] 밖인 돌은 보드 밖으로 던져져 낙.</summary>
+#if UNITY_EDITOR
+    /// <summary>에디터 검증 전용 — 마우스 입력 없이 뿌리기를 실행한다.
+    /// (MCP로 에디터를 조작할 땐 게임 뷰에 클릭을 넣을 수 없다)</summary>
+    public void DebugScatterNow(float gauge)
+    {
+        waitingForPress = false;
+        isGaugeActive = false;
+        GaugeBarUI.Instance?.Hide();
+        rangeIndicator?.Hide();
+        StartCoroutine(DoScatter(gauge));
+    }
+#endif
+
     private IEnumerator DoScatter(float gauge)
     {
         var stones = GameManager.Instance.Stones;

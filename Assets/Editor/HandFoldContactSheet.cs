@@ -70,6 +70,51 @@ public static class HandFoldContactSheet
         Debug.Log($"[HandFoldContactSheet] {shots}장 저장: {dir}");
     }
 
+    /// <summary>줍기 판정 원이 **보이는 손바닥**과 겹치는지 확인하는 컷.
+    /// 판정 중심·반경을 게임과 같은 방식(HandRig)으로 구해 그대로 그린다.</summary>
+    [MenuItem("Tools/New Hand/줍기 판정 확인 촬영")]
+    public static void ShootPickRadius()
+    {
+        var dir = Path.Combine(Directory.GetCurrentDirectory(), OutDir);
+        Directory.CreateDirectory(dir);
+
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(FbxPath);
+        if (prefab == null) { Debug.LogError($"[HandFoldContactSheet] FBX 없음: {FbxPath}"); return; }
+
+        var go = SpawnHand(prefab);
+        var rig = HandRig.BuildFromBones(go.transform);
+        if (rig == null) { Debug.LogError("[HandFoldContactSheet] 리그 구성 실패"); Object.DestroyImmediate(go); return; }
+
+        var circle = MakeCircle(rig.PalmCenter, rig.PalmRadius, new Color(0.2f, 1f, 1f));
+        Render(go.transform.position, front: true, Path.Combine(dir, "pick_radius.png"));
+        Debug.Log($"[HandFoldContactSheet] 손바닥 중심 {rig.PalmCenter} / 반경 {rig.PalmRadius:F3} → pick_radius.png");
+
+        Object.DestroyImmediate(circle);
+        Object.DestroyImmediate(go);
+    }
+
+    private static GameObject MakeCircle(Vector3 center, float radius, Color color)
+    {
+        var go = new GameObject("__PickCircle") { hideFlags = HideFlags.HideAndDontSave };
+        var lr = go.AddComponent<LineRenderer>();
+        lr.useWorldSpace = true;
+        lr.loop = true;
+        lr.widthMultiplier = 0.02f;
+        lr.alignment = LineAlignment.View;
+        const int n = 48;
+        lr.positionCount = n;
+        for (int i = 0; i < n; i++)
+        {
+            float a = i / (float)n * Mathf.PI * 2f;
+            lr.SetPosition(i, new Vector3(center.x + Mathf.Cos(a) * radius, center.y + Mathf.Sin(a) * radius, center.z - 1f));
+        }
+        var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.SetColor("_BaseColor", color);
+        lr.material = mat;
+        lr.startColor = lr.endColor = color;
+        return go;
+    }
+
     private static GameObject SpawnHand(GameObject prefab)
     {
         var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
