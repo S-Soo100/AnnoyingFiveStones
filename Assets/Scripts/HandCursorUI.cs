@@ -99,14 +99,19 @@ public class HandCursorUI : MonoBehaviour
         Vector2 screenPos = pointerAction.ReadValue<Vector2>();
         cursorRoot.position = screenPos + (usingModel ? Vector2.zero : currentVisualOffset);
 
-        // 3D 손: 촬영 카메라를 **핫스팟**(가리키는 지점)에 맞춘다.
-        // 그러면 핫스팟이 항상 RenderTexture 정중앙 = 커서 위치가 된다 —
-        // 포즈마다 픽셀 오프셋을 따로 재던 방식보다 정확하고, 포즈가 늘어도 안 깨진다.
+        // 3D 손: 카메라는 **손에 고정**하고, 그림 쪽을 핫스팟만큼 밀어 핫스팟이 커서에 오게 한다.
+        //
+        // ⚠️ 예전엔 카메라를 핫스팟에 맞췄다. 그러면 가리키는 포즈에서 손끝이 촬영 중심이 되어
+        //    손이 아래로 길게 벗어나고, 촬영 범위 밖으로 나간 **손목 쪽이 잘려** 보였다.
+        //    카메라를 고정하면 촬영 범위를 손 크기에 딱 맞춰둘 수 있다.
         // cursorRig는 직렬화되지 않아 에디터 스크립트 리로드 후 null이 될 수 있다(usingModel은 남는다).
-        if (usingModel && cursorCam != null && cursorRig != null)
+        if (usingModel && cursorCam != null && cursorRig != null && handImage != null)
         {
             Vector3 hotspot = HotspotWorld();
-            cursorCam.transform.position = new Vector3(hotspot.x, hotspot.y, StagePos.z - 6f);
+            Vector3 camPos = cursorCam.transform.position;
+            float pxPerWorld = CursorPixelSize / (StageCamSize * 2f);
+            handImage.rectTransform.anchoredPosition =
+                new Vector2(camPos.x - hotspot.x, camPos.y - hotspot.y) * pxPerWorld;
         }
     }
 
@@ -307,7 +312,11 @@ public class HandCursorUI : MonoBehaviour
         cursorCam.nearClipPlane = 0.1f;
         cursorCam.farClipPlane = 20f;
         cursorCam.targetTexture = cursorRT;
-        camGo.transform.position = StagePos + new Vector3(0f, 0f, -6f);
+        // 손 전체가 촬영 범위 안에 들어오도록 **손의 실제 중심**을 잡는다.
+        // (원점을 그냥 쓰면 모델이 한쪽으로 치우쳐 손목이나 손끝이 잘린다)
+        var hb = rends[0].bounds;
+        for (int i = 1; i < rends.Length; i++) hb.Encapsulate(rends[i].bounds);
+        camGo.transform.position = new Vector3(hb.center.x, hb.center.y, StagePos.z - 6f);
         camGo.transform.rotation = Quaternion.identity;
 
         var imgGo = new GameObject("HandCursorImage");

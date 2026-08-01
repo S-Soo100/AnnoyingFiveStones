@@ -21,6 +21,40 @@ public static class GameTestMenu
         Debug.Log("[GameTestMenu] 게임 시작");
     }
 
+    /// <summary>게임 시작 연출을 실제 경로 그대로 태우면서 프레임을 연속 촬영한다.
+    /// "0.1초 깜빡" 같은 건 프레임을 늘어놓고 봐야 원인을 특정할 수 있다.</summary>
+    [MenuItem("Tools/테스트: 게임 시작 연출 촬영")]
+    public static void CaptureIntro()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (TitleScreenUI.Instance == null || GameManager.Instance == null)
+        {
+            Debug.LogError("[GameTestMenu] 타이틀/GameManager 없음 (타이틀 화면에서 실행)");
+            return;
+        }
+        IntroFrameCapture.Begin(60, 1); // 매 프레임 — 0.1초짜리 깜빡임을 놓치지 않으려면 간격을 두면 안 된다
+        TitleScreenUI.Instance.DebugStartGame(); // "게임 시작" 버튼과 같은 경로
+        Debug.Log("[GameTestMenu] 게임 시작 연출 촬영 시작");
+    }
+
+    /// <summary>지금부터 60프레임을 연속 촬영. 임의 구간(대화 종료 → 스테이지 진입 등) 검사용.</summary>
+    [MenuItem("Tools/테스트: 프레임 촬영 시작")]
+    public static void CaptureFrames()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        IntroFrameCapture.Begin(60, 1);
+        Debug.Log("[GameTestMenu] 프레임 촬영 시작");
+    }
+
+    /// <summary>대화 종료 → 스테이지 진입 구간을 촬영. 배경이 늦게 들어오는지 등을 프레임으로 본다.</summary>
+    [MenuItem("Tools/테스트: 스테이지 진입 촬영")]
+    public static void CaptureStageEnter()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        IntroFrameCapture.Begin(120, 1);
+        SkipDialogue();
+    }
+
     [MenuItem("Tools/테스트: 5단으로")]
     public static void GoStage5()
     {

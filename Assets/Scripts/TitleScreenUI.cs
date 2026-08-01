@@ -825,21 +825,46 @@ public class TitleScreenUI : MonoBehaviour
         onComplete?.Invoke();
     }
 
-    private void OnStartClicked()
-    {
-        BootCurtain.Instance?.Raise(0.15f); // v10: 부드럽게 페이드인
-        Hide(() => GameManager.Instance?.StartGameFromTitle());
-    }
+    private void OnStartClicked() => StartCoroutine(DoStartBehindCurtain(null));
 
-    private void OnModeSelected(bool isTestPlay)
+    private void OnModeSelected(bool isTestPlay) => StartCoroutine(DoStartBehindCurtain(isTestPlay));
+
+    /// <summary>커튼이 화면을 **완전히 덮은 뒤에** 타이틀을 내리고 게임을 시작한다.
+    ///
+    /// ⚠️ 예전엔 커튼 올리기(0.15초)와 타이틀 페이드아웃(0.5초)을 동시에 시작했다.
+    /// 타이틀이 옅어지는 동안 뒤의 **보드가 비쳐 보였다** — "미묘하게 한 번 깜빡"의 정체다.
+    /// 커튼이 덮은 뒤에는 타이틀 페이드가 보이지 않으므로 그냥 즉시 내린다(대기 시간도 줄어든다).
+    /// </summary>
+    private IEnumerator DoStartBehindCurtain(bool? isTestPlay)
     {
-        BootCurtain.Instance?.Raise(0.15f); // v10: 부드럽게 페이드인
-        Hide(() =>
+        const float curtainTime = 0.25f;
+        BootCurtain.Instance?.Raise(curtainTime);
+        yield return new WaitForSeconds(curtainTime);
+
+        HideInstant();
+
+        if (isTestPlay.HasValue)
         {
             var session = GameSession.Instance;
-            if (session != null)
-                session.IsTestPlay = isTestPlay;
-            GameManager.Instance?.StartGameFromTitle();
-        });
+            if (session != null) session.IsTestPlay = isTestPlay.Value;
+        }
+        GameManager.Instance?.StartGameFromTitle();
+    }
+
+#if UNITY_EDITOR
+    /// <summary>에디터 검증 전용 — "게임 시작" 버튼과 **완전히 같은 경로**를 탄다.
+    /// 검증 코드가 순서를 따로 흉내 내면 정작 실제 연출을 못 본다.</summary>
+    public void DebugStartGame() => StartCoroutine(DoStartBehindCurtain(false));
+#endif
+
+    /// <summary>페이드 없이 즉시 감춘다 (커튼 뒤라 페이드가 보이지 않을 때).</summary>
+    private void HideInstant()
+    {
+        StopCoroutine(nameof(DoFadeOut));
+        rootGroup.alpha = 0f;
+        rootGroup.blocksRaycasts = false;
+        IsShowing = false;
+        SetDecoStone3DActive(false);
+        Debug.Log("[TitleScreenUI] Hidden (instant).");
     }
 }
