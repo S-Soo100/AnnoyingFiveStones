@@ -17,18 +17,25 @@ public static class NewHandPreview
     /// <summary>화면에서 손이 차지할 **세로 길이**(손끝~손목, 월드 단위).
     /// ⚠️ 모델의 긴 축(원본 X)이 회전 후 화면 세로가 되므로, bounds.x를 이 값에 맞춘다.
     /// 1.3에서 시작했으나 "좀 더 크게" 피드백으로 상향.</summary>
-    private const float TargetWidth = 1.9f;
+    private const float TargetWidth = 2.09f;
 
     /// <summary>보드 위 어디에 놓아볼지 (BoardSpace 앞뒤 중간).</summary>
     private static Vector3 PreviewPos => new Vector3(0f, (BoardSpace.BackScreenY + BoardSpace.FrontScreenY) * 0.5f, -0.5f);
 
     /// <summary>정면 카메라에 맞는 회전 — **실측으로 확정**.
     ///
-    /// 원본 모델은 손바닥이 위(+Y)를 보고 손가락이 -X로 뻗은 채 누워 있다.
-    /// 우리 카메라(정면, +Z 방향)에 맞추려면 손바닥 법선을 -Z로, 손가락을 +Y로 돌려야 한다.
-    /// Unity의 오일러 적용 순서(Ry·Rx·Rz) 때문에 눈대중으로는 안 맞아서,
-    /// 두 조건을 만족하는 각을 계산해 얻었다. (0,90,-90) / (±180,-90,90) 셋이 해.</summary>
+    /// ⚠️ 축을 한 번 거꾸로 읽어 손가락을 잘라먹은 적이 있다. 실루엣만 보면 팔뚝과 손가락이
+    /// 둘 다 "여러 갈래"로 보여 구분이 안 된다. **정점 밀도**가 결정적이다 —
+    /// 손가락은 마디마다 링이 있어 정점이 몰리고(377개), 팔뚝은 성긴 튜브다(182개).
+    /// → 손가락은 **+X**, 손바닥 법선은 +Y(누운 자세).
+    ///
+    /// 카메라는 정면(+Z)이므로 손바닥 법선 → -Z, 손가락 → +Y로 돌린다.
+    /// ⚠️ 계산으로 후보를 좁힌 뒤 **실제 렌더로 확정**했다. 모델의 축 방향 가정이 몇 번 틀려서
+    ///    수식만으로는 결론이 안 났다 — 최종 확인은 눈으로 해야 한다.</summary>
     public static readonly Vector3 FrontFacingEuler = new Vector3(0f, 90f, -90f);
+
+    /// <summary>손등이 카메라를 보는 회전 (5단 손등 받기용).</summary>
+    public static readonly Vector3 BackhandEuler = new Vector3(0f, -90f, -90f);
 
     [MenuItem("Tools/New Hand/Preview (정면)")]
     public static void Preview() => Spawn(FrontFacingEuler);
