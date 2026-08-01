@@ -28,4 +28,39 @@ public static class GameViewCapture
         ScreenCapture.CaptureScreenshot(path);
         Debug.Log($"[GameViewCapture] 저장 요청: {path} (다음 프레임에 기록됨)");
     }
+
+    /// <summary>Play를 켜지 않고 즉시 저장 — 카메라를 RenderTexture에 직접 그린다.
+    /// ScreenCapture는 게임 뷰가 한 프레임 그려져야 파일이 생기는데, Edit 모드에서는
+    /// 게임 뷰가 갱신되지 않을 수 있어 파일이 안 생긴다. 이 경로는 그 의존이 없다.
+    /// (Screen Space Overlay UI는 안 찍힌다 — 3D 오브젝트 확인용)</summary>
+    [MenuItem("Tools/Capture Game View (즉시)")]
+    public static void CaptureNow()
+    {
+        var cam = Camera.main;
+        if (cam == null) { Debug.LogError("[GameViewCapture] MainCamera 없음"); return; }
+
+        const int W = 1280, H = 720;
+        var rt = new RenderTexture(W, H, 24);
+        var prev = cam.targetTexture;
+        cam.targetTexture = rt;
+        cam.Render();
+        cam.targetTexture = prev;
+
+        var prevActive = RenderTexture.active;
+        RenderTexture.active = rt;
+        var tex = new Texture2D(W, H, TextureFormat.RGB24, false);
+        tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
+        tex.Apply();
+        RenderTexture.active = prevActive;
+
+        var dir = Path.Combine(Directory.GetCurrentDirectory(), OutDir);
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "gameview.png");
+        File.WriteAllBytes(path, tex.EncodeToPNG());
+
+        Object.DestroyImmediate(tex);
+        rt.Release();
+        Object.DestroyImmediate(rt);
+        Debug.Log($"[GameViewCapture] 저장 완료: {path}");
+    }
 }

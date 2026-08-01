@@ -794,57 +794,23 @@ public partial class HandController : MonoBehaviour
     /// 특정 포즈로 손가락 애니메이션 (외부에서 호출 가능).
     /// HandPose와 동일한 포즈를 3D 손에 적용.
     /// </summary>
-    /// X축 회전 접힘 각도: 양수 = 화면 안쪽으로 말림 (주먹 쥐기)
-    private const float FingerFoldX = 90f;
-
     public void SetHandPose(HandPose pose)
     {
-        if (handModel == null || handModel.Fingers == null) return;
-        // X축 회전 각도 배열: 0 = 펼침, FingerFoldX = 접힘
+        // 손가락별 접힘량 (0 = 펼침, 1 = 접힘). 순서는 **엄지→소지**.
         float[] targets;
         switch (pose)
         {
             case HandPose.PointIndex:
-                // 검지(1)만 펼침, 나머지 접힘
-                targets = new float[] { FingerFoldX, 0f, FingerFoldX, FingerFoldX, FingerFoldX };
+                targets = new float[] { 1f, 0f, 1f, 1f, 1f };   // 검지만 펼침
                 break;
             case HandPose.PointMiddle:
-                // 중지(2)만 펼침, 나머지 접힘
-                targets = new float[] { FingerFoldX, FingerFoldX, 0f, FingerFoldX, FingerFoldX };
+                targets = new float[] { 1f, 1f, 0f, 1f, 1f };   // 중지만 펼침
                 break;
             default: // Open
                 targets = new float[] { 0f, 0f, 0f, 0f, 0f };
                 break;
         }
-        if (fingerFoldCoroutine != null) StopCoroutine(fingerFoldCoroutine);
-        fingerFoldCoroutine = StartCoroutine(DoFingerFoldCustom(targets));
-    }
-
-    private IEnumerator DoFingerFoldCustom(float[] targetAngles)
-    {
-        if (handModel == null || handModel.Fingers == null) yield break;
-
-        float duration = 0.1f;
-        float elapsed = 0f;
-        float[] startAngles = new float[handModel.Fingers.Length];
-        for (int i = 0; i < handModel.Fingers.Length; i++)
-        {
-            startAngles[i] = ReadFingerAngle(i);
-        }
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            for (int i = 0; i < handModel.Fingers.Length; i++)
-            {
-                ApplyFingerAngle(i, Mathf.Lerp(startAngles[i], targetAngles[i], t));
-            }
-            yield return null;
-        }
-        for (int i = 0; i < handModel.Fingers.Length; i++)
-            ApplyFingerAngle(i, targetAngles[i]);
-        fingerFoldCoroutine = null;
+        StartFingerFold(targets);
     }
 
     /// <summary>손가락 접힘/펼침 애니메이션</summary>
@@ -914,77 +880,40 @@ public partial class HandController : MonoBehaviour
         return world;
     }
 
+    /// <summary>다섯 손가락을 한꺼번에 접거나(true) 편다(false). 줍기 피드백의 기본 동작.</summary>
     private void AnimateFingerFold(bool fold)
     {
-        if (fingerFoldCoroutine != null)
-            StopCoroutine(fingerFoldCoroutine);
-        fingerFoldCoroutine = StartCoroutine(DoFingerFold(fold));
+        float v = fold ? 1f : 0f;
+        StartFingerFold(new[] { v, v, v, v, v });
     }
 
-    /// <summary>손가락 i를 angle만큼 접는다.
-    ///
-    /// ⚠️ 예전엔 localEulerAngles를 통째로 (angle,0,0)으로 덮었다. 프리미티브 피벗은
-    /// 기본 회전이 항등이라 문제가 없었지만, **3D 모델의 뼈는 rest pose가 있어** 덮어쓰면
-    /// 손 모양이 무너진다. 기본 자세에 회전을 **곱해서** 적용해야 한다.
-    /// 접히는 축도 뼈마다 달라서 빌드 시 캐시해둔 축을 쓴다.</summary>
-    private void ApplyFingerAngle(int i, float angle)
+    /// <summary>손가락별 접힘량(0~1)으로 부드럽게 이동. 굽는 축·마디별 각도는 HandRig가 안다.</summary>
+    private void StartFingerFold(float[] targets)
     {
-        var f = handModel.Fingers[i];
-        if (f == null) return;
-        if (handModel.UsingModel && handModel.FingerRest != null)
-            f.localRotation = handModel.FingerRest[i] * Quaternion.AngleAxis(angle, handModel.FingerFoldAxis[i]);
-        else
-            f.localEulerAngles = new Vector3(angle, 0f, 0f);
+        if (handModel?.Rig == null) return;
+        if (fingerFoldCoroutine != null) StopCoroutine(fingerFoldCoroutine);
+        fingerFoldCoroutine = StartCoroutine(DoFingerFold(targets));
     }
 
-    private float ReadFingerAngle(int i)
+    private IEnumerator DoFingerFold(float[] targets)
     {
-        var f = handModel.Fingers[i];
-        if (f == null) return 0f;
-        if (handModel.UsingModel && handModel.FingerRest != null)
-        {
-            // rest 대비 상대 회전의 각도(부호 포함)를 되돌려 읽는다.
-            Quaternion rel = Quaternion.Inverse(handModel.FingerRest[i]) * f.localRotation;
-            rel.ToAngleAxis(out float a, out Vector3 ax);
-            if (Vector3.Dot(ax, handModel.FingerFoldAxis[i]) < 0f) a = -a;
-            if (a > 180f) a -= 360f;
-            return a;
-        }
-        float e = f.localEulerAngles.x;
-        return e > 180f ? e - 360f : e;
-    }
+        var rig = handModel?.Rig;
+        if (rig == null) yield break;
 
-    private IEnumerator DoFingerFold(bool fold)
-    {
-        if (handModel == null || handModel.Fingers == null) yield break;
+        const float duration = 0.1f;
+        float[] start = new float[HandRig.FingerCount];
+        for (int i = 0; i < HandRig.FingerCount; i++) start[i] = rig.GetFold(i);
 
-        // X축 회전: 양수 = 화면 안쪽으로 말림 (주먹 쥐기)
-        // 모든 손가락 동일 각도 (90도)
-        float duration = 0.1f;
         float elapsed = 0f;
-
-        float[] startAngles = new float[handModel.Fingers.Length];
-        float[] targetAngles = new float[handModel.Fingers.Length];
-        for (int i = 0; i < handModel.Fingers.Length; i++)
-        {
-            startAngles[i] = ReadFingerAngle(i);
-            targetAngles[i] = fold ? FingerFoldX : 0f;
-        }
-
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / duration);
-
-            for (int i = 0; i < handModel.Fingers.Length; i++)
-            {
-                ApplyFingerAngle(i, Mathf.Lerp(startAngles[i], targetAngles[i], t));
-            }
+            for (int i = 0; i < HandRig.FingerCount; i++)
+                rig.SetFold(i, Mathf.Lerp(start[i], targets[i], t));
             yield return null;
         }
-
-        for (int i = 0; i < handModel.Fingers.Length; i++)
-            ApplyFingerAngle(i, targetAngles[i]);
+        for (int i = 0; i < HandRig.FingerCount; i++) rig.SetFold(i, targets[i]);
 
         fingerFoldCoroutine = null;
     }
@@ -1061,14 +990,7 @@ public partial class HandController : MonoBehaviour
         transform.rotation = Quaternion.identity;
         suppressCursorFollow = false; // 커서추종 복원 (토스 중 리셋 안전망)
         // 손가락 펼침 상태로 즉시 복원
-        if (handModel != null && handModel.Fingers != null)
-        {
-            foreach (var finger in handModel.Fingers)
-            {
-                if (finger != null)
-                    finger.localEulerAngles = new Vector3(finger.localEulerAngles.x, finger.localEulerAngles.y, 0f);
-            }
-        }
+        handModel?.Rig?.ResetAll();
 
         SetCatchMode(false);
         isHolding = false;

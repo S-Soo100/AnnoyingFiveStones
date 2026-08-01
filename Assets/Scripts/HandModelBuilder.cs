@@ -22,23 +22,17 @@ public class HandModelBuilder : MonoBehaviour
     private const float HandTargetSize = 2.09f;
     /// <summary>손바닥이 카메라를 보고 손가락이 위를 향하는 회전. 프리뷰로 확정.</summary>
     private static readonly Vector3 HandFrontEuler = new Vector3(0f, 90f, -90f);
-    /// <summary>각 손가락의 첫 마디 뼈 이름. dedo = 스페인어 '손가락'.</summary>
-    private static readonly string[] FingerBoneNames =
-        { "dedo1", "dedo1.000", "dedo1.001", "dedo1.002", "dedo1.003" };
 
     /// <summary>3D 모델을 쓰는가. false면 구 프리미티브 경로.</summary>
     public bool UsingModel { get; private set; }
 
-    /// <summary>손가락 뼈의 **기본 자세**. 접기 회전은 여기에 곱해서 적용해야 한다
-    /// (localEulerAngles를 통째로 덮으면 뼈의 rest pose가 파괴된다).</summary>
-    public Quaternion[] FingerRest { get; private set; }
-
-    /// <summary>손가락을 접는 회전축 — 화면 가로축(world right)을 각 뼈의 로컬 공간으로 옮긴 것.</summary>
-    public Vector3[] FingerFoldAxis { get; private set; }
+    /// <summary>손가락 굽힘 리그. 접기는 전부 여기를 통한다 (뼈든 프리미티브든 동일 API).</summary>
+    public HandRig Rig { get; private set; }
 
     // 시각 참조
     public Renderer PalmRenderer { get; private set; }
-    public Transform[] Fingers { get; private set; }
+    /// <summary>손가락 첫 마디 (엄지→소지 순). 시각 처리용 — 굽힘은 <see cref="Rig"/>가 담당.</summary>
+    public Transform[] Fingers => Rig?.Proximal;
 
     // 물리 참조 (보이지 않는 Hitbox)
     public BoxCollider PalmCollider { get; private set; }
@@ -89,30 +83,19 @@ public class HandModelBuilder : MonoBehaviour
         float longest = Mathf.Max(b.size.x, b.size.y, 0.0001f);
         go.transform.localScale *= HandTargetSize / longest;
 
-        // 손가락 뼈 연결 + 기본 자세/회전축 캐시
-        Fingers = new Transform[FingerBoneNames.Length];
-        FingerRest = new Quaternion[FingerBoneNames.Length];
-        FingerFoldAxis = new Vector3[FingerBoneNames.Length];
-        int found = 0;
-        var all = go.GetComponentsInChildren<Transform>(true);
-        for (int i = 0; i < FingerBoneNames.Length; i++)
+        // 손가락 굽힘 리그 — 뼈대에서 축까지 유도한다. 실패하면 프리미티브로 폴백해
+        // "손은 보이는데 안 접히는" 어정쩡한 상태를 만들지 않는다.
+        Rig = HandRig.BuildFromBones(go.transform);
+        if (Rig == null)
         {
-            foreach (var t in all)
-            {
-                if (t.name != FingerBoneNames[i]) continue;
-                Fingers[i] = t;
-                FingerRest[i] = t.localRotation;
-                // 화면 가로축을 뼈 로컬로 — 이 축으로 돌려야 손가락이 접히는 방향이 된다.
-                FingerFoldAxis[i] = t.InverseTransformDirection(Vector3.right).normalized;
-                found++;
-                break;
-            }
+            Debug.LogWarning("[HandModelBuilder] 손가락 리그 구성 실패 → 프리미티브 폴백");
+            Destroy(go);
+            PalmRenderer = null;
+            return false;
         }
-        if (found < FingerBoneNames.Length)
-            Debug.LogWarning($"[HandModelBuilder] 손가락 뼈 {found}/{FingerBoneNames.Length}개만 찾음 — 접기 연출이 일부만 동작");
 
         UsingModel = true;
-        Debug.Log($"[HandModelBuilder] 3D 손 모델 연결 (뼈 {found}개, 스케일 {go.transform.localScale.x:F3})");
+        Debug.Log($"[HandModelBuilder] 3D 손 모델 연결 (마디 {Rig.JointCount}개, 스케일 {go.transform.localScale.x:F3})");
         return true;
     }
 
@@ -150,7 +133,7 @@ public class HandModelBuilder : MonoBehaviour
         float[] lengths = { 0.4f, 0.55f, 0.6f, 0.5f, 0.35f };
         string[] names = { "Thumb", "Index", "Middle", "Ring", "Pinky" };
 
-        Fingers = new Transform[5];
+        var pivots = new Transform[5];
 
         for (int i = 0; i < 5; i++)
         {
@@ -159,7 +142,7 @@ public class HandModelBuilder : MonoBehaviour
             pivot.transform.SetParent(transform, false);
             pivot.transform.localPosition = positions[i];
             pivot.transform.localRotation = Quaternion.identity;
-            Fingers[i] = pivot.transform;
+            pivots[i] = pivot.transform;
 
             // Cylinder (시각 전용)
             var finger = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -175,6 +158,8 @@ public class HandModelBuilder : MonoBehaviour
 
             finger.GetComponent<MeshRenderer>().material = CreateURPMaterial(fingerColor);
         }
+
+        Rig = HandRig.BuildFromPivots(pivots);
     }
 
     /// <summary>URP Lit 셰이더로 머테리얼 생성 (빌드 시 Standard 셰이더 스트리핑 방지)</summary>

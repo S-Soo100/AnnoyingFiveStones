@@ -43,6 +43,33 @@ public static class NewHandPreview
     [MenuItem("Tools/New Hand/Preview — 원본 회전 (비교용)")]
     public static void PreviewRaw() => Spawn(Vector3.zero);
 
+    /// <summary>접힘 확인용 — 게임을 켜지 않고 굽힘 방향만 눈으로 검증한다.
+    /// 접기 로직(HandRig)은 런타임과 **같은 코드**를 쓰므로, 여기서 자연스러우면 게임에서도 같다.</summary>
+    [MenuItem("Tools/New Hand/Preview — 접힘 (주먹)")]
+    public static void PreviewFist() => SpawnFolded(1f);
+
+    [MenuItem("Tools/New Hand/Preview — 반쯤 접힘")]
+    public static void PreviewHalf() => SpawnFolded(0.5f);
+
+    /// <summary>손가락 순서(엄지→소지) 매핑 검증용 — 검지 하나만 펴진 게 보여야 한다.</summary>
+    [MenuItem("Tools/New Hand/Preview — 검지 가리키기")]
+    public static void PreviewPoint()
+        => SpawnPose(new[] { 1f, 0f, 1f, 1f, 1f }, "검지 가리키기");
+
+    private static void SpawnFolded(float amount)
+        => SpawnPose(new[] { amount, amount, amount, amount, amount }, $"접힘 {amount:P0}");
+
+    private static void SpawnPose(float[] folds, string label)
+    {
+        Spawn(FrontFacingEuler);
+        var go = GameObject.Find(PreviewName);
+        if (go == null) return;
+        var rig = HandRig.BuildFromBones(go.transform);
+        if (rig == null) { Debug.LogError("[NewHandPreview] 리그 구성 실패"); return; }
+        for (int i = 0; i < HandRig.FingerCount; i++) rig.SetFold(i, folds[i]);
+        Debug.Log($"[NewHandPreview] {label} 적용 (마디 {rig.JointCount}개)");
+    }
+
     [MenuItem("Tools/New Hand/Remove")]
     public static void Remove()
     {
