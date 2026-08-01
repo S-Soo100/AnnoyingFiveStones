@@ -73,9 +73,21 @@ public static class NewHandPreview
     [MenuItem("Tools/New Hand/Remove")]
     public static void Remove()
     {
-        var go = GameObject.Find(PreviewName);
-        while (go != null) { Object.DestroyImmediate(go); go = GameObject.Find(PreviewName); }
-        Debug.Log("[NewHandPreview] 제거 완료");
+        int n = 0;
+        // 이름으로 훑어 남은 프리뷰를 전부 지운다 — 하나라도 남으면 씬에 저장돼 게임에 흰 손이 떠 있게 된다.
+        // ⚠️ FindObjectsByType은 숨김 오브젝트를 못 찾는다. HideAndDontSave까지 훑으려면
+        //    Resources.FindObjectsOfTypeAll이어야 한다.
+        foreach (var t in Resources.FindObjectsOfTypeAll<Transform>())
+        {
+            if (t == null || t.parent != null || t.name != PreviewName) continue;
+            // 에셋(프리팹 원본)은 건드리지 않는다.
+            // ⚠️ scene.IsValid()로 거르면 안 된다 — HideAndDontSave 오브젝트는 씬이 무효로 나와
+            //    프리뷰가 전부 걸러져 "0개 제거"만 찍히고 흰 손이 남는다.
+            if (EditorUtility.IsPersistent(t.gameObject)) continue;
+            Object.DestroyImmediate(t.gameObject);
+            n++;
+        }
+        Debug.Log($"[NewHandPreview] 제거 완료 ({n}개)");
     }
 
     private static void Spawn(Vector3 euler)
@@ -85,9 +97,12 @@ public static class NewHandPreview
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(FbxPath);
         if (prefab == null) { Debug.LogError($"[NewHandPreview] FBX 없음: {FbxPath}"); return; }
 
-        var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        // ⚠️ PrefabUtility.InstantiatePrefab을 쓰면 안 된다 — **프리팹 인스턴스**가 만들어져
+        //    루트에 DontSave 플래그를 줘도 씬에 저장된다. 실제로 프리뷰 손 하나가 씬에 딸려 들어가
+        //    게임 한가운데에 흰 손이 떠 있었다(2026-08-01). 평범한 복제로 만든다.
+        var go = Object.Instantiate(prefab);
         go.name = PreviewName;
-        go.hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild; // 씬 오염 방지
+        go.hideFlags = HideFlags.HideAndDontSave;
         go.transform.rotation = Quaternion.Euler(euler);
         go.transform.position = PreviewPos;
 

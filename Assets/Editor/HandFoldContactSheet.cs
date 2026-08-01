@@ -117,9 +117,11 @@ public static class HandFoldContactSheet
 
     private static GameObject SpawnHand(GameObject prefab)
     {
-        var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        // ⚠️ PrefabUtility.InstantiatePrefab 금지 — 프리팹 인스턴스는 DontSave 플래그를 줘도
+        //    씬에 저장된다(NewHandPreview 주석 참고). 평범한 복제로 만든다.
+        var go = Object.Instantiate(prefab);
         go.name = TempName;
-        go.hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
+        go.hideFlags = HideFlags.HideAndDontSave;
         go.transform.rotation = Quaternion.Euler(NewHandPreview.FrontFacingEuler);
         go.transform.position = Vector3.zero;
 
