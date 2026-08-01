@@ -15,6 +15,27 @@ public class HandModelBuilder : MonoBehaviour
     [SerializeField] private float fingerRadius = 0.08f;
     [SerializeField] private Color fingerColor = new Color(0.95f, 0.8f, 0.55f, 1f);
 
+    // ── v17: 실제 3D 손 모델 (BlendSwap CC0) ─────────────────────────────────
+    /// <summary>Resources 경로. 없으면 구 프리미티브(Cube+Cylinder)로 자동 폴백한다.</summary>
+    private const string HandModelResource = "Models/Hand";
+    /// <summary>화면에서 손의 세로 길이(월드). 프리뷰로 확정한 값.</summary>
+    private const float HandTargetSize = 2.09f;
+    /// <summary>손바닥이 카메라를 보고 손가락이 위를 향하는 회전. 프리뷰로 확정.</summary>
+    private static readonly Vector3 HandFrontEuler = new Vector3(0f, 90f, -90f);
+    /// <summary>각 손가락의 첫 마디 뼈 이름. dedo = 스페인어 '손가락'.</summary>
+    private static readonly string[] FingerBoneNames =
+        { "dedo1", "dedo1.000", "dedo1.001", "dedo1.002", "dedo1.003" };
+
+    /// <summary>3D 모델을 쓰는가. false면 구 프리미티브 경로.</summary>
+    public bool UsingModel { get; private set; }
+
+    /// <summary>손가락 뼈의 **기본 자세**. 접기 회전은 여기에 곱해서 적용해야 한다
+    /// (localEulerAngles를 통째로 덮으면 뼈의 rest pose가 파괴된다).</summary>
+    public Quaternion[] FingerRest { get; private set; }
+
+    /// <summary>손가락을 접는 회전축 — 화면 가로축(world right)을 각 뼈의 로컬 공간으로 옮긴 것.</summary>
+    public Vector3[] FingerFoldAxis { get; private set; }
+
     // 시각 참조
     public Renderer PalmRenderer { get; private set; }
     public Transform[] Fingers { get; private set; }
@@ -27,15 +48,76 @@ public class HandModelBuilder : MonoBehaviour
 
     public void Build()
     {
-        CreateVisualPalm();
-        CreateVisualFingers();
+        if (!CreateModelHand())      // v17: 3D 모델 우선
+        {
+            CreateVisualPalm();      // 폴백: 구 프리미티브
+            CreateVisualFingers();
+        }
         CreatePhysicsHitboxes();
         CreateFistCollider();
         SetCollidersEnabled(false); // 기본 비활성
     }
 
+    /// <summary>v17 — Resources의 손 FBX를 붙이고 손가락 뼈를 찾아 연결한다.
+    /// 실패하면 false를 반환해 구 프리미티브 경로로 폴백한다(게임이 멈추지 않게).</summary>
+    private bool CreateModelHand()
+    {
+        var prefab = Resources.Load<GameObject>(HandModelResource);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[HandModelBuilder] 손 모델 없음({HandModelResource}) → 프리미티브 폴백");
+            return false;
+        }
+
+        var go = Instantiate(prefab, transform);
+        go.name = "HandModel";
+        go.transform.localPosition = Vector3.zero;
+        go.transform.localRotation = Quaternion.Euler(HandFrontEuler);
+
+        var skin = go.GetComponentInChildren<SkinnedMeshRenderer>();
+        if (skin == null)
+        {
+            Debug.LogWarning("[HandModelBuilder] SkinnedMeshRenderer 없음 → 프리미티브 폴백");
+            Destroy(go);
+            return false;
+        }
+        PalmRenderer = skin;
+        PalmRenderer.material = CreateURPMaterial(palmColor);
+
+        // 렌더러 실제 크기로 목표 세로에 맞춘다 (FBX 단위를 추측하지 않기 위해).
+        var b = skin.bounds;
+        float longest = Mathf.Max(b.size.x, b.size.y, 0.0001f);
+        go.transform.localScale *= HandTargetSize / longest;
+
+        // 손가락 뼈 연결 + 기본 자세/회전축 캐시
+        Fingers = new Transform[FingerBoneNames.Length];
+        FingerRest = new Quaternion[FingerBoneNames.Length];
+        FingerFoldAxis = new Vector3[FingerBoneNames.Length];
+        int found = 0;
+        var all = go.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < FingerBoneNames.Length; i++)
+        {
+            foreach (var t in all)
+            {
+                if (t.name != FingerBoneNames[i]) continue;
+                Fingers[i] = t;
+                FingerRest[i] = t.localRotation;
+                // 화면 가로축을 뼈 로컬로 — 이 축으로 돌려야 손가락이 접히는 방향이 된다.
+                FingerFoldAxis[i] = t.InverseTransformDirection(Vector3.right).normalized;
+                found++;
+                break;
+            }
+        }
+        if (found < FingerBoneNames.Length)
+            Debug.LogWarning($"[HandModelBuilder] 손가락 뼈 {found}/{FingerBoneNames.Length}개만 찾음 — 접기 연출이 일부만 동작");
+
+        UsingModel = true;
+        Debug.Log($"[HandModelBuilder] 3D 손 모델 연결 (뼈 {found}개, 스케일 {go.transform.localScale.x:F3})");
+        return true;
+    }
+
     // ==========================================
-    // 시각 (Collider 없음, MeshRenderer만)
+    // 시각 (Collider 없음, MeshRenderer만) — 구 프리미티브 폴백
     // ==========================================
 
     private void CreateVisualPalm()
@@ -196,6 +278,7 @@ public class HandModelBuilder : MonoBehaviour
     public void SetVisualAlpha(float alpha)
     {
         SetRendererAlpha(PalmRenderer, alpha);
+        if (UsingModel) return; // 모델은 스킨드 메시 하나 → PalmRenderer만으로 충분
         if (Fingers != null)
         {
             foreach (var pivot in Fingers)
@@ -252,6 +335,15 @@ public class HandModelBuilder : MonoBehaviour
         var b = PalmRenderer.bounds;
         b.Expand(new Vector3(0, 0, 2f)); // Z축 확장
         return b;
+    }
+
+    /// <summary>손바닥 중심(월드). 3D 모델은 손가락까지 bounds에 들어가 중심이 위로 치우치므로
+    /// 아래쪽(손바닥 쪽)으로 보정한다. 줍기 판정 기준점.</summary>
+    public Vector3 GetPalmCenter()
+    {
+        if (PalmRenderer == null) return transform.position;
+        var b = PalmRenderer.bounds;
+        return UsingModel ? b.center - new Vector3(0f, b.size.y * 0.18f, 0f) : b.center;
     }
 
 #if UNITY_EDITOR

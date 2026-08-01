@@ -11,7 +11,7 @@ using UnityEditor;
 /// </summary>
 public static class NewHandPreview
 {
-    private const string FbxPath = "Assets/Models/Hand/Hand.fbx";
+    private const string FbxPath = "Assets/Resources/Models/Hand.fbx";
     private const string PreviewName = "__NewHandPreview";
 
     /// <summary>화면에서 손이 차지할 **세로 길이**(손끝~손목, 월드 단위).

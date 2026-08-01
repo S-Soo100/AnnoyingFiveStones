@@ -829,8 +829,7 @@ public partial class HandController : MonoBehaviour
         float[] startAngles = new float[handModel.Fingers.Length];
         for (int i = 0; i < handModel.Fingers.Length; i++)
         {
-            startAngles[i] = handModel.Fingers[i].localEulerAngles.x;
-            if (startAngles[i] > 180f) startAngles[i] -= 360f;
+            startAngles[i] = ReadFingerAngle(i);
         }
 
         while (elapsed < duration)
@@ -839,15 +838,12 @@ public partial class HandController : MonoBehaviour
             float t = Mathf.Clamp01(elapsed / duration);
             for (int i = 0; i < handModel.Fingers.Length; i++)
             {
-                float angle = Mathf.Lerp(startAngles[i], targetAngles[i], t);
-                handModel.Fingers[i].localEulerAngles = new Vector3(angle, 0f, 0f);
+                ApplyFingerAngle(i, Mathf.Lerp(startAngles[i], targetAngles[i], t));
             }
             yield return null;
         }
         for (int i = 0; i < handModel.Fingers.Length; i++)
-        {
-            handModel.Fingers[i].localEulerAngles = new Vector3(targetAngles[i], 0f, 0f);
-        }
+            ApplyFingerAngle(i, targetAngles[i]);
         fingerFoldCoroutine = null;
     }
 
@@ -925,6 +921,39 @@ public partial class HandController : MonoBehaviour
         fingerFoldCoroutine = StartCoroutine(DoFingerFold(fold));
     }
 
+    /// <summary>손가락 i를 angle만큼 접는다.
+    ///
+    /// ⚠️ 예전엔 localEulerAngles를 통째로 (angle,0,0)으로 덮었다. 프리미티브 피벗은
+    /// 기본 회전이 항등이라 문제가 없었지만, **3D 모델의 뼈는 rest pose가 있어** 덮어쓰면
+    /// 손 모양이 무너진다. 기본 자세에 회전을 **곱해서** 적용해야 한다.
+    /// 접히는 축도 뼈마다 달라서 빌드 시 캐시해둔 축을 쓴다.</summary>
+    private void ApplyFingerAngle(int i, float angle)
+    {
+        var f = handModel.Fingers[i];
+        if (f == null) return;
+        if (handModel.UsingModel && handModel.FingerRest != null)
+            f.localRotation = handModel.FingerRest[i] * Quaternion.AngleAxis(angle, handModel.FingerFoldAxis[i]);
+        else
+            f.localEulerAngles = new Vector3(angle, 0f, 0f);
+    }
+
+    private float ReadFingerAngle(int i)
+    {
+        var f = handModel.Fingers[i];
+        if (f == null) return 0f;
+        if (handModel.UsingModel && handModel.FingerRest != null)
+        {
+            // rest 대비 상대 회전의 각도(부호 포함)를 되돌려 읽는다.
+            Quaternion rel = Quaternion.Inverse(handModel.FingerRest[i]) * f.localRotation;
+            rel.ToAngleAxis(out float a, out Vector3 ax);
+            if (Vector3.Dot(ax, handModel.FingerFoldAxis[i]) < 0f) a = -a;
+            if (a > 180f) a -= 360f;
+            return a;
+        }
+        float e = f.localEulerAngles.x;
+        return e > 180f ? e - 360f : e;
+    }
+
     private IEnumerator DoFingerFold(bool fold)
     {
         if (handModel == null || handModel.Fingers == null) yield break;
@@ -938,8 +967,7 @@ public partial class HandController : MonoBehaviour
         float[] targetAngles = new float[handModel.Fingers.Length];
         for (int i = 0; i < handModel.Fingers.Length; i++)
         {
-            startAngles[i] = handModel.Fingers[i].localEulerAngles.x;
-            if (startAngles[i] > 180f) startAngles[i] -= 360f;
+            startAngles[i] = ReadFingerAngle(i);
             targetAngles[i] = fold ? FingerFoldX : 0f;
         }
 
@@ -950,16 +978,13 @@ public partial class HandController : MonoBehaviour
 
             for (int i = 0; i < handModel.Fingers.Length; i++)
             {
-                float angle = Mathf.Lerp(startAngles[i], targetAngles[i], t);
-                handModel.Fingers[i].localEulerAngles = new Vector3(angle, 0f, 0f);
+                ApplyFingerAngle(i, Mathf.Lerp(startAngles[i], targetAngles[i], t));
             }
             yield return null;
         }
 
         for (int i = 0; i < handModel.Fingers.Length; i++)
-        {
-            handModel.Fingers[i].localEulerAngles = new Vector3(targetAngles[i], 0f, 0f);
-        }
+            ApplyFingerAngle(i, targetAngles[i]);
 
         fingerFoldCoroutine = null;
     }

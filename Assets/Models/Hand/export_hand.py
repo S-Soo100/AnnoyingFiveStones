@@ -33,7 +33,7 @@ for ob in bpy.data.objects:
     try: ob.select_set(True)
     except Exception: pass
 vl.objects.active=o
-out="/Users/baek/unityProjects/AnnoyingFiveStones/Assets/Models/Hand/Hand.fbx"
+out="/Users/baek/unityProjects/AnnoyingFiveStones/Assets/Resources/Models/Hand.fbx"
 bpy.ops.export_scene.fbx(filepath=out, use_selection=False, apply_unit_scale=True,
     apply_scale_options='FBX_SCALE_ALL', axis_forward='-Z', axis_up='Y',
     object_types={'ARMATURE','MESH'}, use_mesh_modifiers=True,

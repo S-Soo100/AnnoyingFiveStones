@@ -1111,6 +1111,75 @@ MonoBehaviour:
   facetScale: 5
   noiseStrength: 0.06
   shapeVariation: 0.15
+--- !u!1001 &1050991782
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.9566735
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.9566735
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.9566735
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -5.1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
+      propertyPath: m_Name
+      value: __NewHandPreview
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 0a951cb164f5f46dabe3d0653a965647, type: 3}
 --- !u!1 &1137297477
 GameObject:
   m_ObjectHideFlags: 0
@@ -2014,7 +2083,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AudioManager
   sfxVolume: 0.7
-  jingleVolume: 0.5
   bgmFadeInDuration: 1.5
   bgmCrossfadeDuration: 1.5
   bgmFadeOutDuration: 1.5
@@ -2281,3 +2349,4 @@ SceneRoots:
   - {fileID: 471251936}
   - {fileID: 290017796}
   - {fileID: 1686256348}
+  - {fileID: 1050991782}
