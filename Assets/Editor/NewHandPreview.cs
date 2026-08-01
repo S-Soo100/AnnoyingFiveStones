@@ -14,8 +14,10 @@ public static class NewHandPreview
     private const string FbxPath = "Assets/Models/Hand/Hand.fbx";
     private const string PreviewName = "__NewHandPreview";
 
-    /// <summary>화면에서 손이 차지할 가로 폭(월드 단위). 현재 손의 손바닥이 약 1.0이다.</summary>
-    private const float TargetWidth = 1.3f;
+    /// <summary>화면에서 손이 차지할 **세로 길이**(손끝~손목, 월드 단위).
+    /// ⚠️ 모델의 긴 축(원본 X)이 회전 후 화면 세로가 되므로, bounds.x를 이 값에 맞춘다.
+    /// 1.3에서 시작했으나 "좀 더 크게" 피드백으로 상향.</summary>
+    private const float TargetWidth = 1.9f;
 
     /// <summary>보드 위 어디에 놓아볼지 (BoardSpace 앞뒤 중간).</summary>
     private static Vector3 PreviewPos => new Vector3(0f, (BoardSpace.BackScreenY + BoardSpace.FrontScreenY) * 0.5f, -0.5f);
