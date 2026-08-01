@@ -81,6 +81,8 @@ public partial class HandController : MonoBehaviour
     public bool IsOnBoard => isOnBoard;
     public bool IsHolding => isHolding;
     public bool IsCatchMode => isCatchMode;
+    /// <summary>5단 시퀀스 진행 중인가. 5단은 받기 판정 규칙이 따로라 공용 처리에서 제외할 때 쓴다.</summary>
+    public bool IsStage5 => stage5Coroutine != null;
 
     private void Awake()
     {
@@ -652,11 +654,13 @@ public partial class HandController : MonoBehaviour
     /// (뒤가 좁은 사다리꼴). 앞쪽 기준으로만 맞추면 뒤쪽에서 "손 안인데 못 받는" 반대 어긋남이 생긴다.
     /// 돌이 떨어질 깊이의 원근 배율을 곱해야 모든 깊이에서 손끝 = 판정 경계가 된다.
     ///
-    /// 5단도 같은 배율을 받는다 — 받기인 건 같아서 손 크기가 단수마다 달라지면 더 이상하다.
-    /// (5단은 손등 전환 시 손 루트를 2배로 키우는데, 그건 이 배율과 곱해져 비율이 유지된다)</summary>
+    /// ⚠️ **5단은 제외한다.** 5단은 자기 판정 반경(1.8, 손등이면 3.6)과 자기 손 크기 연출(루트 2배)을
+    /// 이미 짝지어 갖고 있다. 여기서 1~4단 기준(1.6)으로 다시 키우면 5단 받기 감각이 바뀐다.
+    /// (사용자 테스트에서 "5단 아주 안정적" — 건드리지 않는다)</summary>
     private void ApplyCatchVisualScale()
     {
         if (handModel == null) return;
+        if (stage5Coroutine != null) { handModel.SetPerspectiveScale(1f); return; }
 
         // 배율 1에서 **지금 자세의** 화면 손끝 반경을 잰 뒤, 그 값이 판정 반경이 되도록 다시 건다.
         // 받기 자세는 손을 눕히므로(-60°) 정면 길이로 계산하면 실제보다 크게 나온다.

@@ -72,7 +72,9 @@ public class HandPickDebugDrawer : MonoBehaviour
         if (hand != null && model == null) model = hand.GetComponent<HandModelBuilder>();
 
         bool show = GateOpen() && BoardBoundsDebugDrawer.Enabled && model != null && hand != null;
-        bool catching = show && hand.IsCatchMode;
+        // 5단은 판정 반경이 따로라(stage5CatchRadius) 이 원을 그리면 틀린 정보가 된다.
+        bool catching = show && hand.IsCatchMode && !hand.IsStage5;
+        if (show && hand.IsCatchMode && hand.IsStage5) show = false;
         if (line.enabled != show) line.enabled = show;
         if (line2.enabled != catching) line2.enabled = catching;
         if (!show) return;

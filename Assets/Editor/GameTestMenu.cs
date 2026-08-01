@@ -21,6 +21,16 @@ public static class GameTestMenu
         Debug.Log("[GameTestMenu] 게임 시작");
     }
 
+    [MenuItem("Tools/테스트: 5단으로")]
+    public static void GoStage5()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        var gm = GameManager.Instance;
+        if (gm == null) { Debug.LogError("[GameTestMenu] GameManager 없음"); return; }
+        gm.StartStage(5);
+        Debug.Log("[GameTestMenu] 5단 시작");
+    }
+
     [MenuItem("Tools/테스트: 대화 넘기기")]
     public static void SkipDialogue()
     {
