@@ -1,6 +1,6 @@
 import bpy, bmesh, os
 from mathutils import Vector
-CUT_X = 3.10
+CUT_X = 2.85
 KEEP = {"Mano", "Huesos Mano"}
 for o in list(bpy.data.objects):
     if o.name not in KEEP: bpy.data.objects.remove(o, do_unlink=True)
