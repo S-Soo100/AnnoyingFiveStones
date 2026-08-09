@@ -46,11 +46,25 @@ public class BackgroundManager : MonoBehaviour
 
     private StageConfig lastImageConfig; // 최근 이미지 모드 stage 기록
 
+    /// <summary>하늘 backdrop의 월드 z. 배경 이미지 quad(월드 40)보다 뒤여야 한다. 카메라 far=1000이라 여유는 충분.</summary>
+    private const float SkyBackdropZ = 60f;
+
     private void Awake()
     {
         // 씬 참조 자동 해결
         if (skyGradient == null)
             skyGradient = FindFirstObjectByType<SkyGradient>();
+
+        // v18: 하늘을 배경 이미지 뒤로 물린다.
+        // 씬의 하늘은 z=0.05 — 배경 quad(카메라 로컬 z=50 → 월드 40)보다 앞이라 배경을 덮어버렸고,
+        // 그래서 지금까지는 이미지 모드에서 하늘을 아예 껐다. 그런데 새 배경 렌더(ex35/ex40)는
+        // 위쪽이 투명하게 빠져 있어 **하늘이 비쳐야 완성되는 그림**이다 → 뒤로 물리고 켜둔다.
+        // 런타임에만 옮긴다(에디터에서 씬을 더럽히지 않기 위해).
+        if (skyGradient != null)
+        {
+            var p = skyGradient.transform.position;
+            skyGradient.transform.position = new Vector3(p.x, p.y, SkyBackdropZ);
+        }
         if (tableRenderer == null)
             tableRenderer = GameObject.Find("Table")?.GetComponent<Renderer>();
         if (clothRenderer == null)
@@ -89,7 +103,10 @@ public class BackgroundManager : MonoBehaviour
         {
             // 풀스크린 이미지 사용 — Sky/Props 숨김 (이미지가 이미 다 그려진 풀배경)
             ApplyBgImage(config.BackgroundImage, config.BgImageOffset, config.BgImageScale);
-            if (skyGradient != null) skyGradient.gameObject.SetActive(false);
+            // v18: 하늘을 끄지 않는다 — 배경이 알파로 빠진 부분(ex35 위쪽 하늘, ex40 창밖)을 채운다.
+            // 불투명 배경(age10~30 등)에서는 완전히 가려지므로 눈에 띄는 변화가 없다.
+            if (skyGradient != null) skyGradient.gameObject.SetActive(true);
+            skyGradient?.ApplyColors(config.SkyBottom, config.SkyTop);
             ClearProps();
 
             lastImageConfig = config;
@@ -201,6 +218,9 @@ public class BackgroundManager : MonoBehaviour
         var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         mat.EnableKeyword("_EMISSION");
         mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        // v18: 알파를 살린다. 기본 Unlit은 Opaque라 알파가 무시돼 투명 영역이 검게 찍혔다.
+        // 불투명 배경은 알파가 전부 1이라 결과가 같다 — 그래서 조건 없이 켜도 안전하다.
+        SetTransparent(mat);
         rd.material = mat;
 
         bgImageQuad.SetActive(false);
@@ -343,6 +363,18 @@ public class BackgroundManager : MonoBehaviour
         // 매트(z=0)보다 멀리(z=50)에 배치. offset.xy로 미세조정.
         bgImageQuad.transform.localPosition = new Vector3(offset.x, offset.y, 50f);
         bgImageQuad.transform.localScale = new Vector3(w * scale.x, h * scale.y, 1f);
+    }
+
+    /// <summary>URP Unlit/Lit을 알파 블렌딩으로 전환. <see cref="BoardMatVisual"/>과 동일한 설정을 쓴다.</summary>
+    private static void SetTransparent(Material m)
+    {
+        m.SetFloat("_Surface", 1f);           // Transparent
+        m.SetFloat("_Blend", 0f);             // Alpha
+        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        m.SetInt("_ZWrite", 0);
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
     }
 
     private void ApplyBgImage(string resourcePath, Vector2 offset, Vector2 scale)

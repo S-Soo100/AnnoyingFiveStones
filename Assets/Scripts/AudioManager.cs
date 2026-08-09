@@ -50,7 +50,7 @@ public class AudioManager : MonoBehaviour
     private float       currentDuckMult      = 1f; // duck 코루틴이 관리 (0~1)
     private bool        isBgmFadingOut       = false; // StopGameplayBGM(fade=true) 진행 중 플래그
 
-    private AudioClip[] bgmClips = new AudioClip[5]; // 0=age10, 1=age20, 2=age30, 3=age40, 4=age50
+    private AudioClip[] bgmClips = new AudioClip[6]; // 0=age10, 1=age20, 2=age25, 3=age30, 4=age40, 5=age50
 
     // v12-fix: 콜드 부팅 큐 — LoadBGMClips 완료 전 들어온 PlayGameplayBGM(age) 호출을 보관했다가 로드 후 재생.
     // (TitleScreenUI.Show()가 AudioManager.Start()의 1프레임 yield보다 먼저 실행되는 케이스)
@@ -276,11 +276,14 @@ public class AudioManager : MonoBehaviour
 
     private int AgeToTrackIndex(int age)
     {
+        // v18: 20살 전용 곡이 도착해 20/25 공유를 해제했다.
+        // 25살은 기존 곡을 그대로 쓴다 → 옛 bgm_age20.wav를 bgm_age25.wav로 이름만 바꿔 보존했다.
         if (age < 20) return 0;   // bgm_age10 (10, 15)
-        if (age < 30) return 1;   // bgm_age20 (20, 25) — 임시 공유, 추후 20.m4a 분리
-        if (age < 40) return 2;   // bgm_age30 (30, 35)
-        if (age < 50) return 3;   // bgm_age40 (40, 45)
-        return 4;                 // bgm_age50 (50, 55, 60+)
+        if (age < 25) return 1;   // bgm_age20 (20)      — v18 신규
+        if (age < 30) return 2;   // bgm_age25 (25)      — v17까지 20살과 공유하던 곡
+        if (age < 40) return 3;   // bgm_age30 (30, 35)
+        if (age < 50) return 4;   // bgm_age40 (40, 45)
+        return 5;                 // bgm_age50 (50, 55, 60+)
     }
 
     private AudioSource GetActiveSource()   => activeBgm == 0 ? bgmSourceA : bgmSourceB;
@@ -420,9 +423,10 @@ public class AudioManager : MonoBehaviour
             {
                 case "bgm_age10": bgmClips[0] = clip; break;
                 case "bgm_age20": bgmClips[1] = clip; break;
-                case "bgm_age30": bgmClips[2] = clip; break;
-                case "bgm_age40": bgmClips[3] = clip; break;
-                case "bgm_age50": bgmClips[4] = clip; break;
+                case "bgm_age25": bgmClips[2] = clip; break;
+                case "bgm_age30": bgmClips[3] = clip; break;
+                case "bgm_age40": bgmClips[4] = clip; break;
+                case "bgm_age50": bgmClips[5] = clip; break;
             }
         }
         Debug.Log($"[AudioManager] Loaded {loaded.Length} BGM clips.");

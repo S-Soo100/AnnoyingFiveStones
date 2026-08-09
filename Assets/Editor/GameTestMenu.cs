@@ -56,13 +56,49 @@ public static class GameTestMenu
     }
 
     [MenuItem("Tools/테스트: 5단으로")]
-    public static void GoStage5()
+    public static void GoStage5() => GoStage(5);
+
+    private static void GoStage(int stage)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
         var gm = GameManager.Instance;
         if (gm == null) { Debug.LogError("[GameTestMenu] GameManager 없음"); return; }
-        gm.StartStage(5);
-        Debug.Log("[GameTestMenu] 5단 시작");
+        gm.StartStage(stage);
+        Debug.Log($"[GameTestMenu] {stage}단 시작");
+    }
+
+    // ── 나이(배경) 이동 ───────────────────────────────────────────────────────
+    // ⚠️ 배경·보드는 **단(stage)이 아니라 회차(loop)** 로 정해진다.
+    //    GameManager.StartStage는 StageConfig.Get(session.CurrentLoop)을 읽는다.
+    //    단 1~10은 한 회차 안의 단계이고, 회차가 바뀌어야 나이·배경이 바뀐다.
+    //    나이 = 10 + (회차-1)×5.
+    // 배경/보드 좌표 작업은 나이를 계속 오가며 눈으로 대조해야 한다(donts/game#21).
+
+    [MenuItem("Tools/테스트: 나이 → 35살 (6회차)")]
+    public static void GoAge35() => GoLoop(6);
+
+    [MenuItem("Tools/테스트: 나이 → 40살 (7회차)")]
+    public static void GoAge40() => GoLoop(7);
+
+    [MenuItem("Tools/테스트: 나이 → 20살 (3회차)")]
+    public static void GoAge20() => GoLoop(3);
+
+    private static void GoLoop(int loop)
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        var gm = GameManager.Instance;
+        var session = GameSession.Instance;
+        if (gm == null || session == null)
+        {
+            Debug.LogError($"[GameTestMenu] GM={gm != null} Session={session != null}");
+            return;
+        }
+
+        int age = 10 + (loop - 1) * 5;
+        session.CurrentLoop = loop;
+        session.CurrentAge  = age;
+        gm.StartStage(1);   // 새 회차의 1단부터 — 배경/BGM이 여기서 갱신된다
+        Debug.Log($"[GameTestMenu] {loop}회차 = {age}살 진입");
     }
 
     [MenuItem("Tools/테스트: 대화 넘기기")]
