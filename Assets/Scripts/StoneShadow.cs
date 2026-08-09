@@ -196,8 +196,9 @@ public class StoneShadow : MonoBehaviour
         return pt.y;
     }
 
-    /// <summary>중심 진하고 가장자리 투명한 원형 그라데이션 텍스처 생성</summary>
-    private static Texture2D CreateCircleGradientTexture(int size)
+    /// <summary>중심 진하고 가장자리 투명한 원형 그라데이션 텍스처 생성.
+    /// v18: <see cref="HandShadow"/>도 같은 그림자를 써야 "같은 바닥에 놓인 것"으로 읽히므로 공개한다.</summary>
+    public static Texture2D CreateCircleGradientTexture(int size)
     {
         var tex = new Texture2D(size, size, TextureFormat.ARGB32, false);
         tex.filterMode = FilterMode.Bilinear;

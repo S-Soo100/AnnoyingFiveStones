@@ -40,6 +40,7 @@ public partial class HandController : MonoBehaviour
     private bool isCatchMode;
     private bool isHolding;  // 클릭 Hold 상태
     private bool suppressCursorFollow; // 뿌리기 토스 중 커서추종 OFF (손 position을 코루틴이 직접 제어)
+    private HandShadow handShadow;     // v18: 보드 위 손의 접지 그림자 (= 줍기 판정 원)
 
     // === 5단 꺾기 전용 ===
     [Header("Stage 5 Settings")]
@@ -92,6 +93,9 @@ public partial class HandController : MonoBehaviour
         var modelBuilder = gameObject.AddComponent<HandModelBuilder>();
         modelBuilder.Build();
         handModel = modelBuilder;
+
+        // v18: 손 그림자 — 돌만 발밑이 읽히고 손은 공중에 떠 있던 문제를 없앤다.
+        handShadow = gameObject.AddComponent<HandShadow>();
 
         // Compound collider용 Rigidbody (kinematic — 커서 추종은 transform.position으로)
         var rb = gameObject.GetComponent<Rigidbody>();
@@ -164,6 +168,10 @@ public partial class HandController : MonoBehaviour
         {
             UpdatePosition();
         }
+
+        // v18: 위치가 확정된 뒤 한 번만 갱신한다. ApplyBoardPerspective에 두면 받기/5단처럼
+        // 그게 호출되지 않는 모드에서 그림자가 마지막 위치에 얼어붙는다.
+        UpdateHandShadow();
 
         // 보드 모드에서만 줍기 판정
         if (!isCatchMode && isHolding)
@@ -250,6 +258,43 @@ public partial class HandController : MonoBehaviour
         // 안 그러면 외삽으로 손이 0에 수렴하거나 과장되게 커진다.
         board.y = Mathf.Clamp(board.y, -BoardSpace.LogicalDepth * 0.5f, BoardSpace.LogicalDepth * 0.5f);
         handModel.SetPerspectiveScale(BoardSpace.Current.PerspectiveScale(board, 0f));
+    }
+
+    /// <summary>v18 — 손 그림자를 판정과 **같은 기준점·같은 반경**으로 갱신한다.
+    ///
+    /// 그림자가 판정보다 크거나 작으면 "보이는 것 = 판정"이 깨져 오히려 거짓 정보를 준다.
+    /// 그래서 중심은 <see cref="IsStoneUnderHand"/>와 같은 손바닥 중심, 반경은 같은
+    /// <see cref="PickRadiusBoard"/>를 쓴다. 여기서만 원근 배율을 곱해 화면 크기로 바꾼다.
+    ///
+    /// 받기/5단에서는 손이 하늘에 있어 보드 그림자가 거짓말이 된다 → 끈다.</summary>
+    private void UpdateHandShadow()
+    {
+        if (handShadow == null || handModel == null) return;
+
+        if (isCatchMode || stage5Coroutine != null)
+        {
+            handShadow.SetShadow(Vector3.zero, 0f, 0f, 0f);
+            return;
+        }
+
+        Vector3 palm = handModel.GetPalmCenter();
+        Vector2 palmBoard = BoardSpace.ToBoard(new Vector2(palm.x, palm.y));
+
+        // 보드를 벗어나면 잦아든다 — 하늘로 올린 손 밑에 그림자가 붙어 있으면 깊이를 거짓으로 읽는다.
+        float hw = BoardSpace.LogicalWidth * 0.5f;
+        float hd = BoardSpace.LogicalDepth * 0.5f;
+        float outX = Mathf.Max(0f, Mathf.Abs(palmBoard.x) - hw);
+        float outY = Mathf.Max(0f, Mathf.Abs(palmBoard.y) - hd);
+        const float FadeOverBoardUnits = 1.2f;
+        float strength = 1f - Mathf.Clamp01(Mathf.Max(outX, outY) / FadeOverBoardUnits);
+
+        // 판정은 **보드 공간의 원**이지만 화면에 투영하면 세로로 눌린 타원이 된다.
+        //   가로: 보드 x 1칸이 화면에서 차지하는 폭 → 깊이에 따라 달라진다(원근 배율).
+        //   세로: 보드 깊이 전체가 화면 세로 |Front-Back|에 매핑 → 깊이와 무관한 상수 배율.
+        // 정원으로 그리면 세로 도달 범위를 2.5배쯤 과장해 오히려 거짓 정보를 준다.
+        float persp = BoardSpace.Current.PerspectiveScale(BoardSpace.ClampToBoard(palmBoard), 0f);
+        float depthSquash = Mathf.Abs(BoardSpace.FrontScreenY - BoardSpace.BackScreenY) / BoardSpace.LogicalDepth;
+        handShadow.SetShadow(palm, PickRadiusBoard * persp, PickRadiusBoard * depthSquash, strength);
     }
 
     // === Hold + Bounds 줍기 입력 ===

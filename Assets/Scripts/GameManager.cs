@@ -665,6 +665,9 @@ public class GameManager : MonoBehaviour
 
         AudioManager.Instance?.PlayFail();
         GameUI.Instance?.ShowFail(lastFailReason);
+        // v18: 실패를 몸으로 전달한다. 대기 시간(failDuration 1.5초) 안에서 끝나므로
+        // 기획서 v11 §8의 "실패는 즉시 재시작"을 더 늦추지 않는다.
+        ScreenShake.PlayFailImpact();
 
         yield return new WaitForSeconds(failDuration);
 
