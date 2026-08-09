@@ -145,7 +145,27 @@ public class TitleScreenUI : MonoBehaviour
         bgRect.offsetMin = Vector2.zero;
         bgRect.offsetMax = Vector2.zero;
         var bgImg = bgGo.AddComponent<Image>();
-        bgImg.color = new Color(0.5f, 0.08f, 0.08f, 1f); // 와인색 (Cloth emissionColor과 유사)
+        bgImg.color = new Color(0.5f, 0.08f, 0.08f, 1f); // 폴백: 와인색 (이미지 로드 실패 시)
+
+        // v18: 시안처럼 타이틀에도 첫 스테이지 배경(교실)을 깐다.
+        // 단색 와인색은 "게임이 시작되기 전"이라는 느낌만 줄 뿐, 이 게임이 어떤 장면인지 말해주지 않는다.
+        // 경로를 StageConfig에서 읽으므로 1회차 배경 아트가 바뀌면 타이틀도 따라간다.
+        var firstStage = StageConfig.Get(1);
+        if (firstStage != null && !string.IsNullOrEmpty(firstStage.BackgroundImage))
+        {
+            var bgTex = Resources.Load<Texture2D>(firstStage.BackgroundImage);
+            if (bgTex != null)
+            {
+                bgImg.sprite = Sprite.Create(bgTex,
+                    new Rect(0, 0, bgTex.width, bgTex.height), new Vector2(0.5f, 0.5f));
+                bgImg.color = Color.white;
+                bgImg.type = Image.Type.Simple;
+            }
+            else
+            {
+                Debug.LogWarning($"[TitleScreenUI] 타이틀 배경 로드 실패: {firstStage.BackgroundImage} — 와인색 폴백");
+            }
+        }
 
         // 타이틀: "Catch Five Stones" — 상단 40% 영역
         var titleGo = new GameObject("TitleText");
@@ -159,11 +179,23 @@ public class TitleScreenUI : MonoBehaviour
 
         var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
         titleTmp.text = "Catch Five Stones";
-        titleTmp.fontSize = 72f;
-        titleTmp.color = new Color(1f, 0.95f, 0.8f, 1f); // 크림색
+        titleTmp.fontSize = 88f;   // v18: 시안의 로고 비중(화면 폭 ~75%)에 맞춤
+        // v18: 시안의 로고 배색 — 연두 면 + 어두운 외곽선. 밝은 교실 배경 위에서 뭉개지지 않는다.
+        // ⚠️ 폰트는 아직 그대로다. 디자이너가 "동글동글한 글씨체"를 원했지만,
+        //    이 게임의 기본 언어가 한국어라 **한글 글립이 있는 폰트**여야 한다(영문 전용이면 무너진다).
+        //    후보가 정해지면 여기와 koreanFont 로딩만 바꾸면 된다.
+        titleTmp.color = new Color32(0xD6, 0xE8, 0x3C, 0xFF);
         titleTmp.alignment = TextAlignmentOptions.Center;
         titleTmp.fontStyle = FontStyles.Bold;
         if (koreanFont != null) titleTmp.font = koreanFont;
+
+        // fontMaterial에 접근하면 이 오브젝트 전용 인스턴스가 만들어진다 —
+        // 공유 머티리얼을 건드리면 게임 안 모든 텍스트에 외곽선이 붙는다.
+        // 배경이 교실(밝은 벽·창문)이라 외곽선이 얇으면 글자가 묻힌다. 시안은 로고가
+        // 칠판 위에 걸쳐 있어 얇아도 살았지만, 여기선 밝은 면 위를 지나므로 더 굵어야 한다.
+        var titleMat = titleTmp.fontMaterial;
+        titleMat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.28f);
+        titleMat.SetColor(ShaderUtilities.ID_OutlineColor, new Color32(0x24, 0x2E, 0x08, 0xFF));
 
         // 장식용 3D 돌 5개 (타이틀 아래 흩어짐)
         CreateDecoStones(parent);
@@ -173,61 +205,30 @@ public class TitleScreenUI : MonoBehaviour
 
         // v11: 홈은 항상 게임 시작 단일 버튼으로 통일. 연습 모드(IsTestPlay)는 디버그 HUD 테스트 패널에서 진입 (에디터/연습빌드 전용).
         RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.play"), parent, new Vector2(0f, -50f), 34, () => OnModeSelected(false)), "home.play");
-        float settingsY = -110f, cemeteryY = -170f;
+        float settingsY = -110f, exitY = -170f;
 
         // "설정" 버튼
         RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.settings"), parent, new Vector2(0f, settingsY), 26, () => {
             SettingsPopupUI.EnsureInstance().Open();
         }), "home.settings");
 
-        // v9(260703): 묘지(Cemetery) — 엔딩 기록 유저만. 관람 모드.
-        if (PlayerPrefs.GetInt("EndingSeen", 0) == 1)
-        {
-            RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.cemetery"), parent, new Vector2(0f, cemeteryY), 26, () => {
-                GraveyardUI.Instance?.Show(0f, "", 0, true);
-            }), "home.cemetery");
-        }
+        // v18: 홈의 묘지(관람 모드) 버튼 제거 — UI 시안이 Play/Settings/Exit 3개로 확정.
+        // ⚠️ 묘지 화면 자체는 남는다. GraveyardUI는 올클리어 **엔딩 화면**이기도 하다
+        //    (GameManager.DoAllClearTransition → GraveyardUI.Show). 지운 것은 홈에서 다시
+        //    들어가는 입구뿐이다. 되돌리려면 PlayerPrefs "EndingSeen"==1 조건으로 버튼을
+        //    다시 만들면 된다(해금 플래그는 그대로 기록되고 있다).
 
         // "나가기" — 우측 상단
-        var exitGo = new GameObject("ExitText");
-        exitGo.transform.SetParent(parent, false);
-        var exitRect = exitGo.AddComponent<RectTransform>();
-        exitRect.anchorMin = new Vector2(1f, 1f);
-        exitRect.anchorMax = new Vector2(1f, 1f);
-        exitRect.pivot = new Vector2(1f, 1f);
-        exitRect.sizeDelta = new Vector2(120f, 50f);
-        exitRect.anchoredPosition = new Vector2(-30f, -20f);
-
-        var exitImg = exitGo.AddComponent<Image>();
-        exitImg.color = new Color(0f, 0f, 0f, 0f); // 투명 클릭 영역
-
-        var exitBtn = exitGo.AddComponent<Button>();
-        exitBtn.targetGraphic = exitImg;
-        var exitHover = exitGo.AddComponent<HandCursorHoverTrigger>();
-        exitHover.HoverPose = HandPose.PointIndex;
-        exitBtn.onClick.AddListener(() => {
+        // v18: 나가기를 우상단 투명 영역에서 **세로 메뉴 3번째**로 옮긴다.
+        // UI 시안이 Play / Settings / Exit를 한 줄기로 쌓아둔 형태고,
+        // 실제로도 화면 구석의 흐린 글자보다 같은 메뉴에 있는 편이 찾기 쉽다.
+        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.exit"), parent, new Vector2(0f, exitY), 26, () => {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else
             Application.Quit();
 #endif
-        });
-
-        var exitLabel = new GameObject("Label");
-        exitLabel.transform.SetParent(exitGo.transform, false);
-        var exitLabelRect = exitLabel.AddComponent<RectTransform>();
-        exitLabelRect.anchorMin = Vector2.zero;
-        exitLabelRect.anchorMax = Vector2.one;
-        exitLabelRect.offsetMin = Vector2.zero;
-        exitLabelRect.offsetMax = Vector2.zero;
-
-        var exitTmp = exitLabel.AddComponent<TextMeshProUGUI>();
-        exitTmp.text = LocalizationManager.L("home.exit");
-        exitTmp.fontSize = 24f;
-        exitTmp.color = new Color(1f, 1f, 1f, 0.6f);
-        exitTmp.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) exitTmp.font = koreanFont;
-        RegisterLocalized(exitTmp, "home.exit");
+        }), "home.exit");
 
         // 토스트 메시지 (하단, 처음엔 숨김)
         CreateToast(parent);
@@ -608,16 +609,22 @@ public class TitleScreenUI : MonoBehaviour
         btnRect.sizeDelta = new Vector2(240f, 50f);
         btnRect.anchoredPosition = pos;
 
-        // 반투명 어두운 배경 (버튼 느낌)
+        // v18: Win9x 베벨 버튼. 스프라이트를 바꿔 "튀어나옴 → 눌림"을 표현한다.
+        // 색 전환(ColorTint)으로는 눌린 느낌이 안 난다 — 베벨의 방향이 뒤집혀야 읽힌다.
         var img = btnGo.AddComponent<Image>();
-        img.color = new Color(0.3f, 0.05f, 0.05f, 0.6f); // 어두운 와인색
+        img.sprite = RetroSkin.Raised;
+        img.type = Image.Type.Sliced;
+        img.color = Color.white;
 
         var btn = btnGo.AddComponent<Button>();
-        var colors = btn.colors;
-        colors.normalColor = new Color(0.3f, 0.05f, 0.05f, 0.6f);
-        colors.highlightedColor = new Color(0.5f, 0.1f, 0.1f, 0.8f);
-        colors.pressedColor = new Color(0.2f, 0.02f, 0.02f, 0.9f);
-        btn.colors = colors;
+        btn.transition = Selectable.Transition.SpriteSwap;
+        btn.spriteState = new SpriteState
+        {
+            highlightedSprite = RetroSkin.RaisedHover,
+            pressedSprite     = RetroSkin.Sunken,
+            selectedSprite    = RetroSkin.RaisedHover,
+            disabledSprite    = RetroSkin.Raised,
+        };
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
 
@@ -636,7 +643,7 @@ public class TitleScreenUI : MonoBehaviour
         var tmp = labelGo.AddComponent<TextMeshProUGUI>();
         tmp.text = text;
         tmp.fontSize = fontSize;
-        tmp.color = Color.white;
+        tmp.color = RetroSkin.Ink;   // v18: 회색 면 위에서는 검정이라야 읽힌다
         tmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) tmp.font = koreanFont;
         return tmp;
