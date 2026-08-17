@@ -118,6 +118,9 @@ public static class GameTestMenu
     [MenuItem("Tools/테스트: 게이지 보이기 (100%)")]
     public static void ShowGaugeFull() => ShowGaugeAt(1.00f);
 
+    /// <summary>게이지바와 **보드 위 링**을 같은 값으로 함께 띄운다.
+    /// 둘은 같은 순간 같은 화면에 뜨므로, 색이 어긋나는지는 따로 보면 알 수 없다.
+    /// (링은 원래 누르고 있는 동안만 갱신돼서 캡처할 틈이 없다.)</summary>
     private static void ShowGaugeAt(float v)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
@@ -125,7 +128,19 @@ public static class GameTestMenu
         if (g == null) { Debug.LogError("[GameTestMenu] GaugeBarUI 없음"); return; }
         g.Show();
         g.SetValue(v);
-        Debug.Log($"[GameTestMenu] 게이지 표시 ({v:0.00})");
+
+        var ring = Object.FindFirstObjectByType<ScatterRangeIndicator>(FindObjectsInactive.Include);
+        if (ring != null)
+        {
+            ring.Show();
+            ring.UpdateRing(ScatterSystem.RadiusBoard(v), Vector2.zero);
+        }
+        var lr = ring != null ? ring.GetComponent<LineRenderer>() : null;
+        Debug.Log($"[GameTestMenu] 게이지+링 표시 ({v:0.00}, 반경 {ScatterSystem.RadiusBoard(v):0.00}) / " +
+                  $"링 enabled={(lr != null ? lr.enabled.ToString() : "없음")} " +
+                  $"색={(lr != null ? lr.startColor.ToString() : "-")} " +
+                  $"폭={(lr != null ? lr.widthMultiplier.ToString("0.000") : "-")} " +
+                  $"p0={(lr != null && lr.positionCount > 0 ? lr.GetPosition(0).ToString("0.00") : "-")}");
     }
 
     /// <summary>영문에서 글자가 상자를 넘치는지 보려면 언어를 바꿔가며 같은 화면을 찍어야 한다.</summary>

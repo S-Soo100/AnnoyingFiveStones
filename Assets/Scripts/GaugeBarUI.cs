@@ -11,8 +11,9 @@ using UnityEngine.UI;
 /// 가로로 눕히면 **판을 한 픽셀도 가리지 않는다**. 시선도 손 바로 아래에 머문다.
 ///
 /// 시안에는 퍼센트 숫자도, 값에 따른 색 변화도 없다(채움 길이만 다른 두 상태를
-/// 같은 초록으로 그려뒀다). 그래서 둘 다 뺐다 — 되돌리려면 이 주석 아래 구조에
-/// 라벨을 다시 붙이면 된다.
+/// 같은 초록으로 그려뒀다). 처음엔 시안을 따라 둘 다 뺐지만, 그러면 세기 피드백이
+/// **막대 길이 하나**로 줄어든다 — 시안은 위험 구간이라는 개념 없이 그려진 그림이다.
+/// 그래서 둘 다 되살렸고, 색은 보드 위 링과 **같은 함수**를 쓴다.
 /// </summary>
 public class GaugeBarUI : MonoBehaviour
 {
@@ -60,7 +61,7 @@ public class GaugeBarUI : MonoBehaviour
             // 스프라이트는 밝기만 담고 있어서 색은 여기서 입힌다.
             barFill.color = showRisk
                 ? ScatterRangeIndicator.BandColor(ScatterSystem.RadiusBoard(value))
-                : (Color)UISkin.GaugeFillPlain;
+                : (Color)UISkin.SafeGreen;
         }
         if (percentLabel != null) percentLabel.text = $"{Mathf.RoundToInt(value * 100f)}%";
     }
@@ -133,7 +134,7 @@ public class GaugeBarUI : MonoBehaviour
         barFill.fillMethod = Image.FillMethod.Horizontal;
         barFill.fillOrigin = (int)Image.OriginHorizontal.Left;
         barFill.fillAmount = 0f;
-        barFill.color = UISkin.GaugeFillPlain;   // SetValue가 부르기 전까지의 기본색
+        barFill.color = UISkin.SafeGreen;   // SetValue가 부르기 전까지의 기본색
         barFill.raycastTarget = false;
 
         // 퍼센트 — 홈 한가운데. 시안에는 없지만, 없으면 "얼마나 셌는지"를

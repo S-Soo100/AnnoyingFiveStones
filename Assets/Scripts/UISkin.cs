@@ -188,8 +188,12 @@ public static class UISkin
                               1f - Mathf.Abs(t * 2f - 1f)), true,
               null, null));
 
-    /// <summary>게이지 채움 기본색(시안 초록의 밝은 심지). 위험 표시를 쓰지 않을 때.</summary>
-    public static readonly Color32 GaugeFillPlain = new Color32(0x57, 0xF8, 0x6A, 0xFF);
+    /// <summary>
+    /// 시안의 초록. "좋다/안전하다"를 말하는 자리에 쓴다 —
+    /// 게이지 스윗 구간, 보드 위 뿌림 링의 스윗 밴드, 위험 개념이 없는 게이지(5단)의 기본색.
+    /// **한 군데서만 정의한다** — 같은 뜻을 두 색으로 말하면 플레이어가 둘을 다른 신호로 읽는다.
+    /// </summary>
+    public static readonly Color32 SafeGreen = new Color32(0x57, 0xF8, 0x6A, 0xFF);
 
     // ── 빌더 ────────────────────────────────────────────────────────────────
 

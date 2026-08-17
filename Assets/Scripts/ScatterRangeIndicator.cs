@@ -18,8 +18,10 @@ public class ScatterRangeIndicator : MonoBehaviour
     private const float GuideInnerBoard = 2.50f; // 뭉침 탈출 = 스윗 진입
     private const float GuideOuterBoard = 4.00f; // 스윗 끝 (이 위는 경계 경고)
 
-    // 게이지바와 톤 통일한 팔레트
-    private static readonly Color mint  = new Color(0.40f, 0.85f, 0.70f);
+    // 게이지바와 톤 통일한 팔레트.
+    // v18: 스윗 색을 UI 시안의 초록으로 바꿨다. 링과 게이지바는 같은 순간에 같은 화면에 뜨고
+    // 같은 정보를 말하므로, 스윗 색이 서로 다르면 플레이어가 둘을 다른 신호로 읽는다.
+    private static readonly Color mint  = UISkin.SafeGreen;
     private static readonly Color amber = new Color(0.95f, 0.75f, 0.30f);
     private static readonly Color coral = new Color(0.95f, 0.40f, 0.35f);
 
