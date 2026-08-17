@@ -104,14 +104,21 @@ public static class GameTestMenu
     /// <summary>게이지를 원하는 값으로 띄워둔다. 실제 뿌리기는 누르는 동안만 보여서
     /// 화면 대조(시안 vs 게임)를 할 틈이 없다.</summary>
     [MenuItem("Tools/테스트: 게이지 보이기 (67%)")]
-    public static void ShowGauge()
+    public static void ShowGauge() => ShowGaugeAt(0.67f);
+
+    /// <summary>퍼센트 글자가 **초록 채움 위**일 때와 **회색 홈 위**일 때 둘 다 읽히는지
+    /// 봐야 한다 — 배경 밝기가 정반대라 한쪽만 보고 정하면 다른 쪽에서 묻힌다.</summary>
+    [MenuItem("Tools/테스트: 게이지 보이기 (25%)")]
+    public static void ShowGaugeLow() => ShowGaugeAt(0.25f);
+
+    private static void ShowGaugeAt(float v)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
         var g = GaugeBarUI.Instance;
         if (g == null) { Debug.LogError("[GameTestMenu] GaugeBarUI 없음"); return; }
         g.Show();
-        g.SetValue(0.67f);
-        Debug.Log("[GameTestMenu] 게이지 표시 (0.67)");
+        g.SetValue(v);
+        Debug.Log($"[GameTestMenu] 게이지 표시 ({v:0.00})");
     }
 
     /// <summary>영문에서 글자가 상자를 넘치는지 보려면 언어를 바꿔가며 같은 화면을 찍어야 한다.</summary>

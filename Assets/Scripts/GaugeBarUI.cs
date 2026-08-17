@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -24,6 +25,7 @@ public class GaugeBarUI : MonoBehaviour
     private Canvas canvas;
     private GameObject barRoot;
     private Image barFill;
+    private TextMeshProUGUI percentLabel;
 
     private void Awake()
     {
@@ -45,10 +47,11 @@ public class GaugeBarUI : MonoBehaviour
     /// <summary>게이지 값 갱신 (0~1)</summary>
     public void SetValue(float value)
     {
-        if (barFill == null) return;
+        value = Mathf.Clamp01(value);
         // Type.Filled로 왼쪽부터 드러낸다. 폭을 직접 줄이면 시안의 "가운데가 밝은" 심지가
         // 같이 압축돼 색이 달라 보인다.
-        barFill.fillAmount = Mathf.Clamp01(value);
+        if (barFill != null) barFill.fillAmount = value;
+        if (percentLabel != null) percentLabel.text = $"{Mathf.RoundToInt(value * 100f)}%";
     }
 
     /// <summary>게이지 표시</summary>
@@ -120,6 +123,31 @@ public class GaugeBarUI : MonoBehaviour
         barFill.fillOrigin = (int)Image.OriginHorizontal.Left;
         barFill.fillAmount = 0f;
         barFill.raycastTarget = false;
+
+        // 퍼센트 — 홈 한가운데. 시안에는 없지만, 없으면 "얼마나 셌는지"를
+        // 막대 길이 눈대중으로만 재게 된다. 값 색 변화도 함께 빠진 터라 피드백이 한 겹뿐이었다.
+        // 홈 위에 얹으므로 막대가 세로로 두꺼워지지 않는다.
+        var pctGo = new GameObject("Percent", typeof(RectTransform));
+        pctGo.transform.SetParent(trackGo.transform, false);
+        Stretch(pctGo.GetComponent<RectTransform>());
+        percentLabel = pctGo.AddComponent<TextMeshProUGUI>();
+        percentLabel.text = "0%";
+        percentLabel.fontSize = UISkin.GamePx(28f);
+        percentLabel.alignment = TextAlignmentOptions.Center;
+        percentLabel.color = UISkin.Ink;
+        percentLabel.raycastTarget = false;
+
+        var font = KoreanFont.GetTMP();
+        if (font != null) percentLabel.font = font;
+        // ⚠️ 외곽선은 **font 할당 뒤에** — `.font`를 바꾸면 머티리얼이 그 폰트 기본값으로 갈아치워진다.
+        //
+        // 글자는 먹색, 테는 흰색이다(그 반대가 아니다).
+        // 채움이 절반을 넘으면 글자가 밝은 초록(#57F86A) 위에 놓이는데, 거기서 흰 글자는
+        // 대비가 1.5:1까지 떨어져 묻힌다. 먹색이면 초록 위에서 5:1로 또렷하고,
+        // 아직 안 찬 회색 홈(#6C8487) 위에서는 흰 테가 글자를 띄워준다.
+        var mat = percentLabel.fontMaterial;
+        mat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.16f);
+        mat.SetColor(ShaderUtilities.ID_OutlineColor, Color.white);
     }
 
     private static void Stretch(RectTransform rt)
