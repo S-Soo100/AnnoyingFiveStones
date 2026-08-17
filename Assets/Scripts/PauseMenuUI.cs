@@ -237,7 +237,8 @@ public class PauseMenuUI : MonoBehaviour
         rowGo.transform.SetParent(parent, false);
         Place(rowGo.GetComponent<RectTransform>(), x, y, SlideW, 99f);
 
-        label = CreateLabel(rowGo.transform, "Title", "", BodyPt, TextAlignmentOptions.Left);
+        // 시안의 슬라이더 제목만 가운데 정렬이다(머리띠 제목·경고 문구는 왼쪽).
+        label = CreateLabel(rowGo.transform, "Title", "", BodyPt, TextAlignmentOptions.Center);
         Place(label.rectTransform, 0f, 0f, SlideW, 51f);
 
         var sliderGo = new GameObject($"{name}Slider", typeof(RectTransform));

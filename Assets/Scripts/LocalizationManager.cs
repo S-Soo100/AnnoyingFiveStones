@@ -96,7 +96,9 @@ public static class LocalizationManager
         // 국문은 두 문장을 한 문장으로 합쳐 "무엇을 잃는지"를 물음 안에 넣었다.
         // 영문 시안은 텍스트 상자에서 잘려 있어("Quit game? \nYour score won't be")
         // 기존 완성형 문장을 그대로 둔다 — 잘린 쪽을 따라갈 이유가 없다.
-        ["quit.message"]  = ("기록을 저장하지 않고 게임을 종료하시겠습니까?",
+        // 줄바꿈을 직접 넣는다 — TMP는 한글을 어절이 아니라 글자 단위로 접어서
+        // 그냥 두면 "게임을 종 / 료하시겠습니까?"처럼 단어 한가운데가 갈린다.
+        ["quit.message"]  = ("기록을 저장하지 않고\n게임을 종료하시겠습니까?",
                              "Quit game?\nYour score won't be saved."),
         ["quit.title"]    = ("주의", "Warning"),
         // 버튼은 결과를 그대로 적는다 — "확인"은 무엇이 확인되는지 말해주지 않는다.
