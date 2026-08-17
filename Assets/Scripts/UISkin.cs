@@ -1,39 +1,64 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
 /// v18 — UI 시안(Figma "UI최종시안 0817")의 공용 스킨. 9-slice 스프라이트를 런타임에 만든다.
 ///
-/// 값의 출처: Figma talk-to-figma MCP로 읽은 실측치다. 눈대중이 아니다.
-///   Button_outline(바깥 테두리) #5A717F / Button(면) #FAFFFF→#87BBC9 세로 그라디언트
-///   + 안쪽 테두리 #F4FCFC / cornerRadius 6 / 라벨 #29313B
+/// 값의 출처: talk-to-figma MCP로 읽은 실측치다. 눈대중이 아니다.
 /// (이전 커밋은 스크린샷만 보고 Win9x 회색 #C0C0C0으로 만들었다 — 구조는 맞고 색이 틀렸다.)
 ///
 /// 왜 런타임 생성인가:
 /// 베벨은 규칙이 단순해서(면 그라디언트 + 두 겹 테두리 + 둥근 모서리) 코드로 그리는 편이
-/// 정확하고, 버튼 폭이 달라도(180 / 284 / 380) 테두리 두께가 일정하다.
+/// 정확하고, 폭이 달라도(180 / 284 / 380) 테두리 두께가 일정하다.
 /// 이 프로젝트는 그림자·돗자리·하늘도 같은 방식이다. 정식 아트가 나오면 sprite만 갈아끼우면 된다.
 ///
-/// 9-slice를 **좌우로만** 나눈다(border = 12,0,12,0):
-/// 시안의 버튼은 폭만 제각각이고 높이는 전부 80이다. 그리고 면 그라디언트가 세로 방향이라
-/// 세로로 잘라 늘리면 그라디언트가 계단처럼 끊긴다. 좌우만 늘리면 어떤 폭에서도 그대로다.
+/// 9-slice를 **좌우로만** 나눈다:
+/// 면 그라디언트가 세로 방향이라 세로로 잘라 늘리면 그라디언트가 계단처럼 끊긴다.
+/// 그래서 세로는 자르지 않고 텍스처를 **시안 높이 그대로** 만들어 통째로 늘린다.
+/// 1920×1080 화면에서는 이 스프라이트가 정확히 1:1로 찍혀 테두리가 실제 1px이 된다
+/// (Overlay 캔버스: 1280 ref × 1.5 = 1920 / World 캔버스: 1400 units = 1080px).
 /// </summary>
 public static class UISkin
 {
-    /// <summary>
-    /// 시안 px(1920×1080 기준) → UI 좌표. 캔버스 CanvasScaler의 referenceResolution이
-    /// 1280×720이라 정확히 1.5배 차이다. 시안 수치를 그대로 적고 이 함수만 통과시키면
-    /// "대충 비슷하게" 옮기는 실수가 안 생긴다.
-    /// </summary>
+    // ── 좌표 환산 ────────────────────────────────────────────────────────────
+    // 시안은 1920×1080. 캔버스가 두 종류라 환산도 두 개다. 섞어 쓰면 조용히 어긋난다.
+
+    /// <summary>시안 px → Screen Space Overlay 캔버스(referenceResolution 1280×720). 정확히 1.5배.</summary>
     public static float Px(float designPx) => designPx / 1.5f;
+
+    /// <summary>
+    /// 시안 px → GameUI의 World Space 캔버스 단위.
+    /// 그 캔버스는 1400 units가 카메라 세로 14 world(= 화면 전체)에 대응한다 → 1400/1080.
+    /// 가로도 정확히 맞는다: 960 × 1.2963 = 1244.4 = 화면 반폭(24.889/2 ÷ 0.01).
+    /// **캔버스 rect가 2500 넓은 것과는 무관하다** — 중앙 기준으로 배치하기 때문.
+    /// </summary>
+    public static float GamePx(float designPx) => designPx * (1400f / 1080f);
+
+    /// <summary>
+    /// 시안 좌표(1920×1080, **좌상단 원점**)의 한 점 → 카메라가 그 점을 비추는 월드 좌표.
+    /// World Space 캔버스를 화면 특정 위치에 놓을 때 쓴다. 카메라에서 직접 읽으므로
+    /// ortho size나 위치가 바뀌어도 따라간다.
+    /// </summary>
+    public static Vector3 DesignToWorld(float designX, float designY, float z)
+    {
+        var cam = Camera.main;
+        if (cam == null) return new Vector3(0f, 0f, z);
+        float viewH = cam.orthographicSize * 2f;
+        float viewW = viewH * cam.aspect;
+        var c = cam.transform.position;
+        return new Vector3(c.x + (designX / 1920f - 0.5f) * viewW,
+                           c.y + (0.5f - designY / 1080f) * viewH,
+                           z);
+    }
 
     // ── 시안 팔레트 ──────────────────────────────────────────────────────────
     /// <summary>바깥 테두리 (Button_outline stroke).</summary>
     public static readonly Color32 EdgeOuter = new Color32(0x5A, 0x71, 0x7F, 0xFF);
     /// <summary>안쪽 테두리 (Button stroke) — 이게 있어야 면이 볼록해 보인다.</summary>
     public static readonly Color32 EdgeInner = new Color32(0xF4, 0xFC, 0xFC, 0xFF);
-    /// <summary>면 그라디언트 위쪽.</summary>
+    /// <summary>면 그라디언트 위/아래.</summary>
     public static readonly Color32 FaceTop = new Color32(0xFA, 0xFF, 0xFF, 0xFF);
-    /// <summary>면 그라디언트 아래쪽.</summary>
     public static readonly Color32 FaceBottom = new Color32(0x87, 0xBB, 0xC9, 0xFF);
 
     /// <summary>본문/라벨 글자색. 시안의 모든 라벨이 이 색이다.</summary>
@@ -43,66 +68,123 @@ public static class UISkin
     public static readonly Color32 LogoFill = new Color32(0xEE, 0xFA, 0x44, 0xFF);
     public static readonly Color32 LogoOutline = new Color32(0x17, 0x18, 0x1A, 0xFF);
 
+    /// <summary>
+    /// 안내문 띠 — 시안 색조(#5A717F) 그대로, 불투명도만 50% → 78%.
+    /// 시안은 이 띠를 배경 중 어두운 자리에 얹어 흰 글자가 떴지만, 실제 게임에서는
+    /// 같은 자리가 밝은 창문·문이라 50%로는 판도 글자도 묻힌다. 게다가 이 띠는
+    /// 3초 뒤 CanvasGroup 알파 0.85로 한 번 더 곱해진다(GameUI.DoGuideText).
+    /// 색조를 바꾸지 않고 대비만 확보하는 가장 작은 조정이다.
+    /// </summary>
+    public static readonly Color GuideBackdrop = new Color32(0x5A, 0x71, 0x7F, 0xC8);
+
+    // 단 표시(클리어) — 초록 3단 그라디언트
+    private static readonly Color32 ClearLow = new Color32(0x18, 0xD8, 0x0D, 0xFF);
+    private static readonly Color32 ClearMid = new Color32(0x6B, 0xD5, 0x66, 0xFF);
+    /// <summary>단 숫자 그라디언트(위→아래). 기본 / 클리어.</summary>
+    public static readonly Color32 DotNumTop = new Color32(0xA4, 0xD5, 0xE3, 0xFF);
+    public static readonly Color32 DotNumBottom = new Color32(0x08, 0x8D, 0xA6, 0xFF);
+    public static readonly Color32 DotNumClearTop = new Color32(0x1F, 0xC8, 0x43, 0xFF);
+    public static readonly Color32 DotNumClearBottom = new Color32(0x02, 0x72, 0x0A, 0xFF);
+
+    // 상태박스 안쪽 흰 칸 / 게이지
+    private static readonly Color32 InsetBorder = new Color32(0x29, 0x31, 0x3B, 0xFF);
+    private static readonly Color32 GaugeTrackFace = new Color32(0x6C, 0x84, 0x87, 0xFF);
+    private static readonly Color32 GaugeTrackEdge = new Color32(0x33, 0x4B, 0x52, 0xFF);
+    private static readonly Color32 GaugeFillEdge = new Color32(0x40, 0xB1, 0x17, 0xFF);
+    private static readonly Color32 GaugeFillCore = new Color32(0x57, 0xF8, 0x6A, 0xFF);
+
     // ⚠️ 캐시 검사에 `??=`를 쓰면 안 된다. `??=`는 C# null만 보는데, UnityEngine.Object는
     //    파괴된 뒤에도 C# 참조가 살아 있다(== 연산자만 오버로드돼 있다). Play를 멈췄다 켜면
     //    텍스처가 파괴된 채 참조만 남아 **파괴된 스프라이트를 그대로 돌려주게** 된다.
-    private static Sprite raised, raisedHover, sunken;
+    private static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
 
-    /// <summary>버튼 평상시.</summary>
-    public static Sprite Raised
+    private static Sprite Cached(string key, Func<Sprite> make)
     {
-        get { if (raised == null) raised = Build(FaceTop, FaceBottom, EdgeInner); return raised; }
+        if (cache.TryGetValue(key, out var s) && s != null) return s;
+        s = make();
+        cache[key] = s;
+        return s;
     }
+
+    // ── 공개 스프라이트 ──────────────────────────────────────────────────────
+
+    /// <summary>버튼 평상시 (= 높이 80 패널).</summary>
+    public static Sprite Raised => Panel(80);
 
     /// <summary>버튼 호버 — 면만 밝게. 시안에 호버 상태는 없지만, 마우스 게임에서
     /// 반응이 없으면 "눌리는 건가?"를 알 수 없다. 배색은 유지하고 명도만 올린다.</summary>
-    public static Sprite RaisedHover
-    {
-        get
-        {
-            if (raisedHover == null)
-                raisedHover = Build(Lighten(FaceTop, 0.35f), Lighten(FaceBottom, 0.35f), EdgeInner);
-            return raisedHover;
-        }
-    }
+    public static Sprite RaisedHover => Cached("hover", () =>
+        Build(32, 80, 6f, 12, FaceGrad(Lighten(FaceBottom, .35f), Lighten(FaceTop, .35f)), false, EdgeOuter, EdgeInner));
 
     /// <summary>버튼 눌림 — 그라디언트를 뒤집고 안쪽 테두리를 어둡게. 방향이 뒤집혀야
     /// "들어갔다"가 읽힌다. 색만 바꾸면 눌린 느낌이 나지 않는다.</summary>
-    public static Sprite Sunken
-    {
-        get
-        {
-            if (sunken == null)
-                sunken = Build(Darken(FaceBottom, 0.12f), FaceTop, EdgeOuter);
-            return sunken;
-        }
-    }
+    public static Sprite Sunken => Cached("sunken", () =>
+        Build(32, 80, 6f, 12, FaceGrad(FaceTop, Darken(FaceBottom, .12f)), false, EdgeOuter, EdgeOuter));
 
-    // 폭 32 × 높이 80(시안 버튼 높이 그대로) / 좌우 12px만 9-slice로 고정.
-    private const int Width = 32;
-    private const int Height = 80;
-    private const int SliceX = 12;
-    private const float Radius = 6f;
+    /// <summary>같은 배색의 패널. 시안 높이를 그대로 넘긴다(상태박스 172 등).</summary>
+    public static Sprite Panel(int designHeight) => Cached($"panel{designHeight}", () =>
+        Build(32, designHeight, 6f, 12, FaceGrad(FaceBottom, FaceTop), false, EdgeOuter, EdgeInner));
+
+    /// <summary>상태박스 안쪽 흰 칸 — 흰 바탕 + 먹색 1px 테두리, 모서리 각짐.</summary>
+    public static Sprite InsetBox => Cached("inset", () =>
+        Build(32, 56, 0f, 12, _ => (Color)Color.white, false, InsetBorder, null));
+
+    /// <summary>단 표시 원. 시안은 작은 원 60 / 큰 원(5단) 80 두 가지다.</summary>
+    public static Sprite Dot(int designSize, bool cleared) => Cached($"dot{designSize}{cleared}", () =>
+        Build(designSize, designSize, designSize * 0.5f, 0,
+              cleared ? ClearGrad() : FaceGrad(FaceBottom, FaceTop), false,
+              EdgeOuter, cleared ? (Color32)Color.white : EdgeInner));
+
+    /// <summary>파워 게이지 바깥 알약 틀.</summary>
+    public static Sprite GaugeFrame => Cached("gframe", () =>
+        Build(96, 64, 32f, 32, FaceGrad(new Color32(0x87, 0xB0, 0xC9, 0xFF), FaceTop), false, EdgeOuter, EdgeInner));
+
+    /// <summary>파워 게이지 안쪽 홈(빈 트랙).</summary>
+    public static Sprite GaugeTrack => Cached("gtrack", () =>
+        Build(80, 40, 20f, 20, _ => (Color)GaugeTrackFace, false, GaugeTrackEdge, null));
+
+    /// <summary>파워 게이지 채움 — 가운데가 밝은 가로 그라디언트(시안 그대로).
+    /// 9-slice를 하지 않는다: 가로 그라디언트를 좌우로 자르면 밝은 심지가 늘어나 뭉갠다.
+    /// 대신 <c>Image.Type.Filled</c>로 왼쪽부터 드러내면 심지 위치가 그대로 유지된다.</summary>
+    public static Sprite GaugeFill => Cached("gfill", () =>
+        Build(640, 40, 20f, 0,
+              t => Color.Lerp(GaugeFillEdge, GaugeFillCore, 1f - Mathf.Abs(t * 2f - 1f)), true,
+              null, null));
+
+    // ── 빌더 ────────────────────────────────────────────────────────────────
 
     private static Color Lighten(Color32 c, float t) => Color.Lerp(c, Color.white, t);
     private static Color Darken(Color32 c, float t) => Color.Lerp(c, Color.black, t);
 
-    private static Sprite Build(Color topColor, Color bottomColor, Color innerEdge)
+    /// <summary>t=0 아래 → t=1 위.</summary>
+    private static Func<float, Color> FaceGrad(Color bottom, Color top) => t => Color.Lerp(bottom, top, t);
+
+    /// <summary>시안의 클리어 원: 아래 초록 → 0.27에서 연두 → 위 흰색.</summary>
+    private static Func<float, Color> ClearGrad() => t =>
+        t < 0.27f ? Color.Lerp(ClearLow, ClearMid, Mathf.InverseLerp(0.06f, 0.27f, t))
+                  : Color.Lerp(ClearMid, Color.white, Mathf.InverseLerp(0.27f, 1f, t));
+
+    /// <param name="face">면 색. t는 세로면 아래→위, 가로면 왼→오른쪽.</param>
+    /// <param name="outer">가장 바깥 1px. null이면 면으로 채운다.</param>
+    /// <param name="inner">그 안쪽 1px. null이면 면으로 채운다.</param>
+    private static Sprite Build(int w, int h, float radius, int sliceX,
+                                Func<float, Color> face, bool horizontal,
+                                Color32? outer, Color32? inner)
     {
-        var tex = new Texture2D(Width, Height, TextureFormat.RGBA32, false)
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
         {
             filterMode = FilterMode.Bilinear,   // 둥근 모서리는 보간이 있어야 계단이 안 보인다
             wrapMode = TextureWrapMode.Clamp
         };
 
-        var px = new Color[Width * Height];
-        const int SS = 4;   // 모서리 곡선을 4×4 슈퍼샘플링 — 32×80이라 비용은 무시할 수준
+        var px = new Color[w * h];
+        const int SS = 4;   // 곡선을 4×4 슈퍼샘플링. 이 크기에서는 비용이 무시할 수준이다
 
-        for (int y = 0; y < Height; y++)
+        for (int y = 0; y < h; y++)
         {
-            for (int x = 0; x < Width; x++)
+            for (int x = 0; x < w; x++)
             {
-                float ar = 0f, ag = 0f, ab = 0f, aa = 0f;
+                float ar = 0f, ag = 0f, ab = 0f, covered = 0f;
 
                 for (int sy = 0; sy < SS; sy++)
                 {
@@ -111,23 +193,22 @@ public static class UISkin
                         float fx = x + (sx + 0.5f) / SS;
                         float fy = y + (sy + 0.5f) / SS;
 
-                        // 둥근 사각형 안쪽으로 얼마나 들어와 있는지(px). 음수면 바깥.
-                        float depth = -RoundedRectSD(fx, fy);
-                        if (depth <= 0f) continue;   // 바깥 → 투명
+                        // 둥근 사각형 안쪽으로 얼마나 들어와 있는지(px). 0 이하면 바깥.
+                        float depth = -RoundedRectSD(fx, fy, w, h, radius);
+                        if (depth <= 0f) continue;
 
                         Color c;
-                        if (depth < 1f)      c = EdgeOuter;
-                        else if (depth < 2f) c = innerEdge;
-                        else                 c = Color.Lerp(bottomColor, topColor, fy / Height);
+                        if (depth < 1f && outer.HasValue)      c = outer.Value;
+                        else if (depth < 2f && inner.HasValue) c = inner.Value;
+                        else                                   c = face(horizontal ? fx / w : fy / h);
 
-                        ar += c.r; ag += c.g; ab += c.b; aa += 1f;
+                        ar += c.r; ag += c.g; ab += c.b; covered += 1f;
                     }
                 }
 
-                int n = SS * SS;
-                px[y * Width + x] = aa > 0f
-                    ? new Color(ar / aa, ag / aa, ab / aa, aa / n)   // 색은 덮인 부분만 평균, 알파는 커버리지
-                    : new Color(0f, 0f, 0f, 0f);
+                px[y * w + x] = covered > 0f
+                    ? new Color(ar / covered, ag / covered, ab / covered, covered / (SS * SS))
+                    : new Color(0f, 0f, 0f, 0f);   // 색은 덮인 부분만 평균, 알파는 커버리지
             }
         }
 
@@ -135,22 +216,19 @@ public static class UISkin
         tex.Apply();
 
         return Sprite.Create(
-            tex,
-            new Rect(0, 0, Width, Height),
-            new Vector2(0.5f, 0.5f),
-            100f, 0,
+            tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f, 0,
             SpriteMeshType.FullRect,
-            new Vector4(SliceX, 0f, SliceX, 0f));   // 좌우만 9-slice — 위아래는 늘리지 않는다
+            new Vector4(sliceX, 0f, sliceX, 0f));   // 좌우만 9-slice — 위아래는 늘리지 않는다
     }
 
     /// <summary>둥근 사각형 부호거리. 음수 = 안쪽.</summary>
-    private static float RoundedRectSD(float x, float y)
+    private static float RoundedRectSD(float x, float y, int w, int h, float radius)
     {
-        float hw = Width * 0.5f, hh = Height * 0.5f;
-        float px = Mathf.Abs(x - hw) - (hw - Radius);
-        float py = Mathf.Abs(y - hh) - (hh - Radius);
+        float hw = w * 0.5f, hh = h * 0.5f;
+        float px = Mathf.Abs(x - hw) - (hw - radius);
+        float py = Mathf.Abs(y - hh) - (hh - radius);
         float outside = Mathf.Sqrt(Mathf.Max(px, 0f) * Mathf.Max(px, 0f) +
                                    Mathf.Max(py, 0f) * Mathf.Max(py, 0f));
-        return outside + Mathf.Min(Mathf.Max(px, py), 0f) - Radius;
+        return outside + Mathf.Min(Mathf.Max(px, py), 0f) - radius;
     }
 }

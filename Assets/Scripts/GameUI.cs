@@ -22,7 +22,7 @@ public class GameUI : MonoBehaviour
 
     [Header("Progress Dots")]
     private Image[] progressDots = new Image[5];
-    private TextMeshProUGUI starLabel;
+    private TextMeshProUGUI[] dotNumbers = new TextMeshProUGUI[5];
 
     [Header("Overlay")]
     private Image overlayBg;
@@ -132,48 +132,67 @@ public class GameUI : MonoBehaviour
         return c;
     }
 
+    // v18: UI 시안(Figma Stage_example 572:501) 실측 배치.
+    // 작은 원 60 네 개(1~4단) + **큰 원 80 하나(5단=꺾기)**. 5단만 크게 그려서
+    // "마지막이 다르다"를 표시 자체로 알린다 — 이전의 별표 하나보다 눈에 먼저 들어온다.
+    private const float DotsW = 384f, DotsH = 80f, DotsCx = 960f, DotsCy = 90f;
+    private const float DotSmall = 60f, DotLarge = 80f, DotStep = 76f;
+
     private void CreateProgressDots()
     {
         var container = CreateUIObject("ProgressDots", canvas.transform);
         var rt = container.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.5f, 1f);
-        rt.anchorMax = new Vector2(0.5f, 1f);
-        rt.pivot = new Vector2(0.5f, 1f);
-        rt.anchoredPosition = new Vector2(0, -12f);
-        rt.sizeDelta = new Vector2(500, 80);
-
-        var hlg = container.AddComponent<HorizontalLayoutGroup>();
-        hlg.spacing = 16;
-        hlg.childAlignment = TextAnchor.MiddleCenter;
-        hlg.childForceExpandWidth = false;
-        hlg.childForceExpandHeight = false;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(UISkin.GamePx(DotsW), UISkin.GamePx(DotsH));
+        rt.anchoredPosition = new Vector2(UISkin.GamePx(DotsCx - 960f), UISkin.GamePx(540f - DotsCy));
 
         for (int i = 0; i < 5; i++)
         {
-            var dot = CreateUIObject($"Dot_{i}", container.transform);
-            var img = dot.AddComponent<Image>();
-            var le = dot.AddComponent<LayoutElement>();
-            le.preferredWidth = 56;
-            le.preferredHeight = 56;
-            img.color = new Color(0.5f, 0.5f, 0.5f, 0.4f);
-            MakeCircle(img);
-            progressDots[i] = img;
-        }
+            bool last = (i == 4);
+            float size = last ? DotLarge : DotSmall;
 
-        // 5단 별 표시
-        var starGo = CreateUIObject("Star", container.transform);
-        starLabel = starGo.AddComponent<TextMeshProUGUI>();
-        starLabel.text = "*";
-        starLabel.fontSize = 28;
-        starLabel.color = new Color(1f, 0.84f, 0f, 0.7f);
-        starLabel.alignment = TextAlignmentOptions.Center;
-        if (koreanTmpFont != null) starLabel.font = koreanTmpFont;
-        var starLe = starGo.AddComponent<LayoutElement>();
-        starLe.preferredWidth = 16;
-        starLe.preferredHeight = 56;
-        starLe.ignoreLayout = true;
-        var starRt = starGo.GetComponent<RectTransform>();
-        starRt.anchoredPosition = new Vector2(120, 10);
+            var dot = CreateUIObject($"Dot_{i}", container.transform);
+            var dotRt = dot.GetComponent<RectTransform>();
+            dotRt.anchorMin = dotRt.anchorMax = new Vector2(0f, 1f);
+            // pivot을 중앙으로 — 현재 단을 키울 때 모서리 기준이면 원이 오른아래로 밀린다.
+            dotRt.pivot = new Vector2(0.5f, 0.5f);
+            dotRt.sizeDelta = new Vector2(UISkin.GamePx(size), UISkin.GamePx(size));
+            // 크기가 달라도 세로 중심은 같다(작은 원 10+30, 큰 원 0+40 → 둘 다 40)
+            dotRt.anchoredPosition = new Vector2(UISkin.GamePx(i * DotStep + size * 0.5f),
+                                                 -UISkin.GamePx(DotsH * 0.5f));
+
+            var img = dot.AddComponent<Image>();
+            img.sprite = UISkin.Dot((int)size, false);
+            img.type = Image.Type.Simple;
+            img.color = Color.white;
+            img.raycastTarget = false;
+            progressDots[i] = img;
+
+            var numGo = CreateUIObject("Num", dot.transform);
+            var numRt = numGo.GetComponent<RectTransform>();
+            numRt.anchorMin = Vector2.zero;
+            numRt.anchorMax = Vector2.one;
+            numRt.offsetMin = numRt.offsetMax = Vector2.zero;
+
+            var num = numGo.AddComponent<TextMeshProUGUI>();
+            num.text = (i + 1).ToString();
+            num.fontSize = UISkin.GamePx(last ? 30f : 24f);
+            num.alignment = TextAlignmentOptions.Center;
+            num.raycastTarget = false;
+            if (koreanTmpFont != null) num.font = koreanTmpFont;
+            dotNumbers[i] = num;
+            // 기본 배색을 여기서 미리 입힌다 — UpdateProgressDots가 처음 불릴 때까지
+            // TMP 기본색(흰색)이면 하늘색 원 위에서 숫자가 보이지 않는다.
+            ApplyNumberGradient(num, UISkin.DotNumTop, UISkin.DotNumBottom);
+        }
+    }
+
+    /// <summary>단 숫자의 세로 그라디언트. 시안은 원 색에 따라 숫자 색도 함께 바뀐다.</summary>
+    private static void ApplyNumberGradient(TextMeshProUGUI tmp, Color32 top, Color32 bottom)
+    {
+        if (tmp == null) return;
+        tmp.enableVertexGradient = true;
+        tmp.colorGradient = new VertexGradient(top, top, bottom, bottom);
     }
 
     private void CreateGuideText()
@@ -181,17 +200,16 @@ public class GameUI : MonoBehaviour
         var container = CreateUIObject("GuideContainer", canvas.transform);
         guideGroup = container.AddComponent<CanvasGroup>();
         var rt = container.GetComponent<RectTransform>();
-        // World Space Canvas 기준: 앵커를 전체(0~1)로 설정해도 viewport 충돌 없음
-        rt.anchorMin = new Vector2(0f, 0f);
-        rt.anchorMax = new Vector2(1f, 0f);
-        rt.pivot = new Vector2(0.5f, 0f);
-        rt.anchoredPosition = new Vector2(0, 20f);
-        rt.sizeDelta = new Vector2(0, 88);
+        // v18: 시안 실측 — 759×58, 화면 정중앙(중심 y=540). 하단에 두면 새 가로 게이지와 겹치고,
+        // 중앙은 돗자리 뒷변(design y≈679)보다 위라 **놀이판을 가리지 않는다**.
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta = new Vector2(UISkin.GamePx(759f), UISkin.GamePx(58f));
 
         // 배경
         var bgGo = CreateUIObject("GuideBg", container.transform);
         guideBackground = bgGo.AddComponent<Image>();
-        guideBackground.color = new Color(0, 0, 0, 0.5f);
+        guideBackground.color = UISkin.GuideBackdrop;   // 시안 #5A717F 50%
         var bgRt = bgGo.GetComponent<RectTransform>();
         bgRt.anchorMin = Vector2.zero;
         bgRt.anchorMax = Vector2.one;
@@ -200,15 +218,18 @@ public class GameUI : MonoBehaviour
         // 텍스트
         var textGo = CreateUIObject("GuideText", container.transform);
         guideText = textGo.AddComponent<TextMeshProUGUI>();
-        guideText.fontSize = 44;
-        guideText.color = new Color(1f, 1f, 0.6f, 1f);
+        guideText.fontSize = UISkin.GamePx(30f);   // 시안 30px
+        guideText.color = Color.white;
         guideText.alignment = TextAlignmentOptions.Center;
         guideText.textWrappingMode = TextWrappingModes.NoWrap;
         guideText.overflowMode = TextOverflowModes.Truncate;
+        // 문구 길이가 언어마다 다르다 — 띠 밖으로 넘치느니 줄어드는 편이 낫다.
         guideText.enableAutoSizing = true;
-        guideText.fontSizeMin = 28;
-        guideText.fontSizeMax = 44;
+        guideText.fontSizeMin = UISkin.GamePx(20f);
+        guideText.fontSizeMax = UISkin.GamePx(30f);
         if (koreanTmpFont != null) guideText.font = koreanTmpFont;
+        // 외곽선은 쓰지 않는다(시안에도 없다). 이 크기의 나눔고딕은 획이 얇아서
+        // 외곽선을 넣으면 흰 심이 깎여 오히려 회색으로 보인다 — 대비는 판 쪽에서 만든다.
         var textRt = textGo.GetComponent<RectTransform>();
         textRt.anchorMin = Vector2.zero;
         textRt.anchorMax = Vector2.one;
@@ -272,18 +293,27 @@ public class GameUI : MonoBehaviour
         var btnGo = new GameObject("PauseButton");
         btnGo.transform.SetParent(canvas.transform, false);
         var btnRect = btnGo.AddComponent<RectTransform>();
-        // 우측 상단 앵커
-        btnRect.anchorMin = new Vector2(1f, 1f);
-        btnRect.anchorMax = new Vector2(1f, 1f);
-        btnRect.pivot = new Vector2(1f, 1f);
-        btnRect.sizeDelta = new Vector2(500f, 250f);
-        btnRect.anchoredPosition = new Vector2(0f, 0f);
+        // v18: 시안 실측 — 180×80 @(1690,50). 이전에는 우상단 500×250 **투명** 영역이라
+        // 버튼이 있는지 알 수 없었고, 그 넓이 때문에 지나가다 잘못 눌리기도 했다.
+        btnRect.anchorMin = btnRect.anchorMax = btnRect.pivot = new Vector2(0.5f, 0.5f);
+        btnRect.sizeDelta = new Vector2(UISkin.GamePx(180f), UISkin.GamePx(80f));
+        btnRect.anchoredPosition = new Vector2(UISkin.GamePx(1690f + 90f - 960f),
+                                               UISkin.GamePx(540f - (50f + 40f)));
 
-        // 투명 배경 (클릭 영역 확보)
         var img = btnGo.AddComponent<Image>();
-        img.color = new Color(0f, 0f, 0f, 0f); // 완전 투명
+        img.sprite = UISkin.Raised;
+        img.type = Image.Type.Sliced;
+        img.color = Color.white;
 
         var btn = btnGo.AddComponent<Button>();
+        btn.transition = Selectable.Transition.SpriteSwap;
+        btn.spriteState = new SpriteState
+        {
+            highlightedSprite = UISkin.RaisedHover,
+            pressedSprite     = UISkin.Sunken,
+            selectedSprite    = UISkin.RaisedHover,
+            disabledSprite    = UISkin.Raised,
+        };
         btn.targetGraphic = img;
         btn.onClick.AddListener(() => PauseMenuUI.Instance?.Toggle());
 
@@ -301,9 +331,8 @@ public class GameUI : MonoBehaviour
 
         var tmp = labelGo.AddComponent<TextMeshProUGUI>();
         tmp.text = LocalizationManager.L("hud.pause");
-        tmp.fontSize = 36f;
-        tmp.fontStyle = FontStyles.Bold;
-        tmp.color = Color.white;
+        tmp.fontSize = UISkin.GamePx(40f);   // 시안 라벨 40px
+        tmp.color = UISkin.Ink;              // 밝은 면 위 → 흰 글자는 안 읽힌다
         tmp.alignment = TextAlignmentOptions.Center;
         if (koreanTmpFont != null) tmp.font = koreanTmpFont;
         pauseHudLabel = tmp;
@@ -462,27 +491,24 @@ public class GameUI : MonoBehaviour
     /// <summary>상단 진행 도트 갱신</summary>
     public void UpdateProgressDots(int currentStage)
     {
+        // v18: 시안대로 **스프라이트 교체**로 상태를 표시한다(클리어=초록, 미클리어=하늘색).
+        // 현재 단만 살짝 키운다 — 시안에는 "현재" 표시가 없지만, 그것만으로는
+        // 방금 깬 단과 지금 하는 단을 구분할 수 없다. 크기 차이는 1.08로 얕게 둔다
+        // (5단 원은 이미 80이라 크게 키우면 이웃과 겹친다).
         for (int i = 0; i < 5; i++)
         {
+            if (progressDots[i] == null) continue;
             int stage = i + 1;
-            if (stage < currentStage)
-            {
-                // 완료: 금색
-                progressDots[i].color = new Color(1f, 0.84f, 0f, 0.9f);
-                progressDots[i].transform.localScale = Vector3.one;
-            }
-            else if (stage == currentStage)
-            {
-                // 현재: 흰색, 약간 크게
-                progressDots[i].color = Color.white;
-                progressDots[i].transform.localScale = Vector3.one * 1.3f;
-            }
-            else
-            {
-                // 미완료: 회색 반투명
-                progressDots[i].color = new Color(0.5f, 0.5f, 0.5f, 0.4f);
-                progressDots[i].transform.localScale = Vector3.one;
-            }
+            bool cleared = stage < currentStage;
+            int size = (i == 4) ? (int)DotLarge : (int)DotSmall;
+
+            progressDots[i].sprite = UISkin.Dot(size, cleared);
+            progressDots[i].color = stage > currentStage ? new Color(1f, 1f, 1f, 0.55f) : Color.white;
+            progressDots[i].transform.localScale = (stage == currentStage) ? Vector3.one * 1.08f : Vector3.one;
+
+            ApplyNumberGradient(dotNumbers[i],
+                cleared ? UISkin.DotNumClearTop : UISkin.DotNumTop,
+                cleared ? UISkin.DotNumClearBottom : UISkin.DotNumBottom);
         }
     }
 
@@ -605,8 +631,11 @@ public class GameUI : MonoBehaviour
         // 3초 유지
         yield return new WaitForSeconds(3f);
 
-        // 알파 감소 (0.5로)
-        guideGroup.alpha = 0.5f;
+        // 알파 감소 — v18: 0.5 → 0.85.
+        // 0.5는 예전 **검은** 판에 맞춘 값이었다(25%만 남아도 배경이 어두워져 글자가 떴다).
+        // 시안의 회청색 판은 같은 0.5를 곱하면 밝은 창문 위에서 판도 글자도 사라진다.
+        // 시안 색·알파를 그대로 두는 대신 "물러나는 정도"만 낮춘다 — 힌트는 계속 읽혀야 한다.
+        guideGroup.alpha = 0.85f;
         guideCoroutine = null;
     }
 

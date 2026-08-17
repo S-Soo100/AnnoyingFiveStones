@@ -121,6 +121,10 @@ public static class LocalizationManager
         ["hud.age"]        = ("{0}살", "Age {0}"),
         ["hud.regression"] = ("회귀: {0}번", "Regression: Loop {0}"),
         ["hud.pause"]      = ("중지", "Pause"),
+        // v18: 시안의 상태박스는 라벨과 숫자를 좌우로 나눠 흰 칸에 넣는다.
+        // 위의 hud.age / hud.regression은 값을 문장에 끼워 넣는 형태라 그대로 못 쓴다(둘 다 남겨둔다).
+        ["hud.age_label"]        = ("나이", "Age"),
+        ["hud.regression_label"] = ("회귀", "Regression"),
 
         // === 스테이지 인트로 ===
         ["stage.ready"]    = ("준비하세요.", "Get ready."),

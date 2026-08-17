@@ -101,6 +101,19 @@ public static class GameTestMenu
         Debug.Log($"[GameTestMenu] {loop}회차 = {age}살 진입");
     }
 
+    /// <summary>게이지를 원하는 값으로 띄워둔다. 실제 뿌리기는 누르는 동안만 보여서
+    /// 화면 대조(시안 vs 게임)를 할 틈이 없다.</summary>
+    [MenuItem("Tools/테스트: 게이지 보이기 (67%)")]
+    public static void ShowGauge()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        var g = GaugeBarUI.Instance;
+        if (g == null) { Debug.LogError("[GameTestMenu] GaugeBarUI 없음"); return; }
+        g.Show();
+        g.SetValue(0.67f);
+        Debug.Log("[GameTestMenu] 게이지 표시 (0.67)");
+    }
+
     [MenuItem("Tools/테스트: 대화 넘기기")]
     public static void SkipDialogue()
     {
