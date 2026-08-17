@@ -86,8 +86,15 @@ public static class UISkin
     public static readonly Color32 DotNumClearTop = new Color32(0x1F, 0xC8, 0x43, 0xFF);
     public static readonly Color32 DotNumClearBottom = new Color32(0x02, 0x72, 0x0A, 0xFF);
 
-    // 상태박스 안쪽 흰 칸 / 게이지
+    // 상태박스 안쪽 흰 칸 / 게이지 / 창
     private static readonly Color32 InsetBorder = new Color32(0x29, 0x31, 0x3B, 0xFF);
+    private static readonly Color32 WindowFace = new Color32(0xCC, 0xD9, 0xDD, 0xFF);
+    private static readonly Color32 HeaderBottom = new Color32(0xBE, 0xCF, 0xD4, 0xFF);
+    private static readonly Color32 HandleFace = new Color32(0xF4, 0xFC, 0xFC, 0xFF);
+    /// <summary>슬라이더 채움.</summary>
+    public static readonly Color32 SliderFill = new Color32(0x9E, 0xC8, 0xD4, 0xFF);
+    /// <summary>창 뒤 어둠막 — 시안 #000000 70%.</summary>
+    public static readonly Color WindowDim = new Color(0f, 0f, 0f, 0.7f);
     private static readonly Color32 GaugeTrackFace = new Color32(0x6C, 0x84, 0x87, 0xFF);
     private static readonly Color32 GaugeTrackEdge = new Color32(0x33, 0x4B, 0x52, 0xFF);
     private static readonly Color32 GaugeFillEdge = new Color32(0x40, 0xB1, 0x17, 0xFF);
@@ -125,9 +132,33 @@ public static class UISkin
     public static Sprite Panel(int designHeight) => Cached($"panel{designHeight}", () =>
         Build(32, designHeight, 6f, 12, FaceGrad(FaceBottom, FaceTop), false, EdgeOuter, EdgeInner));
 
-    /// <summary>상태박스 안쪽 흰 칸 — 흰 바탕 + 먹색 1px 테두리, 모서리 각짐.</summary>
-    public static Sprite InsetBox => Cached("inset", () =>
-        Build(32, 56, 0f, 12, _ => (Color)Color.white, false, InsetBorder, null));
+    /// <summary>상태박스 안쪽 흰 칸 / 슬라이더 홈 — 흰 바탕 + 먹색 1px 테두리, 모서리 각짐.</summary>
+    public static Sprite InsetBox => InsetBoxOf(56);
+
+    public static Sprite InsetBoxOf(int designHeight) => Cached($"inset{designHeight}", () =>
+        Build(32, designHeight, 0f, 12, _ => (Color)Color.white, false, InsetBorder, null));
+
+    // ── 창(일시정지 / 경고) ──────────────────────────────────────────────────
+    // 시안 Settings 572:588 · Dialog 572:441. 둘 다 같은 부품이고 높이만 다르다.
+
+    /// <summary>창 몸통 — 둥근 모서리 12, 면 #CCD9DD, 테두리 #5A717F.
+    /// 면이 단색이라 위아래로도 잘라 늘릴 수 있다(그라디언트가 없으니 계단이 안 생긴다).</summary>
+    public static Sprite WindowBody => Cached("winbody", () =>
+        Build(32, 32, 12f, 12, _ => (Color)WindowFace, false, EdgeOuter, null, sliceY: 12));
+
+    /// <summary>창 머리띠 — **위쪽만** 둥글다(아래는 몸통과 맞닿아 각져야 한다).
+    /// 테두리를 넣어두면 창 바깥선이 머리띠 구간에서 끊기지 않고, 아래쪽 선이
+    /// 그대로 머리띠↔몸통 구분선이 된다(시안에서 몸통 위쪽 stroke가 하는 역할).</summary>
+    public static Sprite WindowHeader => Cached("winhead", () =>
+        Build(32, 83, 12f, 12, FaceGrad(HeaderBottom, Color.white), false, EdgeOuter, null,
+              topRoundedOnly: true));
+
+    /// <summary>슬라이더 손잡이 — 20×36 흰 알약(각짐) + 먹색 테두리.</summary>
+    public static Sprite SliderHandle => Cached("shandle", () =>
+        Build(20, 36, 0f, 0, _ => (Color)HandleFace, false, InsetBorder, null));
+
+    /// <summary>창 닫기 ✕. 시안에는 44×44 회색 자리표시만 있어서 아이콘은 여기서 그린다.</summary>
+    public static Sprite CloseIcon => Cached("close", () => BuildCross(44, 4f));
 
     /// <summary>단 표시 원. 시안은 작은 원 60 / 큰 원(5단) 80 두 가지다.</summary>
     public static Sprite Dot(int designSize, bool cleared) => Cached($"dot{designSize}{cleared}", () =>
@@ -167,9 +198,13 @@ public static class UISkin
     /// <param name="face">면 색. t는 세로면 아래→위, 가로면 왼→오른쪽.</param>
     /// <param name="outer">가장 바깥 1px. null이면 면으로 채운다.</param>
     /// <param name="inner">그 안쪽 1px. null이면 면으로 채운다.</param>
+    /// <param name="sliceY">위아래 9-slice 폭. 면이 **단색일 때만** 0보다 크게 둔다 —
+    /// 세로 그라디언트를 세로로 잘라 늘리면 가운데가 늘어나 계단이 생긴다.</param>
+    /// <param name="topRoundedOnly">위 두 모서리만 둥글게. 창 머리띠용.</param>
     private static Sprite Build(int w, int h, float radius, int sliceX,
                                 Func<float, Color> face, bool horizontal,
-                                Color32? outer, Color32? inner)
+                                Color32? outer, Color32? inner,
+                                int sliceY = 0, bool topRoundedOnly = false)
     {
         var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
         {
@@ -194,7 +229,8 @@ public static class UISkin
                         float fy = y + (sy + 0.5f) / SS;
 
                         // 둥근 사각형 안쪽으로 얼마나 들어와 있는지(px). 0 이하면 바깥.
-                        float depth = -RoundedRectSD(fx, fy, w, h, radius);
+                        float depth = -(topRoundedOnly ? TopRoundedRectSD(fx, fy, w, h, radius)
+                                                       : RoundedRectSD(fx, fy, w, h, radius));
                         if (depth <= 0f) continue;
 
                         Color c;
@@ -218,7 +254,48 @@ public static class UISkin
         return Sprite.Create(
             tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f, 0,
             SpriteMeshType.FullRect,
-            new Vector4(sliceX, 0f, sliceX, 0f));   // 좌우만 9-slice — 위아래는 늘리지 않는다
+            new Vector4(sliceX, sliceY, sliceX, sliceY));
+    }
+
+    /// <summary>가운데가 뚫린 ✕ 아이콘. 알파만 쓰고 색은 Image.color로 입힌다.</summary>
+    private static Sprite BuildCross(int size, float thickness)
+    {
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp
+        };
+        var px = new Color[size * size];
+        float pad = size * 0.28f;              // 획이 모서리에 닿지 않게 안쪽으로
+        float half = thickness * 0.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float fx = x + 0.5f, fy = y + 0.5f;
+                // 두 대각선까지의 거리. 45°라 |dx∓dy|/√2 로 바로 나온다.
+                float d1 = Mathf.Abs(fx - fy) * 0.70710678f;
+                float d2 = Mathf.Abs(fx + fy - size) * 0.70710678f;
+                bool inBox = fx >= pad && fx <= size - pad && fy >= pad && fy <= size - pad;
+                float a = inBox ? Mathf.Clamp01(half - Mathf.Min(d1, d2) + 0.5f) : 0f;
+                px[y * size + x] = new Color(1f, 1f, 1f, a);
+            }
+        }
+        tex.SetPixels(px);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
+                             SpriteMeshType.FullRect, Vector4.zero);
+    }
+
+    /// <summary>위 두 모서리만 둥근 사각형. 음수 = 안쪽.</summary>
+    private static float TopRoundedRectSD(float x, float y, int w, int h, float radius)
+    {
+        float dx = Mathf.Abs(x - w * 0.5f);
+        float qx = dx - (w * 0.5f - radius);
+        float qy = y - (h - radius);
+        if (qx > 0f && qy > 0f) return Mathf.Sqrt(qx * qx + qy * qy) - radius;   // 위 모서리 호
+        return Mathf.Max(dx - w * 0.5f, Mathf.Max(-y, y - h));                   // 나머지는 각진 사각형
     }
 
     /// <summary>둥근 사각형 부호거리. 음수 = 안쪽.</summary>

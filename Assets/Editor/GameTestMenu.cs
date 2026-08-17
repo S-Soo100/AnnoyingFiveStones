@@ -114,6 +114,22 @@ public static class GameTestMenu
         Debug.Log("[GameTestMenu] 게이지 표시 (0.67)");
     }
 
+    [MenuItem("Tools/테스트: 일시정지 창")]
+    public static void ShowPause()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (PauseMenuUI.Instance == null) { Debug.LogError("[GameTestMenu] PauseMenuUI 없음"); return; }
+        PauseMenuUI.Instance.Toggle();
+    }
+
+    [MenuItem("Tools/테스트: 경고 창")]
+    public static void ShowQuitConfirm()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (PauseMenuUI.Instance == null) { Debug.LogError("[GameTestMenu] PauseMenuUI 없음"); return; }
+        PauseMenuUI.Instance.DebugShowQuitConfirm();
+    }
+
     [MenuItem("Tools/테스트: 대화 넘기기")]
     public static void SkipDialogue()
     {

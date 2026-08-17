@@ -94,6 +94,8 @@ public static class LocalizationManager
         // === 게임 종료 확인 모달 (260703) ===
         ["quit.message"]  = ("게임을 종료하시겠습니까?\n현재 기록은 저장되지 않습니다.",
                              "Quit game?\nYour score won't be saved."),
+        // v18: 시안 Dialog에 머리띠 제목이 생겼다("주의" / "Warning").
+        ["quit.title"]    = ("주의", "Warning"),
         ["quit.confirm"]  = ("확인", "Quit"),
         ["quit.cancel"]   = ("취소", "Cancel"),
 

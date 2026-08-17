@@ -102,177 +102,199 @@ public class PauseMenuUI : MonoBehaviour
     // 메인 패널 빌드
     // ──────────────────────────────────────────────────────────────────
 
-    private GameObject CreateMainPanel(Transform parent)
+    // ──────────────────────────────────────────────────────────────────
+    // 시안 창(Figma Settings 572:588 / Dialog 572:441) 공통 부품
+    //   창 = 어둠막(#000 70%) + 둥근 몸통(#CCD9DD, r12, 테두리 #5A717F)
+    //        + 머리띠 83(그라디언트, 제목 좌측 44, ✕ 우측)
+    // 좌표는 전부 시안 px(1920×1080)이고, UISkin.Px()가 캔버스 단위로 옮긴다.
+    // ──────────────────────────────────────────────────────────────────
+
+    private const float WinW = 680f, HeaderH = 83f;
+    private const float TitleX = 44f, TitleY = 16f;
+    private const float CloseX = 610f, CloseY = 20f, CloseSize = 44f;
+    private const float TitlePt = 40f, BodyPt = 40f;
+
+    /// <summary>창 한 장을 만든다. 반환값은 화면 전체를 덮는 패널, out은 창 본체(자식 배치용).</summary>
+    private GameObject CreateWindow(Transform parent, string name, string titleKey,
+                                    float designH, UnityAction onClose, out RectTransform window)
     {
-        // 반투명 배경 (전체 화면 덮기)
-        var panelGo = new GameObject("MainPanel");
+        var panelGo = new GameObject(name);
         panelGo.transform.SetParent(parent, false);
         var panelRect = panelGo.AddComponent<RectTransform>();
         panelRect.anchorMin = Vector2.zero;
         panelRect.anchorMax = Vector2.one;
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
+        panelGo.AddComponent<Image>().color = UISkin.WindowDim;
 
-        var bg = panelGo.AddComponent<Image>();
-        bg.color = new Color(0f, 0f, 0f, 0.78f);
+        // 창 몸통
+        var winGo = new GameObject("Window");
+        winGo.transform.SetParent(panelGo.transform, false);
+        window = winGo.AddComponent<RectTransform>();
+        window.anchorMin = window.anchorMax = window.pivot = new Vector2(0.5f, 0.5f);
+        window.sizeDelta = new Vector2(UISkin.Px(WinW), UISkin.Px(designH));
+        window.anchoredPosition = Vector2.zero;
+        var bodyImg = winGo.AddComponent<Image>();
+        bodyImg.sprite = UISkin.WindowBody;
+        bodyImg.type = Image.Type.Sliced;
 
-        // 가운데 컨텐츠 박스
-        var boxGo = new GameObject("ContentBox");
-        boxGo.transform.SetParent(panelGo.transform, false);
-        var boxRect = boxGo.AddComponent<RectTransform>();
-        boxRect.anchorMin = new Vector2(0.5f, 0.5f);
-        boxRect.anchorMax = new Vector2(0.5f, 0.5f);
-        boxRect.pivot = new Vector2(0.5f, 0.5f);
-        boxRect.sizeDelta = new Vector2(320f, 540f);
-        boxRect.anchoredPosition = Vector2.zero;
+        // 머리띠 — 위 모서리만 둥글다. 아래 테두리선이 몸통과의 구분선이 된다.
+        var headGo = new GameObject("Header");
+        headGo.transform.SetParent(winGo.transform, false);
+        var headRt = headGo.AddComponent<RectTransform>();
+        headRt.anchorMin = new Vector2(0f, 1f);
+        headRt.anchorMax = new Vector2(1f, 1f);
+        headRt.pivot = new Vector2(0.5f, 1f);
+        headRt.offsetMin = new Vector2(0f, -UISkin.Px(HeaderH));
+        headRt.offsetMax = Vector2.zero;
+        var headImg = headGo.AddComponent<Image>();
+        headImg.sprite = UISkin.WindowHeader;
+        headImg.type = Image.Type.Sliced;
 
-        var layout = boxGo.AddComponent<VerticalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 14f;
-        layout.padding = new RectOffset(20, 20, 20, 20);
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
+        // 제목 — 시안은 왼쪽 정렬이다(가운데가 아니다)
+        var titleTmp = CreateLabel(headGo.transform, "Title", LocalizationManager.L(titleKey),
+                                   TitlePt, TextAlignmentOptions.Left);
+        Place(titleTmp.rectTransform, TitleX, TitleY, WinW - TitleX * 2f, 51f);
+        localized.Add((titleTmp, titleKey));
 
-        // 제목 텍스트
-        var titleGo = new GameObject("Title");
-        titleGo.transform.SetParent(boxGo.transform, false);
-        var titleRect = titleGo.AddComponent<RectTransform>();
-        titleRect.sizeDelta = new Vector2(280f, 60f);
-
-        var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
-        titleTmp.text = LocalizationManager.L("pause.title");
-        titleTmp.fontSize = 48f;
-        titleTmp.color = Color.white;
-        titleTmp.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) titleTmp.font = koreanFont;
-        localized.Add((titleTmp, "pause.title"));
-
-        var titleLE = titleGo.AddComponent<LayoutElement>();
-        titleLE.preferredHeight = 60f;
-
-        // v13: 마스터(음량) 슬라이더 제거 — BGM/SFX가 유일한 볼륨 제어
-
-        // BGM 슬라이더
-        CreateBGMSlider(boxGo.transform);
-
-        // v11: 효과음(SFX) 슬라이더 — VerticalLayoutGroup이 BGM 아래에 자동 배치
-        CreateSFXSlider(boxGo.transform);
-
-        // 버튼 3개
-        CreateButton("pause.resume", boxGo.transform, OnResume);
-        CreateButton("pause.quit", boxGo.transform, OnQuit);
+        // ✕ — 시안에는 회색 자리표시만 있어 아이콘은 코드로 그린다
+        var closeGo = new GameObject("Close");
+        closeGo.transform.SetParent(headGo.transform, false);
+        var closeRt = closeGo.AddComponent<RectTransform>();
+        Place(closeRt, CloseX, CloseY, CloseSize, CloseSize);
+        var closeImg = closeGo.AddComponent<Image>();
+        closeImg.sprite = UISkin.CloseIcon;
+        closeImg.color = UISkin.Ink;
+        var closeBtn = closeGo.AddComponent<Button>();
+        closeBtn.targetGraphic = closeImg;
+        closeBtn.onClick.AddListener(onClose);
+        closeGo.AddComponent<HandCursorHoverTrigger>().HoverPose = HandPose.PointIndex;
 
         return panelGo;
     }
 
-    private TextMeshProUGUI bgmVolumeLabel;
-    private Slider bgmVolumeSlider;       // BGM 슬라이더 (Open()에서 값 갱신용)
-
-    private TextMeshProUGUI sfxVolumeLabel;
-    private Slider sfxVolumeSlider;       // SFX 슬라이더 (Open()에서 값 갱신용)
-
-    private void CreateBGMSlider(Transform parent)
+    /// <summary>부모 좌상단을 원점으로 시안 px 배치.</summary>
+    private static void Place(RectTransform rt, float x, float y, float w, float h)
     {
-        var wrap = new GameObject("BGMVolumeRow");
-        wrap.transform.SetParent(parent, false);
-        var wrapRect = wrap.AddComponent<RectTransform>();
-        wrapRect.sizeDelta = new Vector2(280f, 54f);
+        rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.sizeDelta = new Vector2(UISkin.Px(w), UISkin.Px(h));
+        rt.anchoredPosition = new Vector2(UISkin.Px(x), -UISkin.Px(y));
+    }
 
-        var wrapLE = wrap.AddComponent<LayoutElement>();
-        wrapLE.preferredHeight = 54f;
-        wrapLE.preferredWidth = 280f;
+    private TextMeshProUGUI CreateLabel(Transform parent, string name, string text,
+                                        float designPt, TextAlignmentOptions align)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var tmp = go.AddComponent<TextMeshProUGUI>();
+        tmp.text = text;
+        tmp.fontSize = UISkin.Px(designPt);
+        tmp.color = UISkin.Ink;
+        tmp.alignment = align;
+        tmp.raycastTarget = false;
+        if (koreanFont != null) tmp.font = koreanFont;
+        return tmp;
+    }
 
-        // 라벨 (상단)
-        var labelGo = new GameObject("BGMLabel");
-        labelGo.transform.SetParent(wrap.transform, false);
-        var labelRect = labelGo.AddComponent<RectTransform>();
-        labelRect.anchorMin = new Vector2(0f, 1f);
-        labelRect.anchorMax = new Vector2(1f, 1f);
-        labelRect.pivot = new Vector2(0.5f, 1f);
-        labelRect.anchoredPosition = Vector2.zero;
-        labelRect.sizeDelta = new Vector2(0f, 24f);
+    // ──────────────────────────────────────────────────────────────────
+    // 메인 패널 (일시정지 창) — 시안 Settings 680×683
+    // ──────────────────────────────────────────────────────────────────
 
-        bgmVolumeLabel = labelGo.AddComponent<TextMeshProUGUI>();
-        bgmVolumeLabel.fontSize = 22f;
-        bgmVolumeLabel.color = Color.white;
-        bgmVolumeLabel.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) bgmVolumeLabel.font = koreanFont;
+    private GameObject CreateMainPanel(Transform parent)
+    {
+        var panelGo = CreateWindow(parent, "MainPanel", "pause.title", 683f, OnResume, out var win);
 
-        // 슬라이더
-        var sliderGo = new GameObject("BGMSlider");
-        sliderGo.transform.SetParent(wrap.transform, false);
-        var sliderRect = sliderGo.AddComponent<RectTransform>();
-        sliderRect.anchorMin = new Vector2(0f, 0f);
-        sliderRect.anchorMax = new Vector2(1f, 0f);
-        sliderRect.pivot = new Vector2(0.5f, 0f);
-        sliderRect.anchoredPosition = new Vector2(0f, 4f);
-        sliderRect.sizeDelta = new Vector2(0f, 22f);
-
-        // Background
-        var bgGo = new GameObject("Background");
-        bgGo.transform.SetParent(sliderGo.transform, false);
-        var bgRect = bgGo.AddComponent<RectTransform>();
-        bgRect.anchorMin = new Vector2(0f, 0.25f);
-        bgRect.anchorMax = new Vector2(1f, 0.75f);
-        bgRect.offsetMin = Vector2.zero;
-        bgRect.offsetMax = Vector2.zero;
-        var bgImg = bgGo.AddComponent<Image>();
-        bgImg.color = new Color(0.15f, 0.15f, 0.15f, 0.9f);
-
-        // Fill Area + Fill
-        var fillAreaGo = new GameObject("Fill Area");
-        fillAreaGo.transform.SetParent(sliderGo.transform, false);
-        var fillAreaRect = fillAreaGo.AddComponent<RectTransform>();
-        fillAreaRect.anchorMin = new Vector2(0f, 0.25f);
-        fillAreaRect.anchorMax = new Vector2(1f, 0.75f);
-        fillAreaRect.offsetMin = new Vector2(8f, 0f);
-        fillAreaRect.offsetMax = new Vector2(-8f, 0f);
-
-        var fillGo = new GameObject("Fill");
-        fillGo.transform.SetParent(fillAreaGo.transform, false);
-        var fillRect = fillGo.AddComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = new Vector2(1f, 1f);
-        fillRect.offsetMin = Vector2.zero;
-        fillRect.offsetMax = Vector2.zero;
-        var fillImg = fillGo.AddComponent<Image>();
-        fillImg.color = new Color(0.45f, 0.85f, 0.65f, 1f); // 녹색 계열로 Master와 구분
-
-        // Handle Slide Area + Handle
-        var handleAreaGo = new GameObject("Handle Slide Area");
-        handleAreaGo.transform.SetParent(sliderGo.transform, false);
-        var handleAreaRect = handleAreaGo.AddComponent<RectTransform>();
-        handleAreaRect.anchorMin = Vector2.zero;
-        handleAreaRect.anchorMax = Vector2.one;
-        handleAreaRect.offsetMin = new Vector2(10f, 0f);
-        handleAreaRect.offsetMax = new Vector2(-10f, 0f);
-
-        var handleGo = new GameObject("Handle");
-        handleGo.transform.SetParent(handleAreaGo.transform, false);
-        var handleRect = handleGo.AddComponent<RectTransform>();
-        handleRect.sizeDelta = new Vector2(20f, 28f);
-        var handleImg = handleGo.AddComponent<Image>();
-        handleImg.color = Color.white;
-
-        bgmVolumeSlider = sliderGo.AddComponent<Slider>();
-        bgmVolumeSlider.targetGraphic = handleImg;
-        bgmVolumeSlider.fillRect = fillRect;
-        bgmVolumeSlider.handleRect = handleRect;
-        bgmVolumeSlider.direction = Slider.Direction.LeftToRight;
-        bgmVolumeSlider.minValue = 0f;
-        bgmVolumeSlider.maxValue = 1f;
-        bgmVolumeSlider.value = AudioManager.GetBGMVolume();
-
+        // 슬라이더 2개 — 시안: Bottom 안에서 (150,61)·(150,200), Bottom은 y=83부터
+        bgmVolumeSlider = CreateSlider(win, "BGM", 150f, HeaderH + 61f,
+            AudioManager.GetBGMVolume(), v => { AudioManager.SetBGMVolume(v); UpdateBGMVolumeLabel(v); },
+            out bgmVolumeLabel);
+        sfxVolumeSlider = CreateSlider(win, "SFX", 150f, HeaderH + 200f,
+            AudioManager.GetSFXVolume(), v => { AudioManager.SetSFXVolume(v); UpdateSFXVolumeLabel(v); },
+            out sfxVolumeLabel);
         UpdateBGMVolumeLabel(bgmVolumeSlider.value);
-        bgmVolumeSlider.onValueChanged.AddListener(v =>
-        {
-            AudioManager.SetBGMVolume(v);
-            UpdateBGMVolumeLabel(v);
-        });
+        UpdateSFXVolumeLabel(sfxVolumeSlider.value);
 
-        // 호버 시 검지
-        var hover = sliderGo.AddComponent<HandCursorHoverTrigger>();
-        hover.HoverPose = HandPose.PointIndex;
+        CreateButton("pause.resume", win, OnResume, 150f, HeaderH + 339f, 380f, 80f);
+        CreateButton("pause.quit",   win, OnQuit,   150f, HeaderH + 459f, 380f, 80f);
+
+        return panelGo;
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // 슬라이더 — 시안 Slide 380×99 (제목 51 + 홈 36)
+    // v18: BGM/SFX가 색만 다른 복붙이었다. 시안이 둘을 같은 부품으로 그려서 하나로 합쳤다.
+    // ──────────────────────────────────────────────────────────────────
+
+    private const float SlideW = 380f, TrackH = 36f, TrackY = 63f;
+    private const float FillInset = 3f, HandleW = 20f;
+
+    private Slider CreateSlider(Transform parent, string name, float x, float y,
+                                float initial, UnityAction<float> onChanged,
+                                out TextMeshProUGUI label)
+    {
+        var rowGo = new GameObject($"{name}Row", typeof(RectTransform));
+        rowGo.transform.SetParent(parent, false);
+        Place(rowGo.GetComponent<RectTransform>(), x, y, SlideW, 99f);
+
+        label = CreateLabel(rowGo.transform, "Title", "", BodyPt, TextAlignmentOptions.Left);
+        Place(label.rectTransform, 0f, 0f, SlideW, 51f);
+
+        var sliderGo = new GameObject($"{name}Slider", typeof(RectTransform));
+        sliderGo.transform.SetParent(rowGo.transform, false);
+        Place(sliderGo.GetComponent<RectTransform>(), 0f, TrackY, SlideW, TrackH);
+
+        // 홈 (흰 바탕 + 먹색 테두리)
+        var trackImg = sliderGo.AddComponent<Image>();
+        trackImg.sprite = UISkin.InsetBoxOf((int)TrackH);
+        trackImg.type = Image.Type.Sliced;
+
+        // 채움 — 홈 안쪽으로 3px
+        var fillAreaGo = new GameObject("Fill Area", typeof(RectTransform));
+        fillAreaGo.transform.SetParent(sliderGo.transform, false);
+        var fillAreaRt = fillAreaGo.GetComponent<RectTransform>();
+        fillAreaRt.anchorMin = Vector2.zero;
+        fillAreaRt.anchorMax = Vector2.one;
+        fillAreaRt.offsetMin = new Vector2(UISkin.Px(FillInset), UISkin.Px(FillInset));
+        fillAreaRt.offsetMax = new Vector2(-UISkin.Px(FillInset), -UISkin.Px(FillInset));
+
+        var fillGo = new GameObject("Fill", typeof(RectTransform));
+        fillGo.transform.SetParent(fillAreaGo.transform, false);
+        var fillRt = fillGo.GetComponent<RectTransform>();
+        fillRt.anchorMin = Vector2.zero;
+        fillRt.anchorMax = Vector2.one;
+        fillRt.offsetMin = fillRt.offsetMax = Vector2.zero;
+        fillGo.AddComponent<Image>().color = UISkin.SliderFill;
+
+        // 손잡이
+        var handleAreaGo = new GameObject("Handle Slide Area", typeof(RectTransform));
+        handleAreaGo.transform.SetParent(sliderGo.transform, false);
+        var handleAreaRt = handleAreaGo.GetComponent<RectTransform>();
+        handleAreaRt.anchorMin = Vector2.zero;
+        handleAreaRt.anchorMax = Vector2.one;
+        handleAreaRt.offsetMin = new Vector2(UISkin.Px(HandleW * 0.5f), 0f);
+        handleAreaRt.offsetMax = new Vector2(-UISkin.Px(HandleW * 0.5f), 0f);
+
+        var handleGo = new GameObject("Handle", typeof(RectTransform));
+        handleGo.transform.SetParent(handleAreaGo.transform, false);
+        var handleRt = handleGo.GetComponent<RectTransform>();
+        handleRt.sizeDelta = new Vector2(UISkin.Px(HandleW), UISkin.Px(TrackH));
+        var handleImg = handleGo.AddComponent<Image>();
+        handleImg.sprite = UISkin.SliderHandle;
+        handleImg.type = Image.Type.Simple;
+
+        var slider = sliderGo.AddComponent<Slider>();
+        slider.targetGraphic = handleImg;
+        slider.fillRect = fillRt;
+        slider.handleRect = handleRt;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.value = initial;
+        slider.onValueChanged.AddListener(onChanged);
+
+        sliderGo.AddComponent<HandCursorHoverTrigger>().HoverPose = HandPose.PointIndex;
+        return slider;
     }
 
     private void UpdateBGMVolumeLabel(float v)
@@ -281,116 +303,18 @@ public class PauseMenuUI : MonoBehaviour
             bgmVolumeLabel.text = LocalizationManager.LF("pause.music", Mathf.RoundToInt(v * 100f));
     }
 
-    // v11: 효과음(SFX) 슬라이더 — CreateBGMSlider 미러링. Fill 색상만 보라/하늘 톤으로 구분.
-    private void CreateSFXSlider(Transform parent)
-    {
-        var wrap = new GameObject("SFXVolumeRow");
-        wrap.transform.SetParent(parent, false);
-        var wrapRect = wrap.AddComponent<RectTransform>();
-        wrapRect.sizeDelta = new Vector2(280f, 54f);
-
-        var wrapLE = wrap.AddComponent<LayoutElement>();
-        wrapLE.preferredHeight = 54f;
-        wrapLE.preferredWidth = 280f;
-
-        // 라벨 (상단)
-        var labelGo = new GameObject("SFXLabel");
-        labelGo.transform.SetParent(wrap.transform, false);
-        var labelRect = labelGo.AddComponent<RectTransform>();
-        labelRect.anchorMin = new Vector2(0f, 1f);
-        labelRect.anchorMax = new Vector2(1f, 1f);
-        labelRect.pivot = new Vector2(0.5f, 1f);
-        labelRect.anchoredPosition = Vector2.zero;
-        labelRect.sizeDelta = new Vector2(0f, 24f);
-
-        sfxVolumeLabel = labelGo.AddComponent<TextMeshProUGUI>();
-        sfxVolumeLabel.fontSize = 22f;
-        sfxVolumeLabel.color = Color.white;
-        sfxVolumeLabel.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) sfxVolumeLabel.font = koreanFont;
-
-        // 슬라이더
-        var sliderGo = new GameObject("SFXSlider");
-        sliderGo.transform.SetParent(wrap.transform, false);
-        var sliderRect = sliderGo.AddComponent<RectTransform>();
-        sliderRect.anchorMin = new Vector2(0f, 0f);
-        sliderRect.anchorMax = new Vector2(1f, 0f);
-        sliderRect.pivot = new Vector2(0.5f, 0f);
-        sliderRect.anchoredPosition = new Vector2(0f, 4f);
-        sliderRect.sizeDelta = new Vector2(0f, 22f);
-
-        // Background
-        var bgGo = new GameObject("Background");
-        bgGo.transform.SetParent(sliderGo.transform, false);
-        var bgRect = bgGo.AddComponent<RectTransform>();
-        bgRect.anchorMin = new Vector2(0f, 0.25f);
-        bgRect.anchorMax = new Vector2(1f, 0.75f);
-        bgRect.offsetMin = Vector2.zero;
-        bgRect.offsetMax = Vector2.zero;
-        var bgImg = bgGo.AddComponent<Image>();
-        bgImg.color = new Color(0.15f, 0.15f, 0.15f, 0.9f);
-
-        // Fill Area + Fill
-        var fillAreaGo = new GameObject("Fill Area");
-        fillAreaGo.transform.SetParent(sliderGo.transform, false);
-        var fillAreaRect = fillAreaGo.AddComponent<RectTransform>();
-        fillAreaRect.anchorMin = new Vector2(0f, 0.25f);
-        fillAreaRect.anchorMax = new Vector2(1f, 0.75f);
-        fillAreaRect.offsetMin = new Vector2(8f, 0f);
-        fillAreaRect.offsetMax = new Vector2(-8f, 0f);
-
-        var fillGo = new GameObject("Fill");
-        fillGo.transform.SetParent(fillAreaGo.transform, false);
-        var fillRect = fillGo.AddComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = new Vector2(1f, 1f);
-        fillRect.offsetMin = Vector2.zero;
-        fillRect.offsetMax = Vector2.zero;
-        var fillImg = fillGo.AddComponent<Image>();
-        fillImg.color = new Color(0.55f, 0.6f, 0.9f, 1f); // 보라/하늘 계열로 BGM(녹색)과 구분
-
-        // Handle Slide Area + Handle
-        var handleAreaGo = new GameObject("Handle Slide Area");
-        handleAreaGo.transform.SetParent(sliderGo.transform, false);
-        var handleAreaRect = handleAreaGo.AddComponent<RectTransform>();
-        handleAreaRect.anchorMin = Vector2.zero;
-        handleAreaRect.anchorMax = Vector2.one;
-        handleAreaRect.offsetMin = new Vector2(10f, 0f);
-        handleAreaRect.offsetMax = new Vector2(-10f, 0f);
-
-        var handleGo = new GameObject("Handle");
-        handleGo.transform.SetParent(handleAreaGo.transform, false);
-        var handleRect = handleGo.AddComponent<RectTransform>();
-        handleRect.sizeDelta = new Vector2(20f, 28f);
-        var handleImg = handleGo.AddComponent<Image>();
-        handleImg.color = Color.white;
-
-        sfxVolumeSlider = sliderGo.AddComponent<Slider>();
-        sfxVolumeSlider.targetGraphic = handleImg;
-        sfxVolumeSlider.fillRect = fillRect;
-        sfxVolumeSlider.handleRect = handleRect;
-        sfxVolumeSlider.direction = Slider.Direction.LeftToRight;
-        sfxVolumeSlider.minValue = 0f;
-        sfxVolumeSlider.maxValue = 1f;
-        sfxVolumeSlider.value = AudioManager.GetSFXVolume();
-
-        UpdateSFXVolumeLabel(sfxVolumeSlider.value);
-        sfxVolumeSlider.onValueChanged.AddListener(v =>
-        {
-            AudioManager.SetSFXVolume(v);
-            UpdateSFXVolumeLabel(v);
-        });
-
-        // 호버 시 검지
-        var hover = sliderGo.AddComponent<HandCursorHoverTrigger>();
-        hover.HoverPose = HandPose.PointIndex;
-    }
-
     private void UpdateSFXVolumeLabel(float v)
     {
         if (sfxVolumeLabel != null)
             sfxVolumeLabel.text = LocalizationManager.LF("pause.sfx", Mathf.RoundToInt(v * 100f));
     }
+
+    private TextMeshProUGUI bgmVolumeLabel;
+    private Slider bgmVolumeSlider;       // BGM 슬라이더 (Open()에서 값 갱신용)
+
+    private TextMeshProUGUI sfxVolumeLabel;
+    private Slider sfxVolumeSlider;       // SFX 슬라이더 (Open()에서 값 갱신용)
+
 
     /// <summary>정적 라벨(제목/버튼/종료문)을 현재 언어로 재설정. Open() 때마다 호출.</summary>
     private void RefreshStaticTexts()
@@ -406,125 +330,66 @@ public class PauseMenuUI : MonoBehaviour
 
     private GameObject CreateQuitConfirmPanel(Transform parent)
     {
-        var panelGo = new GameObject("QuitConfirmPanel");
-        panelGo.transform.SetParent(parent, false);
-        var panelRect = panelGo.AddComponent<RectTransform>();
-        panelRect.anchorMin = Vector2.zero;
-        panelRect.anchorMax = Vector2.one;
-        panelRect.offsetMin = Vector2.zero;
-        panelRect.offsetMax = Vector2.zero;
+        // 시안 Dialog 680×485 — 머리띠 83 + 몸통 402
+        var panelGo = CreateWindow(parent, "QuitConfirmPanel", "quit.title", 485f, OnQuitCancel, out var win);
 
-        var bg = panelGo.AddComponent<Image>();
-        bg.color = new Color(0f, 0f, 0f, 0.78f);
+        // 확인 문구 — 시안은 592×102 @(44, 몸통 기준 80), **왼쪽 정렬**이다
+        quitMsgTmp = CreateLabel(win, "Message", LocalizationManager.L("quit.message"),
+                                 BodyPt, TextAlignmentOptions.TopLeft);
+        quitMsgTmp.textWrappingMode = TextWrappingModes.Normal;
+        Place(quitMsgTmp.rectTransform, 44f, HeaderH + 80f, 592f, 102f);
 
-        // 가운데 컨텐츠 박스
-        var boxGo = new GameObject("ContentBox");
-        boxGo.transform.SetParent(panelGo.transform, false);
-        var boxRect = boxGo.AddComponent<RectTransform>();
-        boxRect.anchorMin = new Vector2(0.5f, 0.5f);
-        boxRect.anchorMax = new Vector2(0.5f, 0.5f);
-        boxRect.pivot = new Vector2(0.5f, 0.5f);
-        boxRect.sizeDelta = new Vector2(360f, 240f);
-        boxRect.anchoredPosition = Vector2.zero;
-
-        var layout = boxGo.AddComponent<VerticalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 20f;
-        layout.padding = new RectOffset(20, 20, 24, 20);
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
-
-        // 확인 텍스트
-        var msgGo = new GameObject("Message");
-        msgGo.transform.SetParent(boxGo.transform, false);
-        var msgRect = msgGo.AddComponent<RectTransform>();
-        msgRect.sizeDelta = new Vector2(320f, 70f);
-
-        var msgTmp = msgGo.AddComponent<TextMeshProUGUI>();
-        msgTmp.text = LocalizationManager.L("quit.message"); // v10: 확정문 + 다국어 첫 소비자
-        msgTmp.fontSize = 36f;
-        msgTmp.color = Color.white;
-        msgTmp.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) msgTmp.font = koreanFont;
-        quitMsgTmp = msgTmp;
-
-        var msgLE = msgGo.AddComponent<LayoutElement>();
-        msgLE.preferredHeight = 70f;
-
-        // 버튼 가로 배치용 HorizontalLayoutGroup
-        var btnRowGo = new GameObject("ButtonRow");
-        btnRowGo.transform.SetParent(boxGo.transform, false);
-        var btnRowRect = btnRowGo.AddComponent<RectTransform>();
-        btnRowRect.sizeDelta = new Vector2(320f, 60f);
-
-        var hLayout = btnRowGo.AddComponent<HorizontalLayoutGroup>();
-        hLayout.childAlignment = TextAnchor.MiddleCenter;
-        hLayout.spacing = 16f;
-        hLayout.childForceExpandWidth = false;
-        hLayout.childForceExpandHeight = false;
-
-        var btnRowLE = btnRowGo.AddComponent<LayoutElement>();
-        btnRowLE.preferredHeight = 60f;
-
-        CreateButton("quit.confirm", btnRowGo.transform, OnQuitConfirm, new Vector2(130f, 56f));
-        CreateButton("quit.cancel", btnRowGo.transform, OnQuitCancel, new Vector2(130f, 56f));
+        // 버튼 2개 — 시안: 284×80이 (44, 몸통 242)에서 308 간격.
+        // **안전한 쪽(취소)이 왼쪽, 되돌릴 수 없는 쪽(종료)이 오른쪽**이다.
+        // 기존 코드는 확인이 먼저였다 — 시안 순서가 잘못 누를 위험이 더 낮다.
+        CreateButton("quit.cancel",  win, OnQuitCancel,  44f,        HeaderH + 242f, 284f, 80f);
+        CreateButton("quit.confirm", win, OnQuitConfirm, 44f + 308f, HeaderH + 242f, 284f, 80f);
 
         return panelGo;
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 버튼 생성 헬퍼
+    // 버튼 생성 헬퍼 — 시안 Button_outline(광택 베벨 + 먹색 라벨)
     // ──────────────────────────────────────────────────────────────────
 
     private GameObject CreateButton(string locKey, Transform parent, UnityAction onClick,
-        Vector2 size = default)
+                                    float x, float y, float w, float h)
     {
-        if (size == default) size = new Vector2(240f, 56f);
-
         var btnGo = new GameObject($"Btn_{locKey}");
         btnGo.transform.SetParent(parent, false);
-        var btnRect = btnGo.AddComponent<RectTransform>();
-        btnRect.sizeDelta = size;
+        Place(btnGo.AddComponent<RectTransform>(), x, y, w, h);
 
         var img = btnGo.AddComponent<Image>();
-        img.color = new Color(0.3f, 0.3f, 0.3f, 0.85f);
+        img.sprite = UISkin.Raised;
+        img.type = Image.Type.Sliced;
+        img.color = Color.white;
 
         var btn = btnGo.AddComponent<Button>();
-        var colors = btn.colors;
-        colors.normalColor    = new Color(0.30f, 0.30f, 0.30f, 0.85f);
-        colors.highlightedColor = new Color(0.50f, 0.50f, 0.50f, 0.90f);
-        colors.pressedColor   = new Color(0.20f, 0.20f, 0.20f, 1.00f);
-        colors.selectedColor  = new Color(0.35f, 0.35f, 0.35f, 0.90f);
-        btn.colors = colors;
+        btn.transition = Selectable.Transition.SpriteSwap;
+        btn.spriteState = new SpriteState
+        {
+            highlightedSprite = UISkin.RaisedHover,
+            pressedSprite     = UISkin.Sunken,
+            selectedSprite    = UISkin.RaisedHover,
+            disabledSprite    = UISkin.Raised,
+        };
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
 
         // 호버 시 검지 가리킴 포즈
-        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
-        hover.HoverPose = HandPose.PointIndex;
+        btnGo.AddComponent<HandCursorHoverTrigger>().HoverPose = HandPose.PointIndex;
 
-        var labelGo = new GameObject("Label");
-        labelGo.transform.SetParent(btnGo.transform, false);
-        var labelRect = labelGo.AddComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
-
-        var tmp = labelGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = LocalizationManager.L(locKey);
-        tmp.fontSize = 32f;
-        tmp.color = Color.white;
-        tmp.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) tmp.font = koreanFont;
+        var tmp = CreateLabel(btnGo.transform, "Label", LocalizationManager.L(locKey),
+                              BodyPt, TextAlignmentOptions.Center);
+        var lr = tmp.rectTransform;
+        lr.anchorMin = Vector2.zero;
+        lr.anchorMax = Vector2.one;
+        lr.offsetMin = lr.offsetMax = Vector2.zero;
         localized.Add((tmp, locKey));
-
-        var le = btnGo.AddComponent<LayoutElement>();
-        le.preferredWidth = size.x;
-        le.preferredHeight = size.y;
 
         return btnGo;
     }
+
 
     // ──────────────────────────────────────────────────────────────────
     // 공개 API
@@ -534,6 +399,13 @@ public class PauseMenuUI : MonoBehaviour
     {
         if (isOpen) Close();
         else Open();
+    }
+
+    /// <summary>개발용 — 경고 창을 바로 띄운다. 시안 대조에 클릭이 필요 없게.</summary>
+    public void DebugShowQuitConfirm()
+    {
+        if (!isOpen) Open();
+        OnQuit();
     }
 
     private void Open()
