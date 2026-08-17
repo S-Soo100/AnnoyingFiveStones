@@ -175,12 +175,21 @@ public static class UISkin
         Build(80, 40, 20f, 20, _ => (Color)GaugeTrackFace, false, GaugeTrackEdge, null));
 
     /// <summary>파워 게이지 채움 — 가운데가 밝은 가로 그라디언트(시안 그대로).
-    /// 9-slice를 하지 않는다: 가로 그라디언트를 좌우로 자르면 밝은 심지가 늘어나 뭉갠다.
+    ///
+    /// **밝기만 굽고 색은 넣지 않는다.** 게이지 색이 값에 따라 바뀌기 때문이다
+    /// (뭉침 coral → 스윗 mint → 경계 amber). 색은 <c>Image.color</c>로 입히고,
+    /// 이 스프라이트는 "가운데가 밝은" 심지 모양만 담당한다.
+    ///
+    /// 9-slice를 하지 않는다: 가로 그라디언트를 좌우로 자르면 심지가 늘어나 뭉갠다.
     /// 대신 <c>Image.Type.Filled</c>로 왼쪽부터 드러내면 심지 위치가 그대로 유지된다.</summary>
     public static Sprite GaugeFill => Cached("gfill", () =>
         Build(640, 40, 20f, 0,
-              t => Color.Lerp(GaugeFillEdge, GaugeFillCore, 1f - Mathf.Abs(t * 2f - 1f)), true,
+              t => Color.Lerp(new Color(0.70f, 0.70f, 0.70f), Color.white,
+                              1f - Mathf.Abs(t * 2f - 1f)), true,
               null, null));
+
+    /// <summary>게이지 채움 기본색(시안 초록의 밝은 심지). 위험 표시를 쓰지 않을 때.</summary>
+    public static readonly Color32 GaugeFillPlain = new Color32(0x57, 0xF8, 0x6A, 0xFF);
 
     // ── 빌더 ────────────────────────────────────────────────────────────────
 

@@ -49,7 +49,9 @@ public class ScatterSystem : MonoBehaviour
     /// 구 화면 단위 0.2와 대응. ⚠️ 재튜닝 대상.</summary>
     private const float BoardMarginUnits = 0.2f;
 
-    private static float RadiusBoard(float g) => RBoardBase + RBoardSpan * Mathf.Clamp01(g);
+    /// <summary>게이지 → 뿌림 반경(보드 단위). 게이지바도 이 값으로 위험 색을 정한다
+    /// (GaugeBarUI) — 링과 바가 서로 다른 식을 쓰면 두 개가 다른 말을 하게 된다.</summary>
+    public static float RadiusBoard(float g) => RBoardBase + RBoardSpan * Mathf.Clamp01(g);
 
     private const float TossDuration = 0.50f; // 돌 하나 비행 시간(초) — v15 여유있는 아치
     private const float TossStagger  = 0.05f; // 돌 간 출발 지연(캐스케이드 느낌)

@@ -213,7 +213,10 @@ public partial class HandController : MonoBehaviour
                     stage5GaugeValue -= stage5GaugeSpeed * Time.deltaTime;
                     if (stage5GaugeValue <= 0f) { stage5GaugeValue = 0f; stage5GaugeGoingUp = true; }
                 }
-                GaugeBarUI.Instance?.SetValue(stage5GaugeValue);
+                // 5단 게이지는 **던지는 높이**다(HandController.Stage5: peakY를 Lerp).
+                // 뿌리기처럼 "너무 좁으면 뭉치고 너무 넓으면 낙" 같은 구간이 없으므로
+                // 위험 색을 입히지 않는다 — 없는 위험을 있는 것처럼 말하게 된다.
+                GaugeBarUI.Instance?.SetValue(stage5GaugeValue, showRisk: false);
             }
 
             if (!isPressed && stage5GaugeActive)

@@ -23,6 +23,22 @@ public class ScatterRangeIndicator : MonoBehaviour
     private static readonly Color amber = new Color(0.95f, 0.75f, 0.30f);
     private static readonly Color coral = new Color(0.95f, 0.40f, 0.35f);
 
+    /// <summary>
+    /// 뿌림 반경 → 위험 색. 뭉침(coral) → 스윗(mint) → 경계(amber) → 낙(coral).
+    ///
+    /// **낮은 쪽도 나쁘다** — 반경이 작으면 돌이 뭉쳐서 손바닥으로 하나만 집을 수가 없다.
+    /// 그래서 이 곡선은 단조 증가가 아니라 U자다. 게이지바가 이 함수를 같이 쓴다
+    /// (GaugeBarUI) — 링과 바가 각자 계산하면 언젠가 서로 다른 말을 하게 된다.
+    /// </summary>
+    public static Color BandColor(float radiusBoard)
+    {
+        if (radiusBoard < GuideInnerBoard)
+            return Color.Lerp(coral, mint, Mathf.InverseLerp(1.6f, GuideInnerBoard, radiusBoard)); // 뭉침→스윗 진입
+        if (radiusBoard <= 4.50f)
+            return Color.Lerp(mint, amber, Mathf.InverseLerp(GuideOuterBoard, 4.50f, radiusBoard)); // 스윗, 경계 근처 앰버
+        return coral; // 낙
+    }
+
     private LineRenderer lr;
     private LineRenderer guideInner;
     private LineRenderer guideOuter;
@@ -111,14 +127,8 @@ public class ScatterRangeIndicator : MonoBehaviour
 
         float dangerFrac = (float)outside / SEG;
 
-        // 3) 3밴드 색: 뭉침(coral)→스윗(mint)→경계앰버→낙(coral). 실제 넘침은 coral 강조.
-        Color c;
-        if (radiusBoard < GuideInnerBoard)
-            c = Color.Lerp(coral, mint, Mathf.InverseLerp(1.6f, GuideInnerBoard, radiusBoard)); // 뭉침→스윗 진입
-        else if (radiusBoard <= 4.50f)
-            c = Color.Lerp(mint, amber, Mathf.InverseLerp(GuideOuterBoard, 4.50f, radiusBoard)); // 스윗, 경계 근처 앰버 경고
-        else
-            c = coral; // 낙
+        // 3) 3밴드 색. 실제 넘침은 coral 강조.
+        Color c = BandColor(radiusBoard);
         if (dangerFrac > 0f) c = Color.Lerp(c, coral, Mathf.Clamp01(dangerFrac * 3f)); // 실제 넘침 강조
         c.a = 0.85f;
         lr.startColor = c;

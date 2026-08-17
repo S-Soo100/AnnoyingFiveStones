@@ -45,12 +45,23 @@ public class GaugeBarUI : MonoBehaviour
     }
 
     /// <summary>게이지 값 갱신 (0~1)</summary>
-    public void SetValue(float value)
+    /// <param name="showRisk">
+    /// true면 채움 색이 **뿌림 위험**을 나타낸다 — 보드 위 링과 똑같은 함수를 쓴다.
+    /// 5단(꺾기)의 게이지는 던지는 높이라 "스윗 구간"이 없으므로 false로 부른다.
+    /// </param>
+    public void SetValue(float value, bool showRisk = true)
     {
         value = Mathf.Clamp01(value);
         // Type.Filled로 왼쪽부터 드러낸다. 폭을 직접 줄이면 시안의 "가운데가 밝은" 심지가
         // 같이 압축돼 색이 달라 보인다.
-        if (barFill != null) barFill.fillAmount = value;
+        if (barFill != null)
+        {
+            barFill.fillAmount = value;
+            // 스프라이트는 밝기만 담고 있어서 색은 여기서 입힌다.
+            barFill.color = showRisk
+                ? ScatterRangeIndicator.BandColor(ScatterSystem.RadiusBoard(value))
+                : (Color)UISkin.GaugeFillPlain;
+        }
         if (percentLabel != null) percentLabel.text = $"{Mathf.RoundToInt(value * 100f)}%";
     }
 
@@ -122,6 +133,7 @@ public class GaugeBarUI : MonoBehaviour
         barFill.fillMethod = Image.FillMethod.Horizontal;
         barFill.fillOrigin = (int)Image.OriginHorizontal.Left;
         barFill.fillAmount = 0f;
+        barFill.color = UISkin.GaugeFillPlain;   // SetValue가 부르기 전까지의 기본색
         barFill.raycastTarget = false;
 
         // 퍼센트 — 홈 한가운데. 시안에는 없지만, 없으면 "얼마나 셌는지"를

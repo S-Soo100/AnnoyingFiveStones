@@ -111,6 +111,13 @@ public static class GameTestMenu
     [MenuItem("Tools/테스트: 게이지 보이기 (25%)")]
     public static void ShowGaugeLow() => ShowGaugeAt(0.25f);
 
+    /// <summary>뭉침 구간 — 채움이 coral로 경고해야 한다.</summary>
+    [MenuItem("Tools/테스트: 게이지 보이기 (10%)")]
+    public static void ShowGaugeTight() => ShowGaugeAt(0.10f);
+
+    [MenuItem("Tools/테스트: 게이지 보이기 (100%)")]
+    public static void ShowGaugeFull() => ShowGaugeAt(1.00f);
+
     private static void ShowGaugeAt(float v)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
