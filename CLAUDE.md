@@ -22,6 +22,23 @@
 - MCP Unity 포트: **8091** (손도끼=8090과 독립)
 - 기획 원본(SOT): **[`docs/기획서-v11-통합본.md`](docs/기획서-v11-통합본.md)** — 2026-07-31 통합. ideaBank의 기획서 v1~v10은 이력 보존용이며 **현재 기획의 근거로 인용하지 않는다**
 
+## UI 시안 (Figma) — talk-to-figma MCP로 접근
+
+UI 수치는 **스크린샷 눈대중이 아니라 Figma 실측치**로 옮긴다. 한 번 스크린샷만 보고 옮겼다가
+버튼 색을 통째로 틀렸다(Win9x 회색으로 읽었으나 실제는 하늘색 광택 그라디언트, 2026-08-17).
+
+- 파일: Figma 페이지 **`공기게임`** / 섹션 **`UI최종시안 0817`** (node `572:287`)
+  - `Home` `572:539` · `MainPlay` `572:288` · `Settings(한글)` `572:588` · `Dialog(한글)` `572:441`
+  - 컴포넌트 낱개: 버튼 `572:520` · 상태박스 `572:531` · 단표시 `572:469`/`572:485` · 파워게이지 `572:456`
+- 접근 순서 (**세션마다** 필요):
+  1. 소켓 릴레이 기동 — `cd /Users/baek/tools/cursor-talk-to-figma-mcp && bun socket` (포트 3055, 백그라운드)
+  2. Figma **데스크톱 앱**에서 파일 열고 Plugins → Development → *Cursor Talk To Figma MCP* 실행
+  3. 플러그인이 뿌리는 채널명을 받아 `join_channel`
+- `get_node_info`는 섹션 통째로 부르면 13만자라 컨텍스트를 넘긴다 → 저장된 JSON을 python으로 파싱해 필요한 필드만 뽑는다.
+- **시안 → Unity 환산**: 시안 1920×1080, CanvasScaler referenceResolution 1280×720 → 정확히 1.5배.
+  `UISkin.Px(시안px)`를 통과시킨다. 팔레트·베벨 규칙도 [`Assets/Scripts/UISkin.cs`](Assets/Scripts/UISkin.cs)에 실측 출처와 함께 있다.
+- ⚠️ 시안 폰트 `Iosevka Charon Mono`에는 **한글 글립이 없다**(Figma의 한글은 폴백 렌더). 기본 언어가 한국어라 그대로 못 쓴다.
+
 ## ideaBank 연동
 이 프로젝트의 기획 문서와 도구는 ideaBank에 있다. **절대경로로 접근**.
 

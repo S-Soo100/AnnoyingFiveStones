@@ -174,17 +174,24 @@ public class TitleScreenUI : MonoBehaviour
         titleRect.anchorMin = new Vector2(0.5f, 0.5f);
         titleRect.anchorMax = new Vector2(0.5f, 0.5f);
         titleRect.pivot = new Vector2(0.5f, 0.5f);
-        titleRect.sizeDelta = new Vector2(900f, 100f);
-        titleRect.anchoredPosition = new Vector2(0f, 80f);
+        // 시안 실측: 1268×191 @(350,264) — 중심 y는 화면 상단에서 359.5px 지점
+        titleRect.sizeDelta = new Vector2(UISkin.Px(1268f), UISkin.Px(191f));
+        titleRect.anchoredPosition = new Vector2(0f, UISkin.Px(1080f * 0.5f - 359.5f));
 
         var titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
         titleTmp.text = "Catch Five Stones";
-        titleTmp.fontSize = 88f;   // v18: 시안의 로고 비중(화면 폭 ~75%)에 맞춤
+        // 시안 실측 149.13px. 다만 시안 폰트(Iosevka Mono)보다 나눔고딕이 넓어서 그대로 두면
+        // 두 줄로 접힌다 — 시안은 한 줄이다. 줄바꿈을 막고, 시안의 로고 폭(1268px) 안에
+        // 들어오도록 자동 축소시킨다. 폰트를 바꾸면 자연히 시안 크기에 붙는다.
+        titleTmp.textWrappingMode = TextWrappingModes.NoWrap;
+        titleTmp.enableAutoSizing = true;
+        titleTmp.fontSizeMax = UISkin.Px(149.13f);
+        titleTmp.fontSizeMin = UISkin.Px(80f);
         // v18: 시안의 로고 배색 — 연두 면 + 어두운 외곽선. 밝은 교실 배경 위에서 뭉개지지 않는다.
-        // ⚠️ 폰트는 아직 그대로다. 디자이너가 "동글동글한 글씨체"를 원했지만,
-        //    이 게임의 기본 언어가 한국어라 **한글 글립이 있는 폰트**여야 한다(영문 전용이면 무너진다).
-        //    후보가 정해지면 여기와 koreanFont 로딩만 바꾸면 된다.
-        titleTmp.color = new Color32(0xD6, 0xE8, 0x3C, 0xFF);
+        // ⚠️ 폰트는 아직 그대로다. 시안은 "Iosevka Charon Mono"를 쓰는데 **한글 글립이 없다**
+        //    (Figma에서 한글은 폴백으로 그려진 것이다). 이 게임의 기본 언어가 한국어라
+        //    그대로 가져오면 한글이 무너진다. 후보가 정해지면 여기와 koreanFont 로딩만 바꾸면 된다.
+        titleTmp.color = UISkin.LogoFill;
         titleTmp.alignment = TextAlignmentOptions.Center;
         titleTmp.fontStyle = FontStyles.Bold;
         if (koreanFont != null) titleTmp.font = koreanFont;
@@ -195,7 +202,7 @@ public class TitleScreenUI : MonoBehaviour
         // 칠판 위에 걸쳐 있어 얇아도 살았지만, 여기선 밝은 면 위를 지나므로 더 굵어야 한다.
         var titleMat = titleTmp.fontMaterial;
         titleMat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.28f);
-        titleMat.SetColor(ShaderUtilities.ID_OutlineColor, new Color32(0x24, 0x2E, 0x08, 0xFF));
+        titleMat.SetColor(ShaderUtilities.ID_OutlineColor, UISkin.LogoOutline);
 
         // 장식용 3D 돌 5개 (타이틀 아래 흩어짐)
         CreateDecoStones(parent);
@@ -204,11 +211,17 @@ public class TitleScreenUI : MonoBehaviour
         CreateSpeechBubbles(parent);
 
         // v11: 홈은 항상 게임 시작 단일 버튼으로 통일. 연습 모드(IsTestPlay)는 디버그 HUD 테스트 패널에서 진입 (에디터/연습빌드 전용).
-        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.play"), parent, new Vector2(0f, -50f), 34, () => OnModeSelected(false)), "home.play");
-        float settingsY = -110f, exitY = -170f;
+        // 시안 실측: 버튼 380×80이 y=639부터 110px 간격으로 3개. 라벨은 전부 40px.
+        // 세 버튼의 크기·글자를 다르게 두면 "Play가 더 중요하다"가 아니라 그냥 정렬이 안 맞아 보인다.
+        const float LabelPx = 40f;
+        float playY     = UISkin.Px(540f - 679f);
+        float settingsY = UISkin.Px(540f - 789f);
+        float exitY     = UISkin.Px(540f - 899f);
+
+        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.play"), parent, new Vector2(0f, playY), UISkin.Px(LabelPx), () => OnModeSelected(false)), "home.play");
 
         // "설정" 버튼
-        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.settings"), parent, new Vector2(0f, settingsY), 26, () => {
+        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.settings"), parent, new Vector2(0f, settingsY), UISkin.Px(LabelPx), () => {
             SettingsPopupUI.EnsureInstance().Open();
         }), "home.settings");
 
@@ -222,7 +235,7 @@ public class TitleScreenUI : MonoBehaviour
         // v18: 나가기를 우상단 투명 영역에서 **세로 메뉴 3번째**로 옮긴다.
         // UI 시안이 Play / Settings / Exit를 한 줄기로 쌓아둔 형태고,
         // 실제로도 화면 구석의 흐린 글자보다 같은 메뉴에 있는 편이 찾기 쉽다.
-        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.exit"), parent, new Vector2(0f, exitY), 26, () => {
+        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.exit"), parent, new Vector2(0f, exitY), UISkin.Px(LabelPx), () => {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else
@@ -598,7 +611,7 @@ public class TitleScreenUI : MonoBehaviour
         }
     }
 
-    private TextMeshProUGUI CreateMenuButton(string text, Transform parent, Vector2 pos, int fontSize, UnityEngine.Events.UnityAction onClick)
+    private TextMeshProUGUI CreateMenuButton(string text, Transform parent, Vector2 pos, float fontSize, UnityEngine.Events.UnityAction onClick)
     {
         var btnGo = new GameObject($"Btn_{text}");
         btnGo.transform.SetParent(parent, false);
@@ -606,13 +619,13 @@ public class TitleScreenUI : MonoBehaviour
         btnRect.anchorMin = new Vector2(0.5f, 0.5f);
         btnRect.anchorMax = new Vector2(0.5f, 0.5f);
         btnRect.pivot = new Vector2(0.5f, 0.5f);
-        btnRect.sizeDelta = new Vector2(240f, 50f);
+        btnRect.sizeDelta = new Vector2(UISkin.Px(380f), UISkin.Px(80f));
         btnRect.anchoredPosition = pos;
 
-        // v18: Win9x 베벨 버튼. 스프라이트를 바꿔 "튀어나옴 → 눌림"을 표현한다.
-        // 색 전환(ColorTint)으로는 눌린 느낌이 안 난다 — 베벨의 방향이 뒤집혀야 읽힌다.
+        // v18: 시안(Figma)의 광택 베벨 버튼. 스프라이트를 바꿔 "튀어나옴 → 눌림"을 표현한다.
+        // 색 전환(ColorTint)으로는 눌린 느낌이 안 난다 — 그라디언트 방향이 뒤집혀야 읽힌다.
         var img = btnGo.AddComponent<Image>();
-        img.sprite = RetroSkin.Raised;
+        img.sprite = UISkin.Raised;
         img.type = Image.Type.Sliced;
         img.color = Color.white;
 
@@ -620,10 +633,10 @@ public class TitleScreenUI : MonoBehaviour
         btn.transition = Selectable.Transition.SpriteSwap;
         btn.spriteState = new SpriteState
         {
-            highlightedSprite = RetroSkin.RaisedHover,
-            pressedSprite     = RetroSkin.Sunken,
-            selectedSprite    = RetroSkin.RaisedHover,
-            disabledSprite    = RetroSkin.Raised,
+            highlightedSprite = UISkin.RaisedHover,
+            pressedSprite     = UISkin.Sunken,
+            selectedSprite    = UISkin.RaisedHover,
+            disabledSprite    = UISkin.Raised,
         };
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
@@ -643,7 +656,7 @@ public class TitleScreenUI : MonoBehaviour
         var tmp = labelGo.AddComponent<TextMeshProUGUI>();
         tmp.text = text;
         tmp.fontSize = fontSize;
-        tmp.color = RetroSkin.Ink;   // v18: 회색 면 위에서는 검정이라야 읽힌다
+        tmp.color = UISkin.Ink;   // v18: 시안 라벨색 #29313B (순검정이 아니라 살짝 푸른 먹색)
         tmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) tmp.font = koreanFont;
         return tmp;
