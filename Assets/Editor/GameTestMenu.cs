@@ -114,6 +114,15 @@ public static class GameTestMenu
         Debug.Log("[GameTestMenu] 게이지 표시 (0.67)");
     }
 
+    /// <summary>영문에서 글자가 상자를 넘치는지 보려면 언어를 바꿔가며 같은 화면을 찍어야 한다.</summary>
+    [MenuItem("Tools/테스트: 언어 전환")]
+    public static void ToggleLanguage()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        LocalizationManager.Toggle();
+        Debug.Log("[GameTestMenu] 언어 전환");
+    }
+
     [MenuItem("Tools/테스트: 일시정지 창")]
     public static void ShowPause()
     {

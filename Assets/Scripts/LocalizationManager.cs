@@ -92,12 +92,16 @@ public static class LocalizationManager
         ["pause.sfx"]     = ("효과음 {0}%", "Sound Effect {0}%"), // v11 일시정지 SFX 슬라이더
 
         // === 게임 종료 확인 모달 (260703) ===
-        ["quit.message"]  = ("게임을 종료하시겠습니까?\n현재 기록은 저장되지 않습니다.",
+        // v18: 시안 Dialog(572:441 국문 / 572:613 영문) 문구로 교체.
+        // 국문은 두 문장을 한 문장으로 합쳐 "무엇을 잃는지"를 물음 안에 넣었다.
+        // 영문 시안은 텍스트 상자에서 잘려 있어("Quit game? \nYour score won't be")
+        // 기존 완성형 문장을 그대로 둔다 — 잘린 쪽을 따라갈 이유가 없다.
+        ["quit.message"]  = ("기록을 저장하지 않고 게임을 종료하시겠습니까?",
                              "Quit game?\nYour score won't be saved."),
-        // v18: 시안 Dialog에 머리띠 제목이 생겼다("주의" / "Warning").
         ["quit.title"]    = ("주의", "Warning"),
-        ["quit.confirm"]  = ("확인", "Quit"),
-        ["quit.cancel"]   = ("취소", "Cancel"),
+        // 버튼은 결과를 그대로 적는다 — "확인"은 무엇이 확인되는지 말해주지 않는다.
+        ["quit.confirm"]  = ("게임 종료", "Quit"),
+        ["quit.cancel"]   = ("아니오", "Cancel"),
 
         // === 성공/실패 (260703) ===
         ["result.clear"]  = ("CLEAR!", "CLEAR!"),
