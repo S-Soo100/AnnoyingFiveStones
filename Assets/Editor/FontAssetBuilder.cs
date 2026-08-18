@@ -67,6 +67,21 @@ public static class FontAssetBuilder
 
         // 다 구운 뒤 고정 — 런타임에 아틀라스를 다시 만들지 않게 한다.
         fontAsset.atlasPopulationMode = AtlasPopulationMode.Static;
+
+        if (fontAsset.material != null)
+        {
+            // ⚠️ CreateFontAsset은 머티리얼을 **TMP_SDF-Mobile** 셰이더로 만든다.
+            //    이 프로젝트에서 외곽선이 실제로 나오던 나눔고딕 에셋은 **TMP_SDF**를 쓴다.
+            //    Mobile 쪽에 로고 외곽선을 걸었더니 아무것도 안 그려졌다 — 동작이 확인된
+            //    쪽으로 맞춘다.
+            var sdf = Shader.Find("TextMeshPro/Distance Field");
+            if (sdf != null) fontAsset.material.shader = sdf;
+            else Debug.LogWarning("[FontAssetBuilder] TMP_SDF 셰이더를 찾지 못했다 — Mobile 유지");
+
+            // 코드로 만든 머티리얼은 _ScaleRatioA/B/C가 계산되지 않은 채 남는다.
+            // 이 값이 없으면 외곽선 두께가 0으로 취급된다. Font Asset Creator는 이걸 대신 해준다.
+            ShaderUtilities.UpdateShaderRatios(fontAsset.material);
+        }
         if (fallback != null)
             fontAsset.fallbackFontAssetTable = new List<TMP_FontAsset> { fallback };
 

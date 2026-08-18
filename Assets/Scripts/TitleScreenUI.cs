@@ -200,9 +200,13 @@ public class TitleScreenUI : MonoBehaviour
         // 공유 머티리얼을 건드리면 게임 안 모든 텍스트에 외곽선이 붙는다.
         // 배경이 교실(밝은 벽·창문)이라 외곽선이 얇으면 글자가 묻힌다. 시안은 로고가
         // 칠판 위에 걸쳐 있어 얇아도 살았지만, 여기선 밝은 면 위를 지나므로 더 굵어야 한다.
-        var titleMat = titleTmp.fontMaterial;
-        titleMat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.28f);
-        titleMat.SetColor(ShaderUtilities.ID_OutlineColor, UISkin.LogoOutline);
+        // ⚠️ 머티리얼에 _OutlineWidth를 직접 넣으면 안 그려진다.
+        //    TMP의 외곽선은 셰이더 키워드(OUTLINE_ON)와 비율값(_ScaleRatioA)이 함께 맞아야
+        //    나오는데, 코드로 구운 폰트 에셋은 그 값들이 비어 있다(Font Asset Creator로 만든
+        //    나눔고딕은 채워져 있어서 여태 모르고 지나갔다).
+        //    outlineWidth/outlineColor 프로퍼티는 TMP가 그 셋업을 대신 해준다 — 이걸 쓴다.
+        titleTmp.outlineWidth = 0.28f;
+        titleTmp.outlineColor = UISkin.LogoOutline;
 
         // 장식용 3D 돌 5개 (타이틀 아래 흩어짐)
         CreateDecoStones(parent);
