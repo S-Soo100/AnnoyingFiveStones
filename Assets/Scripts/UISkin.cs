@@ -76,6 +76,15 @@ public static class UISkin
     /// </summary>
     /// <param name="radius">이 스프라이트의 바깥 곡률. 슬라이스 폭이 곡률보다 작으면
     /// 늘릴 때 모서리 호가 잘려 각져 보인다 — 둘 중 큰 값을 쓴다.</param>
+    /// <summary>
+    /// 시안은 어두운 테두리를 박스 **바깥**에 그린다 — 180×80 버튼이 실제로는 188×88로 찍힌다.
+    /// 우리는 안쪽에 그리므로, 같은 크기로 두면 면이 시안보다 사방 4px씩 좁다.
+    /// 요소를 이만큼 키워야 **면적까지** 맞는다(테두리 두께·실루엣은 이미 맞췄다).
+    /// </summary>
+    public static float Outset => EdgeOuterW;
+
+    /// <param name="radius">이 스프라이트의 바깥 곡률. 슬라이스 폭이 곡률보다 작으면
+    /// 늘릴 때 모서리 호가 잘려 각져 보인다 — 둘 중 큰 값을 쓴다.</param>
     public static int SliceFor(float radius) =>
         Mathf.CeilToInt(Mathf.Max(EdgeOuterW + EdgeInnerW, radius)) + 2;
 

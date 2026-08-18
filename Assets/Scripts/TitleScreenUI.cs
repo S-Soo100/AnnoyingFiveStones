@@ -619,7 +619,10 @@ public class TitleScreenUI : MonoBehaviour
         btnRect.anchorMin = new Vector2(0.5f, 0.5f);
         btnRect.anchorMax = new Vector2(0.5f, 0.5f);
         btnRect.pivot = new Vector2(0.5f, 0.5f);
-        btnRect.sizeDelta = new Vector2(UISkin.Px(380f), UISkin.Px(80f));
+        // 시안 380×80은 **면 기준**이다 — 어두운 테두리가 그 바깥에 그려져 실제 188×88로 찍힌다.
+        // 우리는 테두리를 안쪽에 그리므로 사방으로 넓혀야 면적이 같아진다(중앙 기준이라 크기만 키우면 된다).
+        btnRect.sizeDelta = new Vector2(UISkin.Px(380f + UISkin.Outset * 2f),
+                                        UISkin.Px(80f + UISkin.Outset * 2f));
         btnRect.anchoredPosition = pos;
 
         // v18: 시안(Figma)의 광택 베벨 버튼. 스프라이트를 바꿔 "튀어나옴 → 눌림"을 표현한다.

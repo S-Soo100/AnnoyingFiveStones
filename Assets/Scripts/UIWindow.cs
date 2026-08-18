@@ -184,7 +184,10 @@ public static class UIWindow
     {
         var btnGo = new GameObject("Btn_" + text);
         btnGo.transform.SetParent(parent, false);
-        Place(btnGo.AddComponent<RectTransform>(), x, y, w, h);
+        // 시안 좌표는 **면 기준**이고 어두운 테두리는 그 바깥에 그려진다.
+        // 우리는 테두리를 안쪽에 그리므로 사방으로 그만큼 넓혀야 면적이 같아진다.
+        float o = UISkin.Outset;
+        Place(btnGo.AddComponent<RectTransform>(), x - o, y - o, w + o * 2f, h + o * 2f);
 
         var img = btnGo.AddComponent<Image>();
         img.sprite = UISkin.Raised;

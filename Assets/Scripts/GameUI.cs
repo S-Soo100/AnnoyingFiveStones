@@ -296,7 +296,9 @@ public class GameUI : MonoBehaviour
         // v18: 시안 실측 — 180×80 @(1690,50). 이전에는 우상단 500×250 **투명** 영역이라
         // 버튼이 있는지 알 수 없었고, 그 넓이 때문에 지나가다 잘못 눌리기도 했다.
         btnRect.anchorMin = btnRect.anchorMax = btnRect.pivot = new Vector2(0.5f, 0.5f);
-        btnRect.sizeDelta = new Vector2(UISkin.GamePx(180f), UISkin.GamePx(80f));
+        // 시안 180×80은 면 기준 — 테두리가 바깥에 그려진다. 사방으로 넓혀 면적을 맞춘다.
+        btnRect.sizeDelta = new Vector2(UISkin.GamePx(180f + UISkin.Outset * 2f),
+                                        UISkin.GamePx(80f + UISkin.Outset * 2f));
         btnRect.anchoredPosition = new Vector2(UISkin.GamePx(1690f + 90f - 960f),
                                                UISkin.GamePx(540f - (50f + 40f)));
 
