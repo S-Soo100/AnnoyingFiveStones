@@ -104,13 +104,12 @@ public static class UISkin
     public static readonly Color32 LogoOutline = new Color32(0x17, 0x18, 0x1A, 0xFF);
 
     /// <summary>
-    /// 안내문 띠 — 시안 색조(#5A717F) 그대로, 불투명도만 50% → 78%.
-    /// 시안은 이 띠를 배경 중 어두운 자리에 얹어 흰 글자가 떴지만, 실제 게임에서는
-    /// 같은 자리가 밝은 창문·문이라 50%로는 판도 글자도 묻힌다. 게다가 이 띠는
-    /// 3초 뒤 CanvasGroup 알파 0.85로 한 번 더 곱해진다(GameUI.DoGuideText).
-    /// 색조를 바꾸지 않고 대비만 확보하는 가장 작은 조정이다.
+    /// 안내문 띠 — 시안 값 그대로(#5A717F 50%).
+    /// ⚠️ 한때 78%로 올렸었다. 시안은 이 띠를 배경 중 어두운 자리에 얹었는데 실제
+    /// 게임에서는 같은 자리가 밝은 창문·문이라 50%로는 글자가 묻히기 때문이다.
+    /// 디자이너 확인 결과 "시안대로"로 정해져 되돌렸다 — 밝은 배경 위에서 읽기 어렵다.
     /// </summary>
-    public static readonly Color GuideBackdrop = new Color32(0x5A, 0x71, 0x7F, 0xC8);
+    public static readonly Color GuideBackdrop = new Color32(0x5A, 0x71, 0x7F, 0x80);
     /// <summary>안내문 띠 테두리 — 시안은 면과 같은 색조를 불투명으로 두른다.</summary>
     public static readonly Color GuideStroke = new Color32(0x5A, 0x71, 0x7F, 0xFF);
 

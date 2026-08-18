@@ -1,4 +1,3 @@
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,9 +10,9 @@ using UnityEngine.UI;
 /// 가로로 눕히면 **판을 한 픽셀도 가리지 않는다**. 시선도 손 바로 아래에 머문다.
 ///
 /// 시안에는 퍼센트 숫자도, 값에 따른 색 변화도 없다(채움 길이만 다른 두 상태를
-/// 같은 초록으로 그려뒀다). 처음엔 시안을 따라 둘 다 뺐지만, 그러면 세기 피드백이
-/// **막대 길이 하나**로 줄어든다 — 시안은 위험 구간이라는 개념 없이 그려진 그림이다.
-/// 그래서 둘 다 되살렸고, 색은 보드 위 링과 **같은 함수**를 쓴다.
+/// 같은 초록으로 그려뒀다). 한때 둘 다 넣었지만 — 세기 피드백이 막대 길이 하나로
+/// 줄어들기 때문이었다 — 디자이너 확인 결과 "시안대로"로 확정되어 다시 뺐다.
+/// **위험 구간은 보드 위 링(ScatterRangeIndicator)이 계속 색으로 알려준다.**
 /// </summary>
 public class GaugeBarUI : MonoBehaviour
 {
@@ -29,7 +28,6 @@ public class GaugeBarUI : MonoBehaviour
     private Canvas canvas;
     private GameObject barRoot;
     private Image barFill;
-    private TextMeshProUGUI percentLabel;
 
     private void Awake()
     {
@@ -50,8 +48,8 @@ public class GaugeBarUI : MonoBehaviour
 
     /// <summary>게이지 값 갱신 (0~1)</summary>
     /// <param name="showRisk">
-    /// true면 채움 색이 **뿌림 위험**을 나타낸다 — 보드 위 링과 똑같은 함수를 쓴다.
-    /// 5단(꺾기)의 게이지는 던지는 높이라 "스윗 구간"이 없으므로 false로 부른다.
+    /// 시안이 값별 색 변화를 쓰지 않기로 확정돼 지금은 무시된다.
+    /// 호출부(ScatterSystem·HandController)를 건드리지 않으려고 인자만 남겼다.
     /// </param>
     public void SetValue(float value, bool showRisk = true)
     {
@@ -61,12 +59,8 @@ public class GaugeBarUI : MonoBehaviour
         if (barFill != null)
         {
             barFill.fillAmount = value;
-            // 스프라이트는 밝기만 담고 있어서 색은 여기서 입힌다.
-            barFill.color = showRisk
-                ? ScatterRangeIndicator.BandColor(ScatterSystem.RadiusBoard(value))
-                : (Color)UISkin.SafeGreen;
+            barFill.color = UISkin.SafeGreen;   // 시안은 항상 같은 초록
         }
-        if (percentLabel != null) percentLabel.text = $"{Mathf.RoundToInt(value * 100f)}%";
     }
 
     /// <summary>게이지 표시</summary>
@@ -140,30 +134,6 @@ public class GaugeBarUI : MonoBehaviour
         barFill.color = UISkin.SafeGreen;   // SetValue가 부르기 전까지의 기본색
         barFill.raycastTarget = false;
 
-        // 퍼센트 — 홈 한가운데. 시안에는 없지만, 없으면 "얼마나 셌는지"를
-        // 막대 길이 눈대중으로만 재게 된다. 값 색 변화도 함께 빠진 터라 피드백이 한 겹뿐이었다.
-        // 홈 위에 얹으므로 막대가 세로로 두꺼워지지 않는다.
-        var pctGo = new GameObject("Percent", typeof(RectTransform));
-        pctGo.transform.SetParent(trackGo.transform, false);
-        Stretch(pctGo.GetComponent<RectTransform>());
-        percentLabel = pctGo.AddComponent<TextMeshProUGUI>();
-        percentLabel.text = "0%";
-        percentLabel.fontSize = UISkin.GamePx(28f);
-        percentLabel.alignment = TextAlignmentOptions.Center;
-        percentLabel.color = UISkin.Ink;
-        percentLabel.raycastTarget = false;
-
-        var font = KoreanFont.GetTMP();
-        if (font != null) percentLabel.font = font;
-        // ⚠️ 외곽선은 **font 할당 뒤에** — `.font`를 바꾸면 머티리얼이 그 폰트 기본값으로 갈아치워진다.
-        //
-        // 글자는 먹색, 테는 흰색이다(그 반대가 아니다).
-        // 채움이 절반을 넘으면 글자가 밝은 초록(#57F86A) 위에 놓이는데, 거기서 흰 글자는
-        // 대비가 1.5:1까지 떨어져 묻힌다. 먹색이면 초록 위에서 5:1로 또렷하고,
-        // 아직 안 찬 회색 홈(#6C8487) 위에서는 흰 테가 글자를 띄워준다.
-        var mat = percentLabel.fontMaterial;
-        mat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.16f);
-        mat.SetColor(ShaderUtilities.ID_OutlineColor, Color.white);
     }
 
     private static void Stretch(RectTransform rt)

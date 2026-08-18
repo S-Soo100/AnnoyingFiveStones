@@ -129,13 +129,13 @@ public class SettingsPopupUI : MonoBehaviour
     private void UpdateBGMVolumeLabel(float v)
     {
         if (bgmVolumeLabel != null)
-            bgmVolumeLabel.text = LocalizationManager.LF("pause.music", Mathf.RoundToInt(v * 100f));
+            bgmVolumeLabel.text = LocalizationManager.L("pause.music");
     }
 
     private void UpdateSFXVolumeLabel(float v)
     {
         if (sfxVolumeLabel != null)
-            sfxVolumeLabel.text = LocalizationManager.LF("pause.sfx", Mathf.RoundToInt(v * 100f));
+            sfxVolumeLabel.text = LocalizationManager.L("pause.sfx");
     }
 
     /// <summary>언어 버튼은 "무엇으로 바뀌는지"가 아니라 "지금 무엇인지"를 보여준다.</summary>

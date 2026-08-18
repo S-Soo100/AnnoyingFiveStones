@@ -155,13 +155,13 @@ public class PauseMenuUI : MonoBehaviour
     private void UpdateBGMVolumeLabel(float v)
     {
         if (bgmVolumeLabel != null)
-            bgmVolumeLabel.text = LocalizationManager.LF("pause.music", Mathf.RoundToInt(v * 100f));
+            bgmVolumeLabel.text = LocalizationManager.L("pause.music");
     }
 
     private void UpdateSFXVolumeLabel(float v)
     {
         if (sfxVolumeLabel != null)
-            sfxVolumeLabel.text = LocalizationManager.LF("pause.sfx", Mathf.RoundToInt(v * 100f));
+            sfxVolumeLabel.text = LocalizationManager.L("pause.sfx");
     }
 
     private TextMeshProUGUI bgmVolumeLabel;

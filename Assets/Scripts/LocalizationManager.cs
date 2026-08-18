@@ -85,11 +85,16 @@ public static class LocalizationManager
         ["settings.close"]     = ("닫기", "Close"),
 
         // === 일시정지 ===
-        ["pause.title"]   = ("일시정지", "Pause"),
+        // 시안(Settings 572:588)이 이 창 제목을 "설정"으로 적었다. 내용은 재개/종료를
+        // 담은 일시정지 메뉴라 "일시정지"가 맞다고 봤지만, 디자이너가 시안대로로 확정했다.
+        // ⚠️ 홈의 설정창(settings.title)과 제목이 같아진다.
+        ["pause.title"]   = ("설정", "Settings"),
         ["pause.resume"]  = ("게임 재개", "Resume"),
         ["pause.quit"]    = ("게임 종료", "Quit Game"),
-        ["pause.music"]   = ("BGM {0}%", "BGM {0}%"),
-        ["pause.sfx"]     = ("효과음 {0}%", "Sound Effect {0}%"), // v11 일시정지 SFX 슬라이더
+        // 시안은 슬라이더 제목에 숫자를 넣지 않는다("BGM" / "효과음").
+        // 음량은 손잡이 위치로만 읽는다.
+        ["pause.music"]   = ("BGM", "BGM"),
+        ["pause.sfx"]     = ("효과음", "Sound Effect"),
 
         // === 게임 종료 확인 모달 (260703) ===
         // v18: 시안 Dialog(572:441 국문 / 572:613 영문) 문구로 교체.

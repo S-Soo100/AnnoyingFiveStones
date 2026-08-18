@@ -615,10 +615,9 @@ public class GameUI : MonoBehaviour
     /// <summary>상단 진행 도트 갱신</summary>
     public void UpdateProgressDots(int currentStage)
     {
-        // v18: 시안대로 **스프라이트 교체**로 상태를 표시한다(클리어=초록, 미클리어=하늘색).
-        // 현재 단만 살짝 키운다 — 시안에는 "현재" 표시가 없지만, 그것만으로는
-        // 방금 깬 단과 지금 하는 단을 구분할 수 없다. 크기 차이는 1.08로 얕게 둔다
-        // (5단 원은 이미 80이라 크게 키우면 이웃과 겹친다).
+        // 시안대로 **스프라이트 교체**로만 상태를 표시한다(클리어=초록, 미클리어=하늘색).
+        // ⚠️ 한때 현재 단을 1.08배로 키웠었다. 시안에 "현재" 표시가 없어 방금 깬 단과
+        // 지금 하는 단이 구분되지 않기 때문이다. 디자이너 확인 결과 시안대로 확정.
         for (int i = 0; i < 5; i++)
         {
             if (progressDots[i] == null) continue;
@@ -628,7 +627,7 @@ public class GameUI : MonoBehaviour
 
             progressDots[i].sprite = UISkin.Dot(size, cleared);
             progressDots[i].color = stage > currentStage ? new Color(1f, 1f, 1f, 0.55f) : Color.white;
-            progressDots[i].transform.localScale = (stage == currentStage) ? Vector3.one * 1.08f : Vector3.one;
+            progressDots[i].transform.localScale = Vector3.one;
 
             ApplyNumberGradient(dotNumbers[i],
                 cleared ? UISkin.DotNumClearTop : UISkin.DotNumTop,
@@ -756,11 +755,8 @@ public class GameUI : MonoBehaviour
         // 3초 유지
         yield return new WaitForSeconds(3f);
 
-        // 알파 감소 — v18: 0.5 → 0.85.
-        // 0.5는 예전 **검은** 판에 맞춘 값이었다(25%만 남아도 배경이 어두워져 글자가 떴다).
-        // 시안의 회청색 판은 같은 0.5를 곱하면 밝은 창문 위에서 판도 글자도 사라진다.
-        // 시안 색·알파를 그대로 두는 대신 "물러나는 정도"만 낮춘다 — 힌트는 계속 읽혀야 한다.
-        guideGroup.alpha = 0.85f;
+        // 알파 감소 — 원래 값(0.5)으로 되돌림. 디자이너가 "시안대로"로 확정했다.
+        guideGroup.alpha = 0.5f;
         guideCoroutine = null;
     }
 
