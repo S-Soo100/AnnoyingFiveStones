@@ -152,6 +152,14 @@ public static class GameTestMenu
         Debug.Log("[GameTestMenu] 언어 전환");
     }
 
+    /// <summary>홈의 설정 창. 일시정지 창과 **같은 부품**을 쓰는지 눈으로 대조해야 한다.</summary>
+    [MenuItem("Tools/테스트: 설정 창(홈)")]
+    public static void ShowSettings()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        SettingsPopupUI.EnsureInstance().Open();
+    }
+
     [MenuItem("Tools/테스트: 일시정지 창")]
     public static void ShowPause()
     {
