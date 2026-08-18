@@ -287,6 +287,22 @@ public class GameUI : MonoBehaviour
     }
 
     /// <summary>
+    /// 안내문 띠를 글자 길이에 맞춘다. 시안은 이 띠가 **고정 폭이 아니다** —
+    /// 국문 492 / 영문 759인데 좌우 여백은 둘 다 35로 같다. 즉 글자를 감싼다.
+    /// 고정 폭으로 두면 짧은 문구에서 띠만 덩그러니 넓게 남는다.
+    /// </summary>
+    private void FitGuideWidth()
+    {
+        if (guideText == null) return;
+        const float PadX = 35f;
+        guideText.ForceMeshUpdate();   // preferredWidth는 갱신 후라야 맞다
+        float w = guideText.preferredWidth + UISkin.GamePx(PadX * 2f);
+        var rt = guideText.transform.parent as RectTransform;   // GuideContainer
+        if (rt != null)
+            rt.sizeDelta = new Vector2(Mathf.Min(w, UISkin.GamePx(1200f)), UISkin.GamePx(58f));
+    }
+
+    /// <summary>
     /// 전체화면 연출 동안 HUD를 감춘다. 진행도·중지 버튼은 이 캔버스에서 오버레이보다
     /// 나중에 만들어져 암전 위로 뚫고 나오고, 상태박스는 아예 다른 캔버스라 영향을 안 받는다.
     /// </summary>
@@ -723,6 +739,7 @@ public class GameUI : MonoBehaviour
     private IEnumerator DoGuideText(string text)
     {
         guideText.text = text;
+        FitGuideWidth();
         guideGroup.alpha = 1f;
 
         // 펄스: 0.3초간 1.5배 → 1배
