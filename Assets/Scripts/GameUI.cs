@@ -214,7 +214,11 @@ public class GameUI : MonoBehaviour
         // 배경
         var bgGo = CreateUIObject("GuideBg", container.transform);
         guideBackground = bgGo.AddComponent<Image>();
-        guideBackground.color = UISkin.GuideBackdrop;   // 시안 #5A717F 50%
+        // 시안은 면(반투명)에 **불투명 테두리**를 두르고 모서리를 2만큼 굴린다.
+        // 색이 스프라이트에 구워져 있으므로 Image.color는 흰색(무보정)으로 둔다.
+        guideBackground.sprite = UISkin.GuidePlate;
+        guideBackground.type = Image.Type.Sliced;
+        guideBackground.color = Color.white;
         var bgRt = bgGo.GetComponent<RectTransform>();
         bgRt.anchorMin = Vector2.zero;
         bgRt.anchorMax = Vector2.one;

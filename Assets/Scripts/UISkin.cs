@@ -111,6 +111,8 @@ public static class UISkin
     /// 색조를 바꾸지 않고 대비만 확보하는 가장 작은 조정이다.
     /// </summary>
     public static readonly Color GuideBackdrop = new Color32(0x5A, 0x71, 0x7F, 0xC8);
+    /// <summary>안내문 띠 테두리 — 시안은 면과 같은 색조를 불투명으로 두른다.</summary>
+    public static readonly Color GuideStroke = new Color32(0x5A, 0x71, 0x7F, 0xFF);
 
     // 단 표시(클리어) — 초록 3단 그라디언트
     private static readonly Color32 ClearLow = new Color32(0x18, 0xD8, 0x0D, 0xFF);
@@ -156,22 +158,22 @@ public static class UISkin
     /// <summary>버튼 호버 — 면만 밝게. 시안에 호버 상태는 없지만, 마우스 게임에서
     /// 반응이 없으면 "눌리는 건가?"를 알 수 없다. 배색은 유지하고 명도만 올린다.</summary>
     public static Sprite RaisedHover => Cached("hover", () =>
-        Build(32, 80, OuterRadius(6f), 12, FaceGrad(Lighten(FaceBottom, .35f), Lighten(FaceTop, .35f)), false, EdgeOuter, EdgeInner, sliceY: 12));
+        Build(32, 80, OuterRadius(6f), 12, FaceGrad(Lighten(FaceBottom, .35f), Lighten(FaceTop, .35f)), false, Solid(EdgeOuter), Solid(EdgeInner), sliceY: 12));
 
     /// <summary>버튼 눌림 — 그라디언트를 뒤집고 안쪽 테두리를 어둡게. 방향이 뒤집혀야
     /// "들어갔다"가 읽힌다. 색만 바꾸면 눌린 느낌이 나지 않는다.</summary>
     public static Sprite Sunken => Cached("sunken", () =>
-        Build(32, 80, OuterRadius(6f), 12, FaceGrad(FaceTop, Darken(FaceBottom, .12f)), false, EdgeOuter, EdgeOuter, sliceY: 12));
+        Build(32, 80, OuterRadius(6f), 12, FaceGrad(FaceTop, Darken(FaceBottom, .12f)), false, Solid(EdgeOuter), Solid(EdgeOuter), sliceY: 12));
 
     /// <summary>같은 배색의 패널. 시안 높이를 그대로 넘긴다(상태박스 172 등).</summary>
     public static Sprite Panel(int designHeight) => Cached($"panel{designHeight}", () =>
-        Build(32, designHeight, OuterRadius(6f), 12, FaceGrad(FaceBottom, FaceTop), false, EdgeOuter, EdgeInner, sliceY: 12));
+        Build(32, designHeight, OuterRadius(6f), 12, FaceGrad(FaceBottom, FaceTop), false, Solid(EdgeOuter), Solid(EdgeInner), sliceY: 12));
 
     /// <summary>상태박스 안쪽 흰 칸 / 슬라이더 홈 — 흰 바탕 + 먹색 테두리, 모서리 각짐.</summary>
     public static Sprite InsetBox => InsetBoxOf(56);
 
     public static Sprite InsetBoxOf(int designHeight) => Cached($"inset{designHeight}", () =>
-        Build(32, designHeight, 0f, 12, _ => (Color)Color.white, false, InsetBorder, null, sliceY: SliceFor(0f)));
+        Build(32, designHeight, 0f, 12, _ => (Color)Color.white, false, Solid(InsetBorder), null, sliceY: SliceFor(0f)));
 
     // ── 창(일시정지 / 경고) ──────────────────────────────────────────────────
     // 시안 Settings 572:588 · Dialog 572:441. 둘 다 같은 부품이고 높이만 다르다.
@@ -179,18 +181,26 @@ public static class UISkin
     /// <summary>창 몸통 — 둥근 모서리 12, 면 #CCD9DD, 테두리 #5A717F.
     /// 면이 단색이라 위아래로도 잘라 늘릴 수 있다(그라디언트가 없으니 계단이 안 생긴다).</summary>
     public static Sprite WindowBody => Cached("winbody", () =>
-        Build(48, 48, OuterRadius(12f), 18, _ => (Color)WindowFace, false, EdgeOuter, null, sliceY: 18));
+        Build(48, 48, 12f, 18, _ => (Color)WindowFace, false, Solid(EdgeOuter), null, sliceY: 18));
 
     /// <summary>창 머리띠 — **위쪽만** 둥글다(아래는 몸통과 맞닿아 각져야 한다).
     /// 테두리를 넣어두면 창 바깥선이 머리띠 구간에서 끊기지 않고, 아래쪽 선이
     /// 그대로 머리띠↔몸통 구분선이 된다(시안에서 몸통 위쪽 stroke가 하는 역할).</summary>
     public static Sprite WindowHeader => Cached("winhead", () =>
-        Build(48, 83, OuterRadius(12f), 18, FaceGrad(HeaderBottom, Color.white), false, EdgeOuter, null,
+        Build(48, 83, 12f, 18, Grad(HeaderBottom, 0.1058f, Color.white, 1f), false, Solid(EdgeOuter), null,
               sliceY: 18, topRoundedOnly: true));
 
     /// <summary>슬라이더 손잡이 — 20×36 흰 알약(각짐) + 먹색 테두리.</summary>
     public static Sprite SliderHandle => Cached("shandle", () =>
-        Build(20, 36, 0f, 0, _ => (Color)HandleFace, false, InsetBorder, null));
+        Build(20, 36, 0f, 0, _ => (Color)HandleFace, false, Solid(InsetBorder), null));
+
+    /// <summary>
+    /// 안내문 띠 — 시안 Tutorial 572:467. 반투명 면 + **불투명 테두리** + 모서리 2.
+    /// 같은 색을 알파만 달리해 얹는 구조라, 테두리가 있어야 띠의 경계가 배경과 분리된다.
+    /// (예전엔 테두리 없이 면만 깔아서 밝은 배경 위에서 띠가 어디까지인지 안 보였다.)
+    /// </summary>
+    public static Sprite GuidePlate => Cached("guide", () =>
+        Build(32, 58, 2f, 12, _ => GuideBackdrop, false, Solid(GuideStroke), null, sliceY: SliceFor(2f)));
 
     /// <summary>창 닫기 ✕. 시안에는 44×44 회색 자리표시만 있어서 아이콘은 여기서 그린다.</summary>
     public static Sprite CloseIcon => Cached("close", () => BuildCross(44, 4f));
@@ -199,15 +209,22 @@ public static class UISkin
     public static Sprite Dot(int designSize, bool cleared) => Cached($"dot{designSize}{cleared}", () =>
         Build(designSize, designSize, designSize * 0.5f, 0,
               cleared ? ClearGrad() : FaceGrad(FaceBottom, FaceTop), false,
-              EdgeOuter, cleared ? (Color32)Color.white : EdgeInner));
+              Solid(EdgeOuter), Solid(cleared ? (Color)Color.white : EdgeInner)));
 
     /// <summary>파워 게이지 바깥 알약 틀.</summary>
     public static Sprite GaugeFrame => Cached("gframe", () =>
-        Build(96, 64, 32f, 32, FaceGrad(new Color32(0x87, 0xB0, 0xC9, 0xFF), FaceTop), false, EdgeOuter, EdgeInner));
+        Build(96, 64, 32f, 32, FaceGrad(new Color32(0x87, 0xB0, 0xC9, 0xFF), FaceTop), false,
+              Solid(EdgeOuter),
+              // 시안은 안쪽 테두리가 세로 그라디언트다 — t=0이 아래라 위/아래를 뒤집어 넣는다.
+              Grad(new Color32(0x6D, 0x8D, 0xA8, 0xFF), 0f, new Color32(0xF4, 0xFC, 0xFC, 0xFF), 1f)));
 
     /// <summary>파워 게이지 안쪽 홈(빈 트랙).</summary>
     public static Sprite GaugeTrack => Cached("gtrack", () =>
-        Build(80, 40, 20f, 20, _ => (Color)GaugeTrackFace, false, GaugeTrackEdge, null));
+        Build(80, 40, 20f, 20, _ => (Color)GaugeTrackFace, true,
+              // 시안은 홈 테두리가 **가로** 3단 그라디언트다(왼쪽 어둡고 오른쪽 흰색).
+              t => t < 0.345f ? MixLinear(new Color32(0x33, 0x4B, 0x52, 0xFF), new Color32(0x5B, 0x7D, 0x87, 0xFF), t / 0.345f)
+                              : MixLinear(new Color32(0x5B, 0x7D, 0x87, 0xFF), Color.white, (t - 0.345f) / 0.655f),
+              null));
 
     /// <summary>파워 게이지 채움 — 가운데가 밝은 가로 그라디언트(시안 그대로).
     ///
@@ -240,6 +257,13 @@ public static class UISkin
     /// </summary>
     private static float OuterRadius(float designRadius) => designRadius + EdgeOuterW;
 
+    /// <summary>단색을 그라디언트 함수로 감싼다.</summary>
+    private static Func<float, Color> Solid(Color c) => _ => c;
+
+    /// <summary>시안의 그라디언트 정지점을 그대로 옮긴다(offset이 0이 아닌 경우가 있다).</summary>
+    private static Func<float, Color> Grad(Color a, float pa, Color b, float pb) =>
+        t => MixLinear(a, b, Mathf.InverseLerp(pa, pb, t));
+
     private static float SrgbToLinear(float c) =>
         c <= 0.04045f ? c / 12.92f : Mathf.Pow((c + 0.055f) / 1.055f, 2.4f);
     private static float LinearToSrgb(float c) =>
@@ -267,14 +291,15 @@ public static class UISkin
                   : Color.Lerp(ClearMid, Color.white, Mathf.InverseLerp(0.27f, 1f, t));
 
     /// <param name="face">면 색. t는 세로면 아래→위, 가로면 왼→오른쪽.</param>
-    /// <param name="outer">가장 바깥 EdgeOuterW px. null이면 면으로 채운다.</param>
+    /// <param name="outer">가장 바깥 EdgeOuterW px. null이면 면으로 채운다. 면과 같은 t를 받는다.</param>
     /// <param name="inner">그 안쪽 EdgeInnerW px. null이면 면으로 채운다.</param>
+    /// <remarks>색의 알파도 그대로 쓴다 — 반투명 면(안내문 띠) 위에 불투명 테두리를 올릴 수 있다.</remarks>
     /// <param name="sliceY">위아래 9-slice 폭. 면이 **단색일 때만** 0보다 크게 둔다 —
     /// 세로 그라디언트를 세로로 잘라 늘리면 가운데가 늘어나 계단이 생긴다.</param>
     /// <param name="topRoundedOnly">위 두 모서리만 둥글게. 창 머리띠용.</param>
     private static Sprite Build(int w, int h, float radius, int sliceX,
                                 Func<float, Color> face, bool horizontal,
-                                Color32? outer, Color32? inner,
+                                Func<float, Color> outer, Func<float, Color> inner,
                                 int sliceY = 0, bool topRoundedOnly = false)
     {
         var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
@@ -290,7 +315,7 @@ public static class UISkin
         {
             for (int x = 0; x < w; x++)
             {
-                float ar = 0f, ag = 0f, ab = 0f, covered = 0f;
+                float ar = 0f, ag = 0f, ab = 0f, aa = 0f, covered = 0f;
 
                 for (int sy = 0; sy < SS; sy++)
                 {
@@ -304,21 +329,20 @@ public static class UISkin
                                                        : RoundedRectSD(fx, fy, w, h, radius));
                         if (depth <= 0f) continue;
 
+                        float t = horizontal ? fx / w : fy / h;
                         Color c;
-                        if (depth < EdgeOuterW && outer.HasValue)
-                            c = outer.Value;
-                        else if (depth < EdgeOuterW + EdgeInnerW && inner.HasValue)
-                            c = inner.Value;
-                        else
-                            c = face(horizontal ? fx / w : fy / h);
+                        if (depth < EdgeOuterW && outer != null)                    c = outer(t);
+                        else if (depth < EdgeOuterW + EdgeInnerW && inner != null)  c = inner(t);
+                        else                                                        c = face(t);
 
-                        ar += c.r; ag += c.g; ab += c.b; covered += 1f;
+                        ar += c.r; ag += c.g; ab += c.b; aa += c.a; covered += 1f;
                     }
                 }
 
+                // 색은 덮인 부분만 평균, 알파는 (색의 알파 평균 × 커버리지)
                 px[y * w + x] = covered > 0f
-                    ? new Color(ar / covered, ag / covered, ab / covered, covered / (SS * SS))
-                    : new Color(0f, 0f, 0f, 0f);   // 색은 덮인 부분만 평균, 알파는 커버리지
+                    ? new Color(ar / covered, ag / covered, ab / covered, aa / (SS * SS))
+                    : new Color(0f, 0f, 0f, 0f);
             }
         }
 
