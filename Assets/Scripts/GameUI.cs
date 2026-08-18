@@ -138,6 +138,11 @@ public class GameUI : MonoBehaviour
     private const float DotsW = 384f, DotsH = 80f, DotsCx = 960f, DotsCy = 90f;
     private const float DotSmall = 60f, DotLarge = 80f, DotStep = 76f;
 
+    /// <summary>시안 원 60/80은 **면 기준**이다 — 어두운 테두리가 그 바깥에 그려진다.
+    /// 스프라이트와 요소를 함께 그만큼 키워야 면적이 시안과 같아진다.
+    /// 중심은 그대로라 배치 계산에는 원래 크기를 쓴다.</summary>
+    private static int DotPx(float designSize) => Mathf.RoundToInt(designSize + UISkin.Outset * 2f);
+
     private void CreateProgressDots()
     {
         var container = CreateUIObject("ProgressDots", canvas.transform);
@@ -156,13 +161,13 @@ public class GameUI : MonoBehaviour
             dotRt.anchorMin = dotRt.anchorMax = new Vector2(0f, 1f);
             // pivot을 중앙으로 — 현재 단을 키울 때 모서리 기준이면 원이 오른아래로 밀린다.
             dotRt.pivot = new Vector2(0.5f, 0.5f);
-            dotRt.sizeDelta = new Vector2(UISkin.GamePx(size), UISkin.GamePx(size));
+            dotRt.sizeDelta = new Vector2(UISkin.GamePx(DotPx(size)), UISkin.GamePx(DotPx(size)));
             // 크기가 달라도 세로 중심은 같다(작은 원 10+30, 큰 원 0+40 → 둘 다 40)
             dotRt.anchoredPosition = new Vector2(UISkin.GamePx(i * DotStep + size * 0.5f),
                                                  -UISkin.GamePx(DotsH * 0.5f));
 
             var img = dot.AddComponent<Image>();
-            img.sprite = UISkin.Dot((int)size, false);
+            img.sprite = UISkin.Dot(DotPx(size), false);
             img.type = Image.Type.Simple;
             img.color = Color.white;
             img.raycastTarget = false;
@@ -502,7 +507,7 @@ public class GameUI : MonoBehaviour
             if (progressDots[i] == null) continue;
             int stage = i + 1;
             bool cleared = stage < currentStage;
-            int size = (i == 4) ? (int)DotLarge : (int)DotSmall;
+            int size = DotPx((i == 4) ? DotLarge : DotSmall);
 
             progressDots[i].sprite = UISkin.Dot(size, cleared);
             progressDots[i].color = stage > currentStage ? new Color(1f, 1f, 1f, 0.55f) : Color.white;

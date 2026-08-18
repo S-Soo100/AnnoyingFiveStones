@@ -22,6 +22,9 @@ public class GaugeBarUI : MonoBehaviour
     // 시안 실측(1920×1080, 좌상단 원점)
     private const float BarX = 628f, BarY = 956f, BarW = 664f, BarH = 64f;
     private const float TrackInsetX = 12f, TrackInsetY = 12f;   // innerBox 640×40 @(12,12)
+    /// <summary>시안 664×64는 **면 기준** — 어두운 테두리가 그 바깥에 그려진다.
+    /// 틀을 사방으로 넓히면 안쪽 홈도 같은 만큼 더 들어가야 제자리에 남는다.</summary>
+    private static float O => UISkin.Outset;
 
     private Canvas canvas;
     private GameObject barRoot;
@@ -95,7 +98,7 @@ public class GaugeBarUI : MonoBehaviour
 
             var canvasRt = canvasGo.GetComponent<RectTransform>();
             canvasRt.position = UISkin.DesignToWorld(BarX + BarW * 0.5f, BarY + BarH * 0.5f, -0.1f);
-            canvasRt.sizeDelta = new Vector2(UISkin.GamePx(BarW), UISkin.GamePx(BarH));
+            canvasRt.sizeDelta = new Vector2(UISkin.GamePx(BarW + O * 2f), UISkin.GamePx(BarH + O * 2f));
             canvasRt.localScale = Vector3.one * 0.01f;
         }
 
@@ -117,8 +120,8 @@ public class GaugeBarUI : MonoBehaviour
         trackGo.transform.SetParent(barRoot.transform, false);
         var trackRt = trackGo.GetComponent<RectTransform>();
         Stretch(trackRt);
-        trackRt.offsetMin = new Vector2(UISkin.GamePx(TrackInsetX), UISkin.GamePx(TrackInsetY));
-        trackRt.offsetMax = new Vector2(-UISkin.GamePx(TrackInsetX), -UISkin.GamePx(TrackInsetY));
+        trackRt.offsetMin = new Vector2(UISkin.GamePx(TrackInsetX + O), UISkin.GamePx(TrackInsetY + O));
+        trackRt.offsetMax = new Vector2(-UISkin.GamePx(TrackInsetX + O), -UISkin.GamePx(TrackInsetY + O));
         var track = trackGo.AddComponent<Image>();
         track.sprite = UISkin.GaugeTrack;
         track.type = Image.Type.Sliced;

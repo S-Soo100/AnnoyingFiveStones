@@ -19,6 +19,9 @@ public class SidePanelUI : MonoBehaviour
     private const float BoxX = 20f, BoxW = 280f, BoxH = 56f;
     private const float Box1Y = 20f, Box2Y = 96f;
     private const float LabelPadL = 23f, ValuePadR = 20f;
+    /// <summary>시안 320×172는 **면 기준** — 어두운 테두리가 그 바깥에 그려진다.
+    /// 판을 사방으로 넓히면 자식(흰 칸)도 같은 만큼 안쪽으로 밀어야 제자리에 남는다.</summary>
+    private static float O => UISkin.Outset;
     private const float LabelPt = 30f, ValuePt = 35.4f;
 
     private Canvas canvas;
@@ -73,7 +76,7 @@ public class SidePanelUI : MonoBehaviour
 
         var rt = canvasGo.GetComponent<RectTransform>();
         rt.position = UISkin.DesignToWorld(PanelX + PanelW * 0.5f, PanelY + PanelH * 0.5f, -1f);
-        rt.sizeDelta = new Vector2(UISkin.GamePx(PanelW), UISkin.GamePx(PanelH));
+        rt.sizeDelta = new Vector2(UISkin.GamePx(PanelW + O * 2f), UISkin.GamePx(PanelH + O * 2f));
         rt.localScale = Vector3.one * 0.01f;
 
         // 패널 바탕 — 버튼과 같은 광택 베벨(시안도 같은 컴포넌트를 쓴다)
@@ -85,7 +88,7 @@ public class SidePanelUI : MonoBehaviour
         bgRt.offsetMin = Vector2.zero;
         bgRt.offsetMax = Vector2.zero;
         var bgImg = bgGo.AddComponent<Image>();
-        bgImg.sprite = UISkin.Panel((int)PanelH);
+        bgImg.sprite = UISkin.Panel(Mathf.RoundToInt(PanelH + O * 2f));
         bgImg.type = Image.Type.Sliced;
         bgImg.raycastTarget = false;
 
@@ -106,7 +109,7 @@ public class SidePanelUI : MonoBehaviour
         boxRt.anchorMin = boxRt.anchorMax = new Vector2(0f, 1f);
         boxRt.pivot = new Vector2(0f, 1f);
         boxRt.sizeDelta = new Vector2(UISkin.GamePx(BoxW), UISkin.GamePx(BoxH));
-        boxRt.anchoredPosition = new Vector2(UISkin.GamePx(BoxX), -UISkin.GamePx(designY));
+        boxRt.anchoredPosition = new Vector2(UISkin.GamePx(BoxX + O), -UISkin.GamePx(designY + O));
 
         var img = boxGo.AddComponent<Image>();
         img.sprite = UISkin.InsetBox;
