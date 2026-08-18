@@ -16,8 +16,8 @@ using UnityEngine;
 /// 9-slice를 **좌우로만** 나눈다:
 /// 면 그라디언트가 세로 방향이라 세로로 잘라 늘리면 그라디언트가 계단처럼 끊긴다.
 /// 그래서 세로는 자르지 않고 텍스처를 **시안 높이 그대로** 만들어 통째로 늘린다.
-/// 1920×1080 화면에서는 이 스프라이트가 정확히 1:1로 찍혀 테두리가 실제 1px이 된다
-/// (Overlay 캔버스: 1280 ref × 1.5 = 1920 / World 캔버스: 1400 units = 1080px).
+/// 1920×1080 화면에서는 이 스프라이트가 정확히 1:1로 찍힌다 — 테두리 두께(EdgeOuterW/
+/// EdgeInnerW)가 곧 화면 px다. (Overlay: 1280 ref × 1.5 = 1920 / World: 1400 units = 1080px)
 /// </summary>
 public static class UISkin
 {
@@ -53,6 +53,18 @@ public static class UISkin
     }
 
     // ── 시안 팔레트 ──────────────────────────────────────────────────────────
+    // ── 테두리 두께 (시안 px) ────────────────────────────────────────────────
+    // ⚠️ 여기 두 숫자가 게임의 모든 테두리를 정한다 — 버튼·창·상태박스·단표시·게이지.
+    //    스프라이트는 시안 크기 그대로 구워지므로 1920×1080에서 이 값이 곧 화면 px다.
+    //
+    // 1px로 시작했다가 "테두리가 너무 작다"는 지적을 두 번 받고 올렸다.
+    // 1px에서는 **어두운 바깥선이 밝은 안쪽선에 먹혀서** 윤곽이 사실상 사라진다.
+    // 그래서 바깥을 안쪽보다 두껍게 둔다 — 윤곽이 먼저 읽히고 광택이 그 안에 남는다.
+    // (MCP get_node_info가 strokeWeight를 안 넘겨줘서 시안 실측값이 아니다.
+    //  Figma가 붙으면 버튼을 4배로 내보내 픽셀을 세고 이 두 숫자만 맞추면 된다.)
+    public const float EdgeOuterW = 3f;
+    public const float EdgeInnerW = 2f;
+
     /// <summary>바깥 테두리 (Button_outline stroke).</summary>
     public static readonly Color32 EdgeOuter = new Color32(0x5A, 0x71, 0x7F, 0xFF);
     /// <summary>안쪽 테두리 (Button stroke) — 이게 있어야 면이 볼록해 보인다.</summary>
@@ -132,7 +144,7 @@ public static class UISkin
     public static Sprite Panel(int designHeight) => Cached($"panel{designHeight}", () =>
         Build(32, designHeight, 6f, 12, FaceGrad(FaceBottom, FaceTop), false, EdgeOuter, EdgeInner));
 
-    /// <summary>상태박스 안쪽 흰 칸 / 슬라이더 홈 — 흰 바탕 + 먹색 1px 테두리, 모서리 각짐.</summary>
+    /// <summary>상태박스 안쪽 흰 칸 / 슬라이더 홈 — 흰 바탕 + 먹색 테두리, 모서리 각짐.</summary>
     public static Sprite InsetBox => InsetBoxOf(56);
 
     public static Sprite InsetBoxOf(int designHeight) => Cached($"inset{designHeight}", () =>
@@ -209,8 +221,8 @@ public static class UISkin
                   : Color.Lerp(ClearMid, Color.white, Mathf.InverseLerp(0.27f, 1f, t));
 
     /// <param name="face">면 색. t는 세로면 아래→위, 가로면 왼→오른쪽.</param>
-    /// <param name="outer">가장 바깥 1px. null이면 면으로 채운다.</param>
-    /// <param name="inner">그 안쪽 1px. null이면 면으로 채운다.</param>
+    /// <param name="outer">가장 바깥 EdgeOuterW px. null이면 면으로 채운다.</param>
+    /// <param name="inner">그 안쪽 EdgeInnerW px. null이면 면으로 채운다.</param>
     /// <param name="sliceY">위아래 9-slice 폭. 면이 **단색일 때만** 0보다 크게 둔다 —
     /// 세로 그라디언트를 세로로 잘라 늘리면 가운데가 늘어나 계단이 생긴다.</param>
     /// <param name="topRoundedOnly">위 두 모서리만 둥글게. 창 머리띠용.</param>
@@ -247,9 +259,12 @@ public static class UISkin
                         if (depth <= 0f) continue;
 
                         Color c;
-                        if (depth < 1f && outer.HasValue)      c = outer.Value;
-                        else if (depth < 2f && inner.HasValue) c = inner.Value;
-                        else                                   c = face(horizontal ? fx / w : fy / h);
+                        if (depth < EdgeOuterW && outer.HasValue)
+                            c = outer.Value;
+                        else if (depth < EdgeOuterW + EdgeInnerW && inner.HasValue)
+                            c = inner.Value;
+                        else
+                            c = face(horizontal ? fx / w : fy / h);
 
                         ar += c.r; ag += c.g; ab += c.b; covered += 1f;
                     }
