@@ -402,9 +402,22 @@ public class GraveyardUI : MonoBehaviour
         le.preferredWidth = 200f;
         le.preferredHeight = 64f;
 
+        // v18: 검정 사각 버튼 → 게임 공통 스킨(광택 베벨).
+        // ⚠️ 이 화면은 시안(UI최종시안 0817)에 **없다.** 그래서 "시안대로"가 아니라
+        //    다른 화면들과 같은 부품을 쓰게 맞춘 것뿐이다 — 목록 배치는 참조가 없어 손대지 않았다.
         var img = btnGo.AddComponent<Image>();
-        img.color = new Color(0f, 0f, 0f, 1f); // 검정 (Figma Image#13)
+        img.sprite = UISkin.Raised;
+        img.type = Image.Type.Sliced;
+        img.color = Color.white;
         var btn = btnGo.AddComponent<Button>();
+        btn.transition = Selectable.Transition.SpriteSwap;
+        btn.spriteState = new SpriteState
+        {
+            highlightedSprite = UISkin.RaisedHover,
+            pressedSprite     = UISkin.Sunken,
+            selectedSprite    = UISkin.RaisedHover,
+            disabledSprite    = UISkin.Raised,
+        };
         btn.targetGraphic = img;
         btn.onClick.AddListener(onClick);
         var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
@@ -418,7 +431,7 @@ public class GraveyardUI : MonoBehaviour
         var tmp = txtGo.AddComponent<TextMeshProUGUI>();
         tmp.text = LocalizationManager.L(locKey);
         tmp.fontSize = 22f;
-        tmp.color = Color.white;
+        tmp.color = UISkin.Ink;   // 밝은 면 위 → 흰 글자는 안 읽힌다
         tmp.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) tmp.font = koreanFont;
         endButtonLabels.Add((tmp, locKey));

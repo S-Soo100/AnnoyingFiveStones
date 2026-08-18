@@ -39,6 +39,11 @@ public class GameUI : MonoBehaviour
 
     private GameObject compositionHeader; // v12: Stage 4 "공기 구성" 헤더 (순서대로 잡기)
 
+    // v18: 전체화면 연출(생 종료·엔딩·크레딧) 동안 감출 HUD 조각들.
+    // 이 캔버스에서 오버레이보다 **나중에** 만들어져 암전 위로 뚫고 나온다.
+    private GameObject progressDotsGo;
+    private GameObject pauseButtonGo;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -146,6 +151,7 @@ public class GameUI : MonoBehaviour
     private void CreateProgressDots()
     {
         var container = CreateUIObject("ProgressDots", canvas.transform);
+        progressDotsGo = container;
         var rt = container.GetComponent<RectTransform>();
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.sizeDelta = new Vector2(UISkin.GamePx(DotsW), UISkin.GamePx(DotsH));
@@ -247,6 +253,96 @@ public class GameUI : MonoBehaviour
         guideGroup.alpha = 0f;
     }
 
+    // ==========================================================
+    // v18: 시안의 마지막 두 화면 (Figma 572:647 생 종료 / 572:652 엔딩)
+    // 둘 다 "암전 + 흰 글자" 한 장이라 기존 오버레이를 그대로 쓴다.
+    // 배경 이미지 자리는 시안에서 IMAGE 플레이스홀더다 — 배경 아트가 나오면
+    // overlayBg 뒤에 한 장 깔면 된다(지금은 검정).
+    // ==========================================================
+
+    /// <summary>
+    /// "이번 생은 여기까지 입니다 / 수고하셨습니다" — 시안 88px, 화면 중심에서 살짝 아래(y=562).
+    /// 주마등이 끝난 뒤, 크레딧 앞에 놓았다. 생이 지나간 걸 보고 나서 듣는 마무리다.
+    /// </summary>
+    public void ShowLifeEnd(System.Action onComplete)
+    {
+        HideGuideText();
+        StopOverlay();
+        overlayCoroutine = StartCoroutine(DoFullscreenLine(
+            LocalizationManager.L("ending.mainment") + "\n" + LocalizationManager.L("ending.thanks"),
+            designFontPt: 88f, designCenterY: 562f, hold: 3.5f, onComplete));
+    }
+
+    /// <summary>
+    /// "더 대단한 엔딩 같은 건 준비해 두지 않았습니다" — 시안 40px, 화면 아래쪽(y=941).
+    /// 크레딧 뒤에 놓았다. 크레딧을 다 보여준 다음이라야 농담이 성립한다.
+    /// </summary>
+    public void ShowEndingJoke(System.Action onComplete)
+    {
+        HideGuideText();
+        StopOverlay();
+        overlayCoroutine = StartCoroutine(DoFullscreenLine(
+            LocalizationManager.L("ending.no_more"),
+            designFontPt: 40f, designCenterY: 941f, hold: 3f, onComplete));
+    }
+
+    /// <summary>
+    /// 전체화면 연출 동안 HUD를 감춘다. 진행도·중지 버튼은 이 캔버스에서 오버레이보다
+    /// 나중에 만들어져 암전 위로 뚫고 나오고, 상태박스는 아예 다른 캔버스라 영향을 안 받는다.
+    /// </summary>
+    public void SetHudVisible(bool visible)
+    {
+        if (progressDotsGo != null) progressDotsGo.SetActive(visible);
+        if (pauseButtonGo != null) pauseButtonGo.SetActive(visible);
+        if (SidePanelUI.Instance != null) SidePanelUI.Instance.gameObject.SetActive(visible);
+    }
+
+    /// <summary>암전 위에 흰 글자 한 덩이. 시안 좌표(1920×1080)를 그대로 받는다.</summary>
+    private IEnumerator DoFullscreenLine(string text, float designFontPt, float designCenterY,
+                                         float hold, System.Action onComplete)
+    {
+        SetHudVisible(false);
+        overlayBg.color = Color.black;
+        overlayGroup.alpha = 1f;
+
+        overlaySubText.text = "";
+
+        var rt = overlayMainText.rectTransform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(UISkin.GamePx(1400f), UISkin.GamePx(300f));
+        rt.anchoredPosition = new Vector2(0f, UISkin.GamePx(540f - designCenterY));
+
+        overlayMainText.text = text;
+        overlayMainText.enableAutoSizing = false;
+        overlayMainText.fontSize = UISkin.GamePx(designFontPt);
+        overlayMainText.fontStyle = FontStyles.Normal;   // 시안은 굵게가 아니다
+        overlayMainText.textWrappingMode = TextWrappingModes.Normal;
+        overlayMainText.alignment = TextAlignmentOptions.Center;
+        overlayMainText.color = new Color(1f, 1f, 1f, 0f);
+
+        yield return FadeMain(0f, 1f, 0.8f);
+        yield return new WaitForSeconds(hold);
+        yield return FadeMain(1f, 0f, 0.8f);
+
+        overlayGroup.alpha = 0f;
+        overlayCoroutine = null;
+        // 여기서 되살리지 않는다 — 생 종료 → 크레딧 → 엔딩이 이어져서 사이사이 HUD가 깜빡인다.
+        // 복구는 다음 판이 시작될 때(GameManager.StartStage) 한 번만 한다.
+        onComplete?.Invoke();
+    }
+
+    private IEnumerator FadeMain(float from, float to, float dur)
+    {
+        float t = 0f;
+        while (t < dur)
+        {
+            t += Time.deltaTime;
+            overlayMainText.color = new Color(1f, 1f, 1f, Mathf.Lerp(from, to, t / dur));
+            yield return null;
+        }
+        overlayMainText.color = new Color(1f, 1f, 1f, to);
+    }
+
     private void CreateOverlay()
     {
         var container = CreateUIObject("Overlay", canvas.transform);
@@ -301,6 +397,7 @@ public class GameUI : MonoBehaviour
     {
         var btnGo = new GameObject("PauseButton");
         btnGo.transform.SetParent(canvas.transform, false);
+        pauseButtonGo = btnGo;
         var btnRect = btnGo.AddComponent<RectTransform>();
         // v18: 시안 실측 — 180×80 @(1690,50). 이전에는 우상단 500×250 **투명** 영역이라
         // 버튼이 있는지 알 수 없었고, 그 넓이 때문에 지나가다 잘못 눌리기도 했다.

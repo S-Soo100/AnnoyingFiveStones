@@ -115,6 +115,9 @@ public static class LocalizationManager
         ["ending.thanks"]   = ("수고하셨습니다", "Well done."),
         ["ending.record"]   = ("기록: {0}", "Record: {0}"),
         ["ending.credit"]   = ("Credit", "Credit"),
+        // v18: 시안 엔딩 화면(Figma 572:652)의 마지막 한 줄.
+        ["ending.no_more"]  = ("더 대단한 엔딩 같은 건 준비해 두지 않았습니다",
+                               "There's no grander ending waiting for you."),
         ["grave.play_again"] = ("Play Again", "Play Again"),
         ["grave.go_home"]    = ("Go Home", "Go Home"),
         // v18: 시안 "기록 저장" 창에 머리띠 제목이 생겼다(Figma 572:628).

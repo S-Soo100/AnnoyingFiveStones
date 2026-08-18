@@ -461,6 +461,8 @@ public class GameManager : MonoBehaviour
 
     public void StartStage(int stage)
     {
+        // v18: 엔딩 연출이 감춰둔 HUD를 여기서 되살린다(다시 플레이 시 사라진 채 남는 걸 방지).
+        GameUI.Instance?.SetHudVisible(true);
         isInTitleScreen = false; // 어떤 경로로든 스테이지 시작 시 타이틀 아님
 
         // Hand가 비활성이면 활성화 (타이틀 복귀 후 PauseMenu 초기화 등 경로 안전장치)
@@ -859,12 +861,30 @@ public class GameManager : MonoBehaviour
             yield return new WaitUntil(() => panoramaDone);
         }
 
+        // v18: 시안 "생 종료" 화면 (Figma 572:647) — 주마등 뒤, 크레딧 앞.
+        // 생이 지나가는 걸 보고 나서 듣는 마무리라 이 자리다.
+        if (GameUI.Instance != null)
+        {
+            bool lifeEndDone = false;
+            GameUI.Instance.ShowLifeEnd(() => lifeEndDone = true);
+            yield return new WaitUntil(() => lifeEndDone);
+        }
+
         // v9(260703): Credit (역할×4)
         if (GameUI.Instance != null)
         {
             bool creditDone = false;
             GameUI.Instance.ShowCredit(() => creditDone = true);
             yield return new WaitUntil(() => creditDone);
+        }
+
+        // v18: 시안 "엔딩" 화면 (Figma 572:652) — 크레딧 뒤.
+        // 크레딧을 다 보여준 다음이라야 "더 대단한 엔딩은 없다"가 농담으로 성립한다.
+        if (GameUI.Instance != null)
+        {
+            bool jokeDone = false;
+            GameUI.Instance.ShowEndingJoke(() => jokeDone = true);
+            yield return new WaitUntil(() => jokeDone);
         }
 
         // 이름 입력 팝업 → 이름 확정 후 레코드 저장 → 묘지 파노라마

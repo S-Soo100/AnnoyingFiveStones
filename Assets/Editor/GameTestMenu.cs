@@ -160,6 +160,27 @@ public static class GameTestMenu
         SettingsPopupUI.EnsureInstance().Open();
     }
 
+    /// <summary>시안 마지막 두 화면. 올클리어까지 가지 않고도 대조할 수 있어야 한다.</summary>
+    [MenuItem("Tools/테스트: 생 종료 화면")]
+    public static void ShowLifeEnd()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (GameUI.Instance == null) { Debug.LogError("[GameTestMenu] GameUI 없음"); return; }
+        // 촬영과 연출을 **한 번의 메뉴 실행 안에서** 같이 건다.
+        // MCP 호출 간격(수 초)이 연출 길이(4.6초)보다 길어서 따로 부르면 매번 놓친다.
+        IntroFrameCapture.Begin(60, 6);   // 6프레임마다 60장 ≈ 6초 구간
+        GameUI.Instance.ShowLifeEnd(() => Debug.Log("[GameTestMenu] 생 종료 끝"));
+    }
+
+    [MenuItem("Tools/테스트: 엔딩 화면")]
+    public static void ShowEndingJoke()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (GameUI.Instance == null) { Debug.LogError("[GameTestMenu] GameUI 없음"); return; }
+        IntroFrameCapture.Begin(60, 6);
+        GameUI.Instance.ShowEndingJoke(() => Debug.Log("[GameTestMenu] 엔딩 끝"));
+    }
+
     [MenuItem("Tools/테스트: 기록 저장 창")]
     public static void ShowNameInput()
     {
