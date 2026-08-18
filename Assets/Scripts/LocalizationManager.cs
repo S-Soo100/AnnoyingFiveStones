@@ -89,7 +89,9 @@ public static class LocalizationManager
         // 담은 일시정지 메뉴라 "일시정지"가 맞다고 봤지만, 디자이너가 시안대로로 확정했다.
         // ⚠️ 홈의 설정창(settings.title)과 제목이 같아진다.
         ["pause.title"]   = ("설정", "Settings"),
-        ["pause.resume"]  = ("게임 재개", "Resume"),
+        // ⚠️ 영문은 시안 그대로 "Restart". 같은 시안의 국문은 "게임 재개"라 뜻이 어긋나지만
+        //    디자이너 확정 사항이다. 동작은 재개(Close)다 — 진행이 초기화되지 않는다.
+        ["pause.resume"]  = ("게임 재개", "Restart"),
         ["pause.quit"]    = ("게임 종료", "Quit Game"),
         // 시안은 슬라이더 제목에 숫자를 넣지 않는다("BGM" / "효과음").
         // 음량은 손잡이 위치로만 읽는다.
@@ -97,14 +99,13 @@ public static class LocalizationManager
         ["pause.sfx"]     = ("효과음", "Sound Effect"),
 
         // === 게임 종료 확인 모달 (260703) ===
-        // v18: 시안 Dialog(572:441 국문 / 572:613 영문) 문구로 교체.
-        // 국문은 두 문장을 한 문장으로 합쳐 "무엇을 잃는지"를 물음 안에 넣었다.
-        // 영문 시안은 텍스트 상자에서 잘려 있어("Quit game? \nYour score won't be")
-        // 기존 완성형 문장을 그대로 둔다 — 잘린 쪽을 따라갈 이유가 없다.
-        // 줄바꿈을 직접 넣는다 — TMP는 한글을 어절이 아니라 글자 단위로 접어서
+        // v18: 시안 Dialog(572:441 국문 / 572:613 영문) 문구 그대로.
+        // 국문은 줄바꿈을 직접 넣는다 — TMP는 한글을 어절이 아니라 글자 단위로 접어서
         // 그냥 두면 "게임을 종 / 료하시겠습니까?"처럼 단어 한가운데가 갈린다.
+        // ⚠️ 영문은 시안 텍스트가 상자에서 잘린 상태 그대로다("...won't be").
+        //    문장이 끊겨 보이는 것을 알고 넣었다(디자이너 확정). 뒤를 잇는다면 "saved."다.
         ["quit.message"]  = ("기록을 저장하지 않고\n게임을 종료하시겠습니까?",
-                             "Quit game?\nYour score won't be saved."),
+                             "Quit game? \nYour score won't be"),
         ["quit.title"]    = ("주의", "Warning"),
         // 버튼은 결과를 그대로 적는다 — "확인"은 무엇이 확인되는지 말해주지 않는다.
         ["quit.confirm"]  = ("게임 종료", "Quit"),
