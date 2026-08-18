@@ -50,142 +50,91 @@ public class NameInputUI : MonoBehaviour
     {
         koreanFont = KoreanFont.GetTMP();
 
-        // Canvas — Screen Space Overlay, sortingOrder=300
+        // Canvas — Screen Space Overlay, sortingOrder=300 (설정 260·일시정지 200 위)
         var canvasGo = new GameObject("NameInputCanvas");
-        canvasGo.transform.SetParent(transform, false);
+        canvasGo.transform.SetParent(transform);
         canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 300;
+
         var scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1280f, 720f);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
         canvasGo.AddComponent<GraphicRaycaster>();
 
-        // 전체화면 흰색 불투명 배경 (Figma: 순수 흰 전체화면)
-        var bgGo = CreateUIObject("Background", canvasGo.transform);
-        var bgImage = bgGo.AddComponent<Image>();
-        bgImage.color = Color.white;
-        StretchFull(bgGo.GetComponent<RectTransform>());
+        if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+        {
+            var esGo = new GameObject("EventSystem");
+            esGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
+            esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+        }
 
-        // 풀스크린 투명 컨테이너 패널 (자식은 이 패널 = 화면 기준 중앙 앵커)
-        var panelGo = CreateUIObject("Panel", canvasGo.transform);
-        panel = panelGo;
-        var panelImage = panelGo.AddComponent<Image>();
-        panelImage.color = new Color(0, 0, 0, 0);
-        var panelRt = panelGo.GetComponent<RectTransform>();
-        StretchFull(panelRt);
+        // ── 시안 "기록 저장" 창 (Figma 572:628) ──────────────────────────────
+        // 설정/경고와 같은 창 부품이다. 몸통 안 배치(전부 시안 실측, 머리띠 83 아래 기준):
+        //   안내문 540×51 @(70,145) / 입력칸 540×56 @(70,212) / 소요시간 540×51 @(70,284)
+        //   저장 버튼 380×80 @(150,375)
+        // ✕는 저장과 같은 동작으로 묶었다 — 이 창은 "취소"가 성립하지 않는다.
+        // 기록을 남기지 않고 나갈 길이 없고, 이름이 비면 기본값이 들어간다.
+        panel = UIWindow.Create(canvasGo.transform, "NameInputPanel",
+                                LocalizationManager.L("grave.record_title"), 686f,
+                                OnConfirm, koreanFont, out var win, out _);
 
-        // 타이틀: "묘비에 새길 이름을…" (Figma: 검은 굵은 대제목)
-        var labelGo = CreateUIObject("Label", panelGo.transform);
-        var labelText = labelGo.AddComponent<TextMeshProUGUI>();
-        labelText.text = LocalizationManager.L("grave.name_prompt"); // v10: 다국어
-        promptLabel = labelText;
-        labelText.fontSize = 44;
-        labelText.fontStyle = FontStyles.Bold;
-        labelText.color = Color.black;
-        labelText.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) labelText.font = koreanFont;
-        var labelRt = labelGo.GetComponent<RectTransform>();
-        labelRt.anchorMin = new Vector2(0.5f, 0.5f);
-        labelRt.anchorMax = new Vector2(0.5f, 0.5f);
-        labelRt.pivot = new Vector2(0.5f, 0.5f);
-        labelRt.sizeDelta = new Vector2(900, 70);
-        labelRt.anchoredPosition = new Vector2(0, 120);
+        const float H = UIWindow.HeaderH;
+        const float SlideX = 70f, SlideW = 540f;
 
-        // v10: 소요 시간 표시 (기획 5-2)
-        var timeGo = CreateUIObject("TimeLabel", panelGo.transform);
-        timeLabel = timeGo.AddComponent<TextMeshProUGUI>();
-        timeLabel.fontSize = 26;
-        timeLabel.color = new Color(0.1f, 0.1f, 0.1f, 1f);
-        timeLabel.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) timeLabel.font = koreanFont;
-        var timeRt = timeGo.GetComponent<RectTransform>();
-        timeRt.anchorMin = new Vector2(0.5f, 0.5f);
-        timeRt.anchorMax = new Vector2(0.5f, 0.5f);
-        timeRt.pivot = new Vector2(0.5f, 0.5f);
-        timeRt.anchoredPosition = new Vector2(0, 50);
-        timeRt.sizeDelta = new Vector2(600, 40);
+        promptLabel = UIWindow.Label(win, "Prompt", LocalizationManager.L("grave.name_prompt"),
+                                     UIWindow.BodyPt, TextAlignmentOptions.Center, koreanFont);
+        UIWindow.Place(promptLabel.rectTransform, SlideX, H + 145f, SlideW, 51f);
+        // 시안 폰트(Iosevka)보다 나눔고딕이 넓어 40px 그대로면 "지어주세 / 요"로 접힌다.
+        // 시안은 한 줄이므로 줄바꿈을 막고 칸(540) 안에 들어오도록 줄인다. 로고와 같은 처리다.
+        FitOneLine(promptLabel);
 
-        // TMP_InputField (Figma: 회색 필드)
-        var fieldGo = CreateUIObject("InputField", panelGo.transform);
-        var fieldBg = fieldGo.AddComponent<Image>();
-        fieldBg.color = new Color(0.83f, 0.83f, 0.83f, 1f);
-        var fieldRt = fieldGo.GetComponent<RectTransform>();
-        fieldRt.anchorMin = new Vector2(0.5f, 0.5f);
-        fieldRt.anchorMax = new Vector2(0.5f, 0.5f);
-        fieldRt.pivot = new Vector2(0.5f, 0.5f);
-        fieldRt.sizeDelta = new Vector2(520, 60);
-        fieldRt.anchoredPosition = new Vector2(0, -30);
+        // 입력칸 — 시안 InBox(흰 바탕 + 먹색 테두리). 상태박스 흰 칸과 같은 부품이다.
+        var fieldGo = new GameObject("Field", typeof(RectTransform));
+        fieldGo.transform.SetParent(win, false);
+        UIWindow.Place(fieldGo.GetComponent<RectTransform>(), SlideX, H + 212f, SlideW, 56f);
+        var fieldImg = fieldGo.AddComponent<Image>();
+        fieldImg.sprite = UISkin.InsetBoxOf(56);
+        fieldImg.type = Image.Type.Sliced;
+
+        var textArea = new GameObject("Text Area", typeof(RectTransform));
+        textArea.transform.SetParent(fieldGo.transform, false);
+        var taRt = textArea.GetComponent<RectTransform>();
+        taRt.anchorMin = Vector2.zero;
+        taRt.anchorMax = Vector2.one;
+        taRt.offsetMin = new Vector2(UISkin.Px(23f), 0f);
+        taRt.offsetMax = new Vector2(-UISkin.Px(23f), 0f);
+        textArea.AddComponent<RectMask2D>();
+
+        var placeholder = UIWindow.Label(textArea.transform, "Placeholder", "",
+                                         35.4f, TextAlignmentOptions.Center, koreanFont);
+        placeholder.color = new Color(UISkin.Ink.r / 255f, UISkin.Ink.g / 255f, UISkin.Ink.b / 255f, 0.35f);
+        StretchFull(placeholder.rectTransform);
+
+        var inputText = UIWindow.Label(textArea.transform, "Text", "",
+                                       35.4f, TextAlignmentOptions.Center, koreanFont);
+        StretchFull(inputText.rectTransform);
 
         inputField = fieldGo.AddComponent<TMP_InputField>();
-        inputField.characterLimit = 10;
-
-        // InputField 텍스트 영역
-        var textAreaGo = CreateUIObject("Text Area", fieldGo.transform);
-        var textAreaRt = textAreaGo.GetComponent<RectTransform>();
-        textAreaRt.anchorMin = Vector2.zero;
-        textAreaRt.anchorMax = Vector2.one;
-        textAreaRt.sizeDelta = new Vector2(-10, -6);
-        textAreaRt.anchoredPosition = Vector2.zero;
-        var textAreaMask = textAreaGo.AddComponent<RectMask2D>();
-
-        // Placeholder (Figma: 빈 회색 박스 — 안내문 없음)
-        var placeholderGo = CreateUIObject("Placeholder", textAreaGo.transform);
-        var placeholderText = placeholderGo.AddComponent<TextMeshProUGUI>();
-        placeholderText.text = "";
-        placeholderText.fontSize = 26;
-        placeholderText.color = new Color(0.5f, 0.5f, 0.5f, 0.7f);
-        placeholderText.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) placeholderText.font = koreanFont;
-        StretchFull(placeholderGo.GetComponent<RectTransform>());
-
-        // 입력 텍스트 (Figma: 검은 텍스트 중앙 정렬)
-        var inputTextGo = CreateUIObject("Text", textAreaGo.transform);
-        var inputText = inputTextGo.AddComponent<TextMeshProUGUI>();
-        inputText.fontSize = 26;
-        inputText.color = Color.black;
-        inputText.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) inputText.font = koreanFont;
-        StretchFull(inputTextGo.GetComponent<RectTransform>());
-
+        inputField.textViewport = taRt;
         inputField.textComponent = inputText;
-        inputField.placeholder = placeholderText;
-        inputField.textViewport = textAreaRt;
-
-        // 버튼: "이 이름으로 저장" (Figma: 검은 버튼 + 흰 굵은 글씨)
-        var btnGo = CreateUIObject("StartButton", panelGo.transform);
-        var btnImage = btnGo.AddComponent<Image>();
-        btnImage.color = Color.black;
-        var btnRt = btnGo.GetComponent<RectTransform>();
-        btnRt.anchorMin = new Vector2(0.5f, 0.5f);
-        btnRt.anchorMax = new Vector2(0.5f, 0.5f);
-        btnRt.pivot = new Vector2(0.5f, 0.5f);
-        btnRt.sizeDelta = new Vector2(260, 66);
-        btnRt.anchoredPosition = new Vector2(0, -130);
-
-        var btn = btnGo.AddComponent<Button>();
-        btn.targetGraphic = btnImage;
-        btn.onClick.AddListener(OnConfirm);
-
-        var btnTextGo = CreateUIObject("Text", btnGo.transform);
-        var btnText = btnTextGo.AddComponent<TextMeshProUGUI>();
-        btnText.text = LocalizationManager.L("grave.save"); // Figma: 이 이름으로 저장
-        confirmBtnLabel = btnText;
-        btnText.fontSize = 26;
-        btnText.fontStyle = FontStyles.Bold;
-        btnText.color = Color.white;
-        btnText.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) btnText.font = koreanFont;
-        StretchFull(btnTextGo.GetComponent<RectTransform>());
-
-        // Enter 키 → 확인
+        inputField.placeholder = placeholder;
+        inputField.targetGraphic = fieldImg;
+        inputField.characterLimit = 16;
         inputField.onSubmit.AddListener(_ => OnConfirm());
 
-        // 초기 비활성화
+        timeLabel = UIWindow.Label(win, "Elapsed", "", UIWindow.BodyPt,
+                                   TextAlignmentOptions.Center, koreanFont);
+        UIWindow.Place(timeLabel.rectTransform, SlideX, H + 284f, SlideW, 51f);
+        FitOneLine(timeLabel);   // 영문 "Time taken 00:03:02"이 더 길다
+
+        UIWindow.MakeButton(LocalizationManager.L("grave.save"), win, OnConfirm,
+                            150f, H + 375f, 380f, 80f, koreanFont, out confirmBtnLabel);
+
         canvasGo.SetActive(false);
     }
+
 
     // ------------------------------------------------------------------
     // 공개 API
@@ -250,6 +199,15 @@ public class NameInputUI : MonoBehaviour
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
         return go;
+    }
+
+    /// <summary>한 줄 유지 — 넘치면 글자를 줄인다. 시안은 이 문구들이 모두 한 줄이다.</summary>
+    private static void FitOneLine(TextMeshProUGUI tmp)
+    {
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        tmp.enableAutoSizing = true;
+        tmp.fontSizeMax = UISkin.Px(UIWindow.BodyPt);
+        tmp.fontSizeMin = UISkin.Px(24f);
     }
 
     private void StretchFull(RectTransform rt)

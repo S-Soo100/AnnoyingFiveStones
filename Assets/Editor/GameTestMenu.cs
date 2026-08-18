@@ -160,6 +160,14 @@ public static class GameTestMenu
         SettingsPopupUI.EnsureInstance().Open();
     }
 
+    [MenuItem("Tools/테스트: 기록 저장 창")]
+    public static void ShowNameInput()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (NameInputUI.Instance == null) { Debug.LogError("[GameTestMenu] NameInputUI 없음"); return; }
+        NameInputUI.Instance.Show(182f, (n, t) => Debug.Log($"[GameTestMenu] 저장: {n} (연습={t})"));
+    }
+
     [MenuItem("Tools/테스트: 일시정지 창")]
     public static void ShowPause()
     {

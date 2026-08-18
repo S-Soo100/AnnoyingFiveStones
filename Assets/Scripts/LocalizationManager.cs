@@ -117,6 +117,8 @@ public static class LocalizationManager
         ["ending.credit"]   = ("Credit", "Credit"),
         ["grave.play_again"] = ("Play Again", "Play Again"),
         ["grave.go_home"]    = ("Go Home", "Go Home"),
+        // v18: 시안 "기록 저장" 창에 머리띠 제목이 생겼다(Figma 572:628).
+        ["grave.record_title"] = ("기록 저장", "Save Record"),
         ["grave.name_prompt"] = ("묘비에 새길 이름을 지어주세요", "Enter a name for the tombstone."),
         ["grave.save"]        = ("이 이름으로 저장", "Save with this name."),
         ["grave.name_start"]  = ("시작", "Start"),
