@@ -99,9 +99,28 @@ public static class UISkin
     /// <summary>본문/라벨 글자색. 시안의 모든 라벨이 이 색이다.</summary>
     public static readonly Color32 Ink = new Color32(0x29, 0x31, 0x3B, 0xFF);
 
-    /// <summary>로고 면 / 로고 외곽선.</summary>
+    /// <summary>로고 면 / 글자 외곽선.</summary>
     public static readonly Color32 LogoFill = new Color32(0xEE, 0xFA, 0x44, 0xFF);
     public static readonly Color32 LogoOutline = new Color32(0x17, 0x18, 0x1A, 0xFF);
+
+    /// <summary>배경 없이 뜨는 글자의 외곽선 두께(TMP 단위 — 글자 크기에 비례한다).</summary>
+    public const float TextOutlineWidth = 0.28f;
+
+    /// <summary>
+    /// **판 없이 화면에 바로 뜨는 글자**에 외곽선을 두른다 — CLEAR!·FAIL·N단 같은 것들.
+    /// 배경이 나이대마다 바뀌는 데다 밝은 창문·칠판이 섞여 있어서, 외곽선이 없으면
+    /// 같은 흰 글자가 어떤 배경에서는 읽히고 어떤 배경에서는 사라진다.
+    ///
+    /// ⚠️ TMP의 외곽선은 **머티리얼에 _OutlineWidth를 직접 넣으면 안 나온다.**
+    ///    셰이더 키워드와 비율값이 함께 맞아야 하는데, 이 프로퍼티들은 TMP가 그 셋업을
+    ///    대신 해준다. (로고에서 한 번 조용히 사라져 원인을 찾는 데 오래 걸렸다.)
+    /// </summary>
+    public static void ApplyTextOutline(TMPro.TMP_Text tmp, float width = TextOutlineWidth)
+    {
+        if (tmp == null) return;
+        tmp.outlineWidth = width;
+        tmp.outlineColor = LogoOutline;
+    }
 
     /// <summary>
     /// 안내문 띠 — 시안 값 그대로(#5A717F 50%).

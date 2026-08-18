@@ -205,8 +205,7 @@ public class TitleScreenUI : MonoBehaviour
         //    나오는데, 코드로 구운 폰트 에셋은 그 값들이 비어 있다(Font Asset Creator로 만든
         //    나눔고딕은 채워져 있어서 여태 모르고 지나갔다).
         //    outlineWidth/outlineColor 프로퍼티는 TMP가 그 셋업을 대신 해준다 — 이걸 쓴다.
-        titleTmp.outlineWidth = 0.28f;
-        titleTmp.outlineColor = UISkin.LogoOutline;
+        UISkin.ApplyTextOutline(titleTmp);
 
         // 장식용 3D 돌 5개 (타이틀 아래 흩어짐)
         CreateDecoStones(parent);

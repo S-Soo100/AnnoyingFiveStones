@@ -44,6 +44,11 @@ public class GameUI : MonoBehaviour
     private GameObject progressDotsGo;
     private GameObject pauseButtonGo;
 
+    // v18: 전체화면 연출이 오버레이 텍스트의 앵커·크기·자동축소를 바꾼다.
+    // 되돌리지 않으면 엔딩을 본 뒤 **다음 판의 CLEAR!·N단이 엉뚱한 자리에** 뜬다.
+    private Vector2 overlayMainAnchorMin, overlayMainAnchorMax, overlayMainPivot,
+                    overlayMainSizeDelta, overlayMainAnchoredPos;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -342,7 +347,8 @@ public class GameUI : MonoBehaviour
 
         overlayGroup.alpha = 0f;
         overlayCoroutine = null;
-        // 여기서 되살리지 않는다 — 생 종료 → 크레딧 → 엔딩이 이어져서 사이사이 HUD가 깜빡인다.
+        RestoreOverlayMainLayout();   // 다음 CLEAR!·N단이 이 배치를 물려받으면 안 된다
+        // HUD는 여기서 되살리지 않는다 — 생 종료 → 크레딧 → 엔딩이 이어져서 사이사이 깜빡인다.
         // 복구는 다음 판이 시작될 때(GameManager.StartStage) 한 번만 한다.
         onComplete?.Invoke();
     }
@@ -390,6 +396,10 @@ public class GameUI : MonoBehaviour
         overlayMainText.textWrappingMode = TextWrappingModes.NoWrap;
         overlayMainText.overflowMode = TextOverflowModes.Truncate;
         if (koreanTmpFont != null) overlayMainText.font = koreanTmpFont;
+        // CLEAR!·FAIL·N단·꺾기처럼 **판 없이** 게임 화면 위에 바로 뜨는 글자다
+        // (오버레이 배경 알파가 0~0.4로 오가고, 어떤 연출은 아예 투명이다).
+        // ⚠️ font 할당 뒤에 걸어야 한다 — .font를 바꾸면 머티리얼이 갈아치워진다.
+        UISkin.ApplyTextOutline(overlayMainText);
         var mainRt = mainGo.GetComponent<RectTransform>();
         mainRt.anchorMin = new Vector2(0f, 0.35f);
         mainRt.anchorMax = new Vector2(1f, 0.65f);
@@ -403,10 +413,33 @@ public class GameUI : MonoBehaviour
         overlaySubText.textWrappingMode = TextWrappingModes.NoWrap;
         overlaySubText.overflowMode = TextOverflowModes.Overflow;
         if (koreanTmpFont != null) overlaySubText.font = koreanTmpFont;
+        UISkin.ApplyTextOutline(overlaySubText);
         var subRt = subGo.GetComponent<RectTransform>();
         subRt.anchorMin = new Vector2(0f, 0.2f);
         subRt.anchorMax = new Vector2(1f, 0.35f);
         subRt.sizeDelta = Vector2.zero;
+
+        // 전체화면 연출이 바꾸는 값들을 여기서 기억해둔다(RestoreOverlayMainLayout).
+        overlayMainAnchorMin  = mainRt.anchorMin;
+        overlayMainAnchorMax  = mainRt.anchorMax;
+        overlayMainPivot      = mainRt.pivot;
+        overlayMainSizeDelta  = mainRt.sizeDelta;
+        overlayMainAnchoredPos = mainRt.anchoredPosition;
+    }
+
+    /// <summary>오버레이 메인 텍스트를 만들 때의 배치로 되돌린다.
+    /// 전체화면 연출(생 종료·엔딩)은 이 값을 통째로 갈아치우기 때문이다.</summary>
+    private void RestoreOverlayMainLayout()
+    {
+        var rt = overlayMainText.rectTransform;
+        rt.anchorMin = overlayMainAnchorMin;
+        rt.anchorMax = overlayMainAnchorMax;
+        rt.pivot = overlayMainPivot;
+        rt.sizeDelta = overlayMainSizeDelta;
+        rt.anchoredPosition = overlayMainAnchoredPos;
+        overlayMainText.enableAutoSizing = true;
+        overlayMainText.fontStyle = FontStyles.Bold;
+        overlayMainText.textWrappingMode = TextWrappingModes.NoWrap;
     }
 
     private void CreatePauseButton()
@@ -495,6 +528,8 @@ public class GameUI : MonoBehaviour
         title.fontSize = 26;
         title.fontStyle = FontStyles.Bold;
         title.color = Color.white;
+        // 판이 30%뿐이라 사실상 맨 글자다 — 배경이 밝으면 흰 글자가 묻힌다.
+        UISkin.ApplyTextOutline(title);
         title.alignment = TextAlignmentOptions.Left;
         title.raycastTarget = false;
         if (koreanTmpFont != null) title.font = koreanTmpFont;

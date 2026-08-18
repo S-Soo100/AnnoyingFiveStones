@@ -160,6 +160,26 @@ public static class GameTestMenu
         SettingsPopupUI.EnsureInstance().Open();
     }
 
+    /// <summary>판 없이 뜨는 글자(CLEAR!·N단)의 외곽선 확인용.
+    /// 촬영을 같이 걸어야 한다 — 연출이 짧아 따로 부르면 놓친다.</summary>
+    [MenuItem("Tools/테스트: CLEAR! 표시")]
+    public static void ShowClear()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (GameUI.Instance == null) { Debug.LogError("[GameTestMenu] GameUI 없음"); return; }
+        IntroFrameCapture.Begin(60, 4);
+        GameUI.Instance.ShowClear();
+    }
+
+    [MenuItem("Tools/테스트: 단 인트로 표시")]
+    public static void ShowStageIntro()
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (GameUI.Instance == null) { Debug.LogError("[GameTestMenu] GameUI 없음"); return; }
+        IntroFrameCapture.Begin(60, 4);
+        GameUI.Instance.ShowStageIntro(3);
+    }
+
     /// <summary>시안 마지막 두 화면. 올클리어까지 가지 않고도 대조할 수 있어야 한다.</summary>
     [MenuItem("Tools/테스트: 생 종료 화면")]
     public static void ShowLifeEnd()
