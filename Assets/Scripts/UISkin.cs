@@ -62,8 +62,22 @@ public static class UISkin
     // 그래서 바깥을 안쪽보다 두껍게 둔다 — 윤곽이 먼저 읽히고 광택이 그 안에 남는다.
     // (MCP get_node_info가 strokeWeight를 안 넘겨줘서 시안 실측값이 아니다.
     //  Figma가 붙으면 버튼을 4배로 내보내 픽셀을 세고 이 두 숫자만 맞추면 된다.)
-    public const float EdgeOuterW = 3f;
-    public const float EdgeInnerW = 2f;
+    public const float EdgeOuterW = 4f;
+    public const float EdgeInnerW = 3f;
+
+    /// <summary>
+    /// 9-slice에서 **고정으로 남길** 테두리 폭. 테두리보다 넉넉해야 한다.
+    ///
+    /// 위아래도 반드시 잘라야 한다. 예전엔 좌우만 잘라서(sliceY=0) 세로가 통째로
+    /// 늘어났고, 버튼 요소 높이(53 UI단위)가 스프라이트 높이(80px)보다 작다 보니
+    /// **위아래 테두리만 좌우의 2/3 두께로 눌려** 그려졌다. 테두리가 얇아 보이던
+    /// 원인 중 하나다. 면이 세로 그라디언트라 가운데 띠가 늘어나며 기울기가 살짝
+    /// 꺾이지만, 선형이라 눈에 띄지 않는다 — 테두리가 뭉개지는 쪽이 훨씬 나쁘다.
+    /// </summary>
+    /// <param name="radius">이 스프라이트의 바깥 곡률. 슬라이스 폭이 곡률보다 작으면
+    /// 늘릴 때 모서리 호가 잘려 각져 보인다 — 둘 중 큰 값을 쓴다.</param>
+    public static int SliceFor(float radius) =>
+        Mathf.CeilToInt(Mathf.Max(EdgeOuterW + EdgeInnerW, radius)) + 2;
 
     /// <summary>바깥 테두리 (Button_outline stroke).</summary>
     public static readonly Color32 EdgeOuter = new Color32(0x5A, 0x71, 0x7F, 0xFF);
@@ -133,22 +147,22 @@ public static class UISkin
     /// <summary>버튼 호버 — 면만 밝게. 시안에 호버 상태는 없지만, 마우스 게임에서
     /// 반응이 없으면 "눌리는 건가?"를 알 수 없다. 배색은 유지하고 명도만 올린다.</summary>
     public static Sprite RaisedHover => Cached("hover", () =>
-        Build(32, 80, 6f, 12, FaceGrad(Lighten(FaceBottom, .35f), Lighten(FaceTop, .35f)), false, EdgeOuter, EdgeInner));
+        Build(32, 80, OuterRadius(6f), 12, FaceGrad(Lighten(FaceBottom, .35f), Lighten(FaceTop, .35f)), false, EdgeOuter, EdgeInner, sliceY: 12));
 
     /// <summary>버튼 눌림 — 그라디언트를 뒤집고 안쪽 테두리를 어둡게. 방향이 뒤집혀야
     /// "들어갔다"가 읽힌다. 색만 바꾸면 눌린 느낌이 나지 않는다.</summary>
     public static Sprite Sunken => Cached("sunken", () =>
-        Build(32, 80, 6f, 12, FaceGrad(FaceTop, Darken(FaceBottom, .12f)), false, EdgeOuter, EdgeOuter));
+        Build(32, 80, OuterRadius(6f), 12, FaceGrad(FaceTop, Darken(FaceBottom, .12f)), false, EdgeOuter, EdgeOuter, sliceY: 12));
 
     /// <summary>같은 배색의 패널. 시안 높이를 그대로 넘긴다(상태박스 172 등).</summary>
     public static Sprite Panel(int designHeight) => Cached($"panel{designHeight}", () =>
-        Build(32, designHeight, 6f, 12, FaceGrad(FaceBottom, FaceTop), false, EdgeOuter, EdgeInner));
+        Build(32, designHeight, OuterRadius(6f), 12, FaceGrad(FaceBottom, FaceTop), false, EdgeOuter, EdgeInner, sliceY: 12));
 
     /// <summary>상태박스 안쪽 흰 칸 / 슬라이더 홈 — 흰 바탕 + 먹색 테두리, 모서리 각짐.</summary>
     public static Sprite InsetBox => InsetBoxOf(56);
 
     public static Sprite InsetBoxOf(int designHeight) => Cached($"inset{designHeight}", () =>
-        Build(32, designHeight, 0f, 12, _ => (Color)Color.white, false, InsetBorder, null));
+        Build(32, designHeight, 0f, 12, _ => (Color)Color.white, false, InsetBorder, null, sliceY: SliceFor(0f)));
 
     // ── 창(일시정지 / 경고) ──────────────────────────────────────────────────
     // 시안 Settings 572:588 · Dialog 572:441. 둘 다 같은 부품이고 높이만 다르다.
@@ -156,14 +170,14 @@ public static class UISkin
     /// <summary>창 몸통 — 둥근 모서리 12, 면 #CCD9DD, 테두리 #5A717F.
     /// 면이 단색이라 위아래로도 잘라 늘릴 수 있다(그라디언트가 없으니 계단이 안 생긴다).</summary>
     public static Sprite WindowBody => Cached("winbody", () =>
-        Build(32, 32, 12f, 12, _ => (Color)WindowFace, false, EdgeOuter, null, sliceY: 12));
+        Build(48, 48, OuterRadius(12f), 18, _ => (Color)WindowFace, false, EdgeOuter, null, sliceY: 18));
 
     /// <summary>창 머리띠 — **위쪽만** 둥글다(아래는 몸통과 맞닿아 각져야 한다).
     /// 테두리를 넣어두면 창 바깥선이 머리띠 구간에서 끊기지 않고, 아래쪽 선이
     /// 그대로 머리띠↔몸통 구분선이 된다(시안에서 몸통 위쪽 stroke가 하는 역할).</summary>
     public static Sprite WindowHeader => Cached("winhead", () =>
-        Build(32, 83, 12f, 12, FaceGrad(HeaderBottom, Color.white), false, EdgeOuter, null,
-              topRoundedOnly: true));
+        Build(48, 83, OuterRadius(12f), 18, FaceGrad(HeaderBottom, Color.white), false, EdgeOuter, null,
+              sliceY: 18, topRoundedOnly: true));
 
     /// <summary>슬라이더 손잡이 — 20×36 흰 알약(각짐) + 먹색 테두리.</summary>
     public static Sprite SliderHandle => Cached("shandle", () =>
@@ -209,11 +223,34 @@ public static class UISkin
 
     // ── 빌더 ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// 시안의 cornerRadius는 **면 기준**이다. 시안은 어두운 테두리를 박스 **바깥**에
+    /// 그리므로 바깥 곡률이 radius + 테두리가 된다(버튼 6 + 4 = 10).
+    /// 우리는 테두리를 안쪽에 그리니 스프라이트 반경을 그만큼 키워야 같은 실루엣이 나온다.
+    /// 이걸 안 하면 모서리가 시안보다 각져 보인다.
+    /// </summary>
+    private static float OuterRadius(float designRadius) => designRadius + EdgeOuterW;
+
+    private static float SrgbToLinear(float c) =>
+        c <= 0.04045f ? c / 12.92f : Mathf.Pow((c + 0.055f) / 1.055f, 2.4f);
+    private static float LinearToSrgb(float c) =>
+        c <= 0.0031308f ? c * 12.92f : 1.055f * Mathf.Pow(c, 1f / 2.4f) - 0.055f;
+
+    /// <summary>
+    /// **선형 광량 공간**에서 섞는다. sRGB 값을 그대로 Lerp하면 중간이 실제보다
+    /// 어둡고 탁해진다 — 시안과 나란히 놓으면 가운데가 파랗게 죽어 보였다.
+    /// (같은 두 색이라도 섞는 공간이 다르면 중간색이 달라진다.)
+    /// </summary>
+    private static Color MixLinear(Color a, Color b, float t) => new Color(
+        LinearToSrgb(Mathf.Lerp(SrgbToLinear(a.r), SrgbToLinear(b.r), t)),
+        LinearToSrgb(Mathf.Lerp(SrgbToLinear(a.g), SrgbToLinear(b.g), t)),
+        LinearToSrgb(Mathf.Lerp(SrgbToLinear(a.b), SrgbToLinear(b.b), t)), 1f);
+
     private static Color Lighten(Color32 c, float t) => Color.Lerp(c, Color.white, t);
     private static Color Darken(Color32 c, float t) => Color.Lerp(c, Color.black, t);
 
-    /// <summary>t=0 아래 → t=1 위.</summary>
-    private static Func<float, Color> FaceGrad(Color bottom, Color top) => t => Color.Lerp(bottom, top, t);
+    /// <summary>t=0 아래 → t=1 위. 섞기는 선형 광량 공간에서 한다(MixLinear 참고).</summary>
+    private static Func<float, Color> FaceGrad(Color bottom, Color top) => t => MixLinear(bottom, top, t);
 
     /// <summary>시안의 클리어 원: 아래 초록 → 0.27에서 연두 → 위 흰색.</summary>
     private static Func<float, Color> ClearGrad() => t =>
