@@ -284,7 +284,8 @@ public class ObstacleGimmick : StageGimmick
                 float hd = BoardSpace.LogicalDepth * 0.5f - 0.6f;
                 board.x = Mathf.Clamp(board.x, -hw, hw);
                 board.y = Mathf.Clamp(board.y, -hd, hd);
-                stone.Rb.linearVelocity = Vector3.zero;
+                // 안착 돌은 SettleStone이 kinematic으로 고정한 뒤라 velocity 설정이 경고를 낸다.
+                if (!stone.Rb.isKinematic) stone.Rb.linearVelocity = Vector3.zero;
                 stone.SetBoardMotion(board, 0f);
                 Debug.Log($"[ObstacleGimmick] Stone {stone.StoneIndex} nudged away from ruler (dist was {dist:F2})");
             }
