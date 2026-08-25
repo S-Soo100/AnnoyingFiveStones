@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -25,7 +26,20 @@ public class GameUI : MonoBehaviour
     private TextMeshProUGUI[] dotNumbers = new TextMeshProUGUI[5];
 
     [Header("Overlay")]
-    private Image overlayBg;
+    private Image overlayBg;        // 맨 아래 단색 막(검정)
+    private Image overlayPhoto;     // 그 위 전체화면 사진(영정 593:724 / 국화 593:729)
+    private Image overlayDim;       // 사진 위 암막(시안 Dim70=0.698 / Dim85=0.851)
+    private GameObject creditCardL, creditCardR;  // 엔딩 농담 화면의 인생 사진 2장(593:731/732)
+    private CanvasGroup creditCardGroupL, creditCardGroupR;  // 카드는 흰 테두리+사진 2단이라 CanvasGroup으로 함께 페이드
+
+    /// <summary>
+    /// 엔딩 시퀀스 동안 **검은 막을 계속 세워 둔다**는 표시.
+    /// 이게 없으면 연출과 연출 사이에서 overlayGroup이 투명해져 플레이하던 배경이 비친다
+    /// (주마등→영정→크레딧→농담→이름입력→납골당 사이가 전부 그랬다, 2026-08-25 지적).
+    /// </summary>
+    private bool endingBlackout;
+
+    private readonly Dictionary<string, Sprite> spriteCache = new();
     private TextMeshProUGUI overlayMainText;
     private TextMeshProUGUI overlaySubText;
     private CanvasGroup overlayGroup;
@@ -259,14 +273,16 @@ public class GameUI : MonoBehaviour
     }
 
     // ==========================================================
-    // v18: 시안의 마지막 두 화면 (Figma 572:647 생 종료 / 572:652 엔딩)
-    // 둘 다 "암전 + 흰 글자" 한 장이라 기존 오버레이를 그대로 쓴다.
-    // 배경 이미지 자리는 시안에서 IMAGE 플레이스홀더다 — 배경 아트가 나오면
-    // overlayBg 뒤에 한 장 깔면 된다(지금은 검정).
+    // v19: 시안 0822가 이 두 화면의 배경 아트를 채웠다(v18까지는 IMAGE 플레이스홀더라 검정이었다).
+    //   생 종료(593:724) = 국화 + 검은 액자 사진. 액자 안쪽이 순검정이라 흰 글자가 그대로 얹힌다.
+    //     (Dim을 겹치지 않는다 — 시안 텍스트 상자 800×194 @(560,473)이 액자 검정면 안에 100% 들어가는 것을
+    //      사진 픽셀로 확인했다. 액자 안쪽은 x 479~1450 / y 240~848이다.)
+    //   엔딩 농담(593:728) = 어두운 배경 + 책상 사진 2장. **이 배경은 아직 안 넘어왔다** → 검정 유지.
     // ==========================================================
 
     /// <summary>
-    /// "이번 생은 여기까지 입니다 / 수고하셨습니다" — 시안 88px, 화면 중심에서 살짝 아래(y=562).
+    /// "이번 생은 여기까지 입니다 / 수고하셨습니다" — 시안 0822는 **76px Bold**, 중심 y=570이다.
+    /// (0817은 88px·562였다. 액자 안에 들어가면서 글자가 작아졌다.)
     /// 주마등이 끝난 뒤, 크레딧 앞에 놓았다. 생이 지나간 걸 보고 나서 듣는 마무리다.
     /// </summary>
     public void ShowLifeEnd(System.Action onComplete)
@@ -275,12 +291,31 @@ public class GameUI : MonoBehaviour
         StopOverlay();
         overlayCoroutine = StartCoroutine(DoFullscreenLine(
             LocalizationManager.L("ending.mainment") + "\n" + LocalizationManager.L("ending.thanks"),
-            designFontPt: 88f, designCenterY: 562f, hold: 3.5f, onComplete));
+            designFontPt: 76f, designCenterY: 570f, hold: 3.5f, onComplete,
+            bold: true, background: LoadSprite("Endings/portrait_frame")));
+    }
+
+    /// <summary>Resources의 텍스처를 스프라이트로 굽고 캐시한다. 없으면 null(호출부가 검정으로 대체).</summary>
+    private Sprite LoadSprite(string path)
+    {
+        if (spriteCache.TryGetValue(path, out var cached)) return cached;
+        var tex = Resources.Load<Texture2D>(path);
+        if (tex == null)
+            Debug.LogWarning($"[GameUI] 배경 없음: Resources/{path} — 검정으로 대체");
+        var sp = tex == null ? null
+               : Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+        spriteCache[path] = sp;
+        return sp;
     }
 
     /// <summary>
     /// "더 대단한 엔딩 같은 건 준비해 두지 않았습니다" — 시안 40px, 화면 아래쪽(y=941).
     /// 크레딧 뒤에 놓았다. 크레딧을 다 보여준 다음이라야 농담이 성립한다.
+    ///
+    /// ⚠️ 시안에서 "Credit"이라 이름 붙은 프레임(593:728)이 **바로 이 화면**이다 —
+    ///    역할 목록이 아니라 이 농담 한 줄이 들어 있다. 그래서 국화 배경 + Dim85 +
+    ///    인생 사진 2장이 붙는 자리도 크레딧(DoCredit)이 아니라 여기다.
+    ///    역할 목록 화면은 시안에 없으므로 지금처럼 검정을 유지한다.
     /// </summary>
     public void ShowEndingJoke(System.Action onComplete)
     {
@@ -288,7 +323,8 @@ public class GameUI : MonoBehaviour
         StopOverlay();
         overlayCoroutine = StartCoroutine(DoFullscreenLine(
             LocalizationManager.L("ending.no_more"),
-            designFontPt: 40f, designCenterY: 941f, hold: 3f, onComplete));
+            designFontPt: 40f, designCenterY: 941f, hold: 3f, onComplete,
+            background: LoadSprite("Endings/chrysanthemum"), dimAlpha: 0.851f, lifePhotos: true));
     }
 
     /// <summary>
@@ -320,10 +356,20 @@ public class GameUI : MonoBehaviour
 
     /// <summary>암전 위에 흰 글자 한 덩이. 시안 좌표(1920×1080)를 그대로 받는다.</summary>
     private IEnumerator DoFullscreenLine(string text, float designFontPt, float designCenterY,
-                                         float hold, System.Action onComplete)
+                                         float hold, System.Action onComplete,
+                                         bool bold = false, Sprite background = null,
+                                         float dimAlpha = 0f, bool lifePhotos = false)
     {
         SetHudVisible(false);
+        // 층 구성: 검은 막(항상) → 사진 → 암막 → 인생 사진 → 글자.
+        // 사진을 overlayBg에 직접 넣지 않는 이유: 끝에서 사진을 걷을 때 **검정이 남아야** 하기 때문이다.
+        // 한 층으로 하면 사진이 투명해지며 플레이하던 배경이 비친다.
         overlayBg.color = Color.black;
+        overlayPhoto.sprite = background;
+        overlayPhoto.color = background != null ? Color.white : new Color(1f, 1f, 1f, 0f);
+        overlayDim.color = new Color(0f, 0f, 0f, background != null ? dimAlpha : 0f);
+        if (creditCardL != null) { creditCardGroupL.alpha = 1f; creditCardL.SetActive(lifePhotos); }
+        if (creditCardR != null) { creditCardGroupR.alpha = 1f; creditCardR.SetActive(lifePhotos); }
         overlayGroup.alpha = 1f;
 
         overlaySubText.text = "";
@@ -336,7 +382,7 @@ public class GameUI : MonoBehaviour
         overlayMainText.text = text;
         overlayMainText.enableAutoSizing = false;
         overlayMainText.fontSize = UISkin.GamePx(designFontPt);
-        overlayMainText.fontStyle = FontStyles.Normal;   // 시안은 굵게가 아니다
+        overlayMainText.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
         overlayMainText.textWrappingMode = TextWrappingModes.Normal;
         overlayMainText.alignment = TextAlignmentOptions.Center;
         overlayMainText.color = new Color(1f, 1f, 1f, 0f);
@@ -345,7 +391,27 @@ public class GameUI : MonoBehaviour
         yield return new WaitForSeconds(hold);
         yield return FadeMain(1f, 0f, 0.8f);
 
-        overlayGroup.alpha = 0f;
+        // 사진을 깔았으면 **검정 위로** 걷어낸다. 예전엔 overlayGroup 전체를 페이드했는데,
+        // 그러면 막까지 같이 투명해져 플레이하던 배경이 0.6초 동안 비쳤다(2026-08-25 지적).
+        // 사진·암막·인생사진만 내리고 검은 막은 그대로 둔다.
+        if (background != null)
+        {
+            for (float t = 0f; t < 0.6f; t += Time.deltaTime)
+            {
+                float k = 1f - Mathf.Clamp01(t / 0.6f);
+                overlayPhoto.color = new Color(1f, 1f, 1f, k);
+                overlayDim.color = new Color(0f, 0f, 0f, dimAlpha * k);
+                if (creditCardGroupL != null) creditCardGroupL.alpha = k;
+                if (creditCardGroupR != null) creditCardGroupR.alpha = k;
+                yield return null;
+            }
+            overlayPhoto.color = new Color(1f, 1f, 1f, 0f);
+            overlayDim.color = new Color(0f, 0f, 0f, 0f);
+            if (creditCardL != null) { creditCardGroupL.alpha = 1f; creditCardL.SetActive(false); }
+            if (creditCardR != null) { creditCardGroupR.alpha = 1f; creditCardR.SetActive(false); }
+        }
+        // 엔딩 시퀀스 중이면 검은 막을 내리지 않는다 — 다음 연출이 뜰 때까지 화면은 검정이어야 한다.
+        if (!endingBlackout) overlayGroup.alpha = 0f;
         overlayCoroutine = null;
         RestoreOverlayMainLayout();   // 다음 CLEAR!·N단이 이 배치를 물려받으면 안 된다
         // HUD는 여기서 되살리지 않는다 — 생 종료 → 크레딧 → 엔딩이 이어져서 사이사이 깜빡인다.
@@ -384,6 +450,14 @@ public class GameUI : MonoBehaviour
         bgRt.anchorMin = Vector2.zero;
         bgRt.anchorMax = Vector2.one;
         bgRt.sizeDelta = Vector2.zero;
+
+        // 사진 층 — 검은 막 위, 암막 아래. 시안은 배경 사진을 통째로 깐다.
+        overlayPhoto = CreateFullscreenLayer("OverlayPhoto", container.transform, new Color(1f, 1f, 1f, 0f));
+        // 암막 층 — 시안의 Dim70/Dim85. 순검정 균일 알파라 텍스처가 필요 없다.
+        overlayDim = CreateFullscreenLayer("OverlayDim", container.transform, new Color(0f, 0f, 0f, 0f));
+
+        // 인생 사진 2장(엔딩 농담 화면) — 텍스트보다 **먼저** 만들어야 글자가 위로 온다.
+        CreateCreditCards(container.transform);
 
         // 메인 텍스트 — Canvas 중앙 기준으로 복원
         var mainGo = CreateUIObject("OverlayMain", container.transform);
@@ -429,6 +503,105 @@ public class GameUI : MonoBehaviour
 
     /// <summary>오버레이 메인 텍스트를 만들 때의 배치로 되돌린다.
     /// 전체화면 연출(생 종료·엔딩)은 이 값을 통째로 갈아치우기 때문이다.</summary>
+    private Image CreateFullscreenLayer(string name, Transform parent, Color color)
+    {
+        var go = CreateUIObject(name, parent);
+        var img = go.AddComponent<Image>();
+        img.color = color;
+        img.raycastTarget = false;
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.sizeDelta = Vector2.zero;
+        return img;
+    }
+
+    /// <summary>
+    /// 엔딩 농담 화면(시안 Credit 593:728)의 인생 사진 2장.
+    /// 시안 실측: 880×487 카드가 좌 (-0.3, 301.66) · 우 (1021.34, 179.87), 흰 테두리, 서로 반대로 기울어짐.
+    /// 기울기는 시안 렌더와 2.35°/5°/8° 후보를 합성 대조해 **5°**로 맞췄다.
+    /// 사진은 새 에셋이 아니라 **게임이 쓰던 인생 배경 그대로**다(age10 교실 · age25 책상) —
+    /// 시안 렌더와 대조표를 눈으로 맞춰 확인했다. "네가 지나온 배경"이라 의미도 맞는다.
+    /// </summary>
+    private void CreateCreditCards(Transform parent)
+    {
+        creditCardL = CreateCreditCard(parent, "CreditCardL", "StageBackgrounds/Life/age10",
+                                       cx: -0.3f + 440f, cy: 301.66f + 243.5f, angle: 5f);
+        creditCardR = CreateCreditCard(parent, "CreditCardR", "StageBackgrounds/Life/age25",
+                                       cx: 1021.34f + 440f, cy: 179.87f + 243.5f, angle: -5f);
+    }
+
+    private GameObject CreateCreditCard(Transform parent, string name, string texPath,
+                                        float cx, float cy, float angle)
+    {
+        const float CardW = 880f, CardH = 487f, Border = 14f;
+
+        var cardGo = CreateUIObject(name, parent);
+        // ⚠️ CanvasRenderer.SetAlpha는 **자식에 전파되지 않는다** — 흰 테두리만 사라지고 사진이 남는다.
+        //    두 층을 함께 흐리게 하려면 CanvasGroup이어야 한다.
+        var group = cardGo.AddComponent<CanvasGroup>();
+        var white = cardGo.AddComponent<Image>();
+        white.color = Color.white;          // 폴라로이드 흰 테두리
+        white.raycastTarget = false;
+
+        var rt = cardGo.GetComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);  // 시안처럼 중심 기준 회전
+        rt.sizeDelta = new Vector2(UISkin.GamePx(CardW), UISkin.GamePx(CardH));
+        rt.anchoredPosition = new Vector2(UISkin.GamePx(cx - 960f), UISkin.GamePx(540f - cy));
+        rt.localRotation = Quaternion.Euler(0f, 0f, angle);
+
+        var photoGo = CreateUIObject("Photo", cardGo.transform);
+        var photo = photoGo.AddComponent<Image>();
+        photo.sprite = LoadSprite(texPath);
+        photo.raycastTarget = false;
+        if (photo.sprite == null) photo.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+        var prt = photoGo.GetComponent<RectTransform>();
+        prt.anchorMin = Vector2.zero;
+        prt.anchorMax = Vector2.one;
+        prt.offsetMin = new Vector2(UISkin.GamePx(Border), UISkin.GamePx(Border));
+        prt.offsetMax = new Vector2(-UISkin.GamePx(Border), -UISkin.GamePx(Border));
+
+        cardGo.SetActive(false);
+        if (name.EndsWith("L")) creditCardGroupL = group; else creditCardGroupR = group;
+        return cardGo;
+    }
+
+    // ==========================================================
+    // 엔딩 암막 — 시퀀스 내내 검은 막을 유지한다
+    // ==========================================================
+
+    /// <summary>
+    /// 엔딩 시퀀스 시작. 이 시점부터 <see cref="EndEndingBlackout"/>까지 검은 막이 안 내려간다.
+    /// 예전엔 연출마다 끝에서 overlayGroup.alpha=0으로 막을 걷어서, 다음 연출이 뜨기 전
+    /// **한두 프레임 동안 플레이하던 배경(55살 방 등)이 그대로 비쳤다**.
+    /// 이름 입력·납골당은 다른 캔버스(Overlay 300/190)라 이 막(World Space 100) 위에 그려진다 —
+    /// 그래서 막을 켜 둔 채로 시퀀스 전체를 덮을 수 있다.
+    /// </summary>
+    public void BeginEndingBlackout()
+    {
+        StopOverlay();                      // 진행 중 연출 정리(색까지 리셋된다)
+        endingBlackout = true;
+        overlayMainText.text = "";          // StopOverlay가 글자색을 흰색으로 되돌려 놓는다
+        overlaySubText.text = "";
+        overlayBg.color = Color.black;
+        overlayPhoto.color = new Color(1f, 1f, 1f, 0f);
+        overlayDim.color = new Color(0f, 0f, 0f, 0f);
+        overlayGroup.alpha = 1f;
+    }
+
+    /// <summary>엔딩 시퀀스 종료(납골당이 화면을 덮은 뒤). 막을 완전히 걷는다.</summary>
+    public void EndEndingBlackout()
+    {
+        endingBlackout = false;
+        overlayGroup.alpha = 0f;
+        overlayBg.color = new Color(0f, 0f, 0f, 0f);
+        overlayPhoto.sprite = null;
+        overlayPhoto.color = new Color(1f, 1f, 1f, 0f);
+        overlayDim.color = new Color(0f, 0f, 0f, 0f);
+        if (creditCardL != null) creditCardL.SetActive(false);
+        if (creditCardR != null) creditCardR.SetActive(false);
+    }
+
     private void RestoreOverlayMainLayout()
     {
         var rt = overlayMainText.rectTransform;
@@ -440,6 +613,7 @@ public class GameUI : MonoBehaviour
         overlayMainText.enableAutoSizing = true;
         overlayMainText.fontStyle = FontStyles.Bold;
         overlayMainText.textWrappingMode = TextWrappingModes.NoWrap;
+        if (overlayPhoto != null) overlayPhoto.sprite = null;  // 사진은 이 한 장짜리 연출 전용이다
     }
 
     private void CreatePauseButton()
@@ -759,11 +933,15 @@ public class GameUI : MonoBehaviour
         overlayCoroutine = null;
     }
 
-    /// <summary>오버레이 즉시 숨김 (ALL CLEAR 탭 재시작 시)</summary>
+    /// <summary>
+    /// 오버레이 즉시 숨김 (ALL CLEAR 탭 재시작 시). **엔딩 암막도 강제로 걷는다** —
+    /// 재시작 경로에서 막이 남으면 게임 화면이 검게 덮인 채로 판이 시작된다.
+    /// </summary>
     public void HideOverlay()
     {
+        endingBlackout = false;
         StopOverlay();
-        overlayGroup.alpha = 0f;
+        EndEndingBlackout();
     }
 
     // ==========================================================
@@ -947,6 +1125,12 @@ public class GameUI : MonoBehaviour
     {
         StopOverlay();
         overlayBg.color = new Color(0f, 0f, 0f, 1f); // 암전
+        // 역할 목록 화면은 시안에 없다 → 순검정 유지. 앞 연출(영정)의 잔재를 확실히 비운다.
+        overlayPhoto.sprite = null;
+        overlayPhoto.color = new Color(1f, 1f, 1f, 0f);
+        overlayDim.color = new Color(0f, 0f, 0f, 0f);
+        if (creditCardL != null) creditCardL.SetActive(false);
+        if (creditCardR != null) creditCardR.SetActive(false);
         overlayGroup.alpha = 1f;
 
         overlayMainText.text = LocalizationManager.L("ending.credit");
@@ -991,8 +1175,12 @@ public class GameUI : MonoBehaviour
             yield return null;
         }
 
-        overlayGroup.alpha = 0f;
-        overlayBg.color = new Color(0f, 0f, 0f, 0f);
+        // 엔딩 시퀀스 중이면 검정을 유지한다(다음은 농담 화면). 아니면 지금까지처럼 걷는다.
+        if (!endingBlackout)
+        {
+            overlayGroup.alpha = 0f;
+            overlayBg.color = new Color(0f, 0f, 0f, 0f);
+        }
         overlayMainText.enableAutoSizing = true; // 원복 (다음 연출 대비)
         overlayCoroutine = null;
         onComplete?.Invoke();
@@ -1011,10 +1199,19 @@ public class GameUI : MonoBehaviour
         }
         // 방어적 리셋 — 코루틴이 중단될 때 색상값이 남아 잔상 발생하므로
         // overlayGroup.alpha 뿐 아니라 개별 색상도 즉시 초기화.
+        // ⚠️ 엔딩 시퀀스 중에는 막을 내리지 않는다 — 연출을 갈아탈 때마다 여기서 투명해지면
+        //    다음 연출이 뜨기 전 한 프레임이 새어 나간다.
         if (overlayGroup != null)
-            overlayGroup.alpha = 0f;
+            overlayGroup.alpha = endingBlackout ? 1f : 0f;
         if (overlayBg != null)
-            overlayBg.color = new Color(0, 0, 0, 0);
+            overlayBg.color = endingBlackout ? Color.black : new Color(0, 0, 0, 0);
+        if (overlayPhoto != null && !endingBlackout)
+        {
+            overlayPhoto.sprite = null;
+            overlayPhoto.color = new Color(1f, 1f, 1f, 0f);
+        }
+        if (overlayDim != null && !endingBlackout)
+            overlayDim.color = new Color(0f, 0f, 0f, 0f);
         if (overlayMainText != null)
             overlayMainText.color = Color.white;
         if (overlaySubText != null)

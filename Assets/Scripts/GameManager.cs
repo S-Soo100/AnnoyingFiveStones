@@ -851,7 +851,10 @@ public class GameManager : MonoBehaviour
         // 놀림 메시지 5초 표시 후 이름 입력으로 전환
         yield return new WaitForSeconds(5f);
 
-        GameUI.Instance?.HideOverlay();
+        // v19: 여기서부터 납골당이 뜰 때까지 **검은 막을 계속 세워 둔다**.
+        // 예전엔 HideOverlay로 막을 걷어서, 주마등이 뜨기 전·연출과 연출 사이마다
+        // 플레이하던 배경(55살 방 등)이 한두 프레임씩 그대로 비쳤다(2026-08-25 지적).
+        GameUI.Instance?.BeginEndingBlackout();
 
         // v9(260703): 주마등 — 인생 스테이지 배경을 오른쪽→왼쪽으로 흘려보냄
         if (LifePanoramaUI.Instance != null)
@@ -920,6 +923,11 @@ public class GameManager : MonoBehaviour
         handController?.gameObject.SetActive(false);
         HandCursorUI.Instance?.SetActive(true);
         GraveyardUI.Instance?.Show(clearTime, playerName, regressionCount, testPlay);
+
+        // 납골당(Overlay 190)이 화면을 덮은 **다음** 프레임에 막을 걷는다.
+        // 같은 프레임에 걷으면 캔버스가 아직 안 그려져 한 프레임이 새어 나간다.
+        yield return null;
+        GameUI.Instance?.EndEndingBlackout();
 
         yield return null;
         // isTransitioning은 true로 유지

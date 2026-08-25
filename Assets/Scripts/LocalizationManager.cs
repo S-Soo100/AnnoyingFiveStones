@@ -73,7 +73,8 @@ public static class LocalizationManager
         ["home.play"]      = ("게임 시작", "Play"),
         ["home.settings"]  = ("설정", "Settings"),
         ["home.exit"]      = ("게임 종료", "Exit"), // 260703 스펙 일치 (구: "나가기")
-        ["home.cemetery"]  = ("묘지", "Cemetery"),
+        // v19(시안 0822): 홈 4번째 버튼으로 부활. 화면 컨셉이 묘지 → 납골당으로 바뀌어 키 이름도 맞춘다.
+        ["home.columbarium"] = ("납골당", "Columbarium"),
         ["home.record_mode"]   = ("기록 모드", "Record"), // v11 개발 빌드: 기록/연습 분기
         ["home.practice_mode"] = ("연습 모드", "Practice"),
 
@@ -89,9 +90,10 @@ public static class LocalizationManager
         // 담은 일시정지 메뉴라 "일시정지"가 맞다고 봤지만, 디자이너가 시안대로로 확정했다.
         // ⚠️ 홈의 설정창(settings.title)과 제목이 같아진다.
         ["pause.title"]   = ("설정", "Settings"),
-        // ⚠️ 영문은 시안 그대로 "Restart". 같은 시안의 국문은 "게임 재개"라 뜻이 어긋나지만
-        //    디자이너 확정 사항이다. 동작은 재개(Close)다 — 진행이 초기화되지 않는다.
-        ["pause.resume"]  = ("게임 재개", "Restart"),
+        // ⚠️ 시안(0817·0822 모두)의 영문은 "Restart"지만 **의도적으로 "Resume"으로 둔다**.
+        //    국문이 "게임 재개"이고 동작도 재개(Close)라 — 진행이 초기화되지 않는다.
+        //    "Restart"는 영문 이용자에게 기록이 날아간다고 읽힌다. 2026-08-22 디자이너 재확정.
+        ["pause.resume"]  = ("게임 재개", "Resume"),
         ["pause.quit"]    = ("게임 종료", "Quit Game"),
         // 시안은 슬라이더 제목에 숫자를 넣지 않는다("BGM" / "효과음").
         // 음량은 손잡이 위치로만 읽는다.
@@ -111,6 +113,17 @@ public static class LocalizationManager
         ["quit.confirm"]  = ("게임 종료", "Quit"),
         ["quit.cancel"]   = ("아니오", "Cancel"),
 
+        // === 기록 저장 이탈 경고 (시안 0822 — 주의 593:441 / Warning 593:456) ===
+        // ⚠️ 위 quit.*(인게임 종료 확인)와 **다른 창**이다. 시안 0822에 둘이 나란히 있다:
+        //    quit.*  = MainPlay 안 Dialog 593:426 — EN "Quit game? / Your score won't be" · [Cancel][Quit]
+        //    discard.* = "기록 저장에서 엑스 누르면" 주석이 가리키는 창 — EN은 잘리지 않은 완성 문장이다.
+        // 국문은 두 창이 같은 문장을 쓴다(뜻이 같다). 영문만 갈린다.
+        ["discard.title"]   = ("주의", "Warning"),
+        ["discard.message"] = ("기록을 저장하지 않고\n게임을 종료하시겠습니까?",
+                               "Exit the game without\nsaving your progress?"),
+        ["discard.confirm"] = ("게임 종료", "Exit Game"),
+        ["discard.cancel"]  = ("아니오", "No"),
+
         // === 성공/실패 (260703) ===
         ["result.clear"]  = ("CLEAR!", "CLEAR!"),
         ["result.fail"]   = ("FAIL", "FAIL"),
@@ -127,11 +140,11 @@ public static class LocalizationManager
         ["grave.play_again"] = ("Play Again", "Play Again"),
         ["grave.go_home"]    = ("Go Home", "Go Home"),
         // v18: 시안 "기록 저장" 창에 머리띠 제목이 생겼다(Figma 572:628).
-        ["grave.record_title"] = ("기록 저장", "Save Record"),
-        ["grave.name_prompt"] = ("묘비에 새길 이름을 지어주세요", "Enter a name for the tombstone."),
-        ["grave.save"]        = ("이 이름으로 저장", "Save with this name."),
+        ["grave.record_title"] = ("기록 저장", "Record"),
+        ["grave.name_prompt"] = ("유골함에 새길 이름을 지어주세요", "Enter a name for the urns"),
+        ["grave.save"]        = ("이 이름으로 저장", "Save with this name"),
         ["grave.name_start"]  = ("시작", "Start"),
-        ["grave.elapsed"]     = ("소요 시간  {0}", "Time taken  {0}"),
+        ["grave.elapsed"]     = ("소요 시간  {0}", "Time  {0}"),
         ["grave.loading"]     = ("불러오는 중...", "Loading..."),
         ["grave.load_fail"]   = ("기록을 불러올 수 없습니다", "Failed to load records."),
         ["grave.regression"]  = ("회귀 {0}번", "Loop {0}"),

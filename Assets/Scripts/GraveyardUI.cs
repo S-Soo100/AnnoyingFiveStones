@@ -6,23 +6,59 @@ using UnityEngine.InputSystem;
 using TMPro;
 
 /// <summary>
-/// 묘지 랭킹보드 싱글톤 (Figma Image#13).
-/// ALL CLEAR 후 표시. 전체 기록을 흰 배경 세로 3열 그리드 카드로 시각화, 세로 스크롤.
-/// 우하단 검정 버튼(Play Again/Go Home). Screen Space Overlay Canvas (sortingOrder=200).
+/// 납골당 랭킹보드 싱글톤 (시안 0822 — Ranking 593:693 / 593:719).
+/// ALL CLEAR 후, 그리고 홈의 "납골당" 버튼으로 표시. Screen Space Overlay Canvas (sortingOrder=190).
+///
+/// v19: 흰 배경 + 회색 카드 3열 그리드 → **납골당 벽 사진 합성**으로 교체.
+/// 벽은 1920×988 사진 한 장(<see cref="WallTexPath"/>)을 세로로 이어 붙여 만든다 —
+/// 시안도 같은 Back 사각형을 2장 겹쳐 1976 높이를 만들었다(593:694/695).
+/// 기록 한 건은 그 위에 유골함 카드 284×288 + 이름/시간 텍스트로 얹는다.
 /// </summary>
 public class GraveyardUI : MonoBehaviour
 {
     public static GraveyardUI Instance { get; private set; }
+
+    // ── 시안 좌표 (1920×1080 기준, 좌상단 원점) ──────────────────────────
+    // 열 x와 행 y는 시안 실측값(593:696~699)이고, **배경 사진의 실제 니치와 대조해 확인했다**:
+    //   wall_tile.png에서 칸막이를 픽셀로 재면 니치 안쪽이 y 17~312 / 348~642 / 677~972,
+    //   기둥 사이가 x 480~782 / 806~1109 / 1131~1421 이다.
+    //   아래 카드 사각형(284×288)이 세 행·세 열 모두 그 안에 들어간다.
+    // ⚠️ 행 피치(326.94)와 타일 높이(988)는 정수배가 아니다(3행=980.82). 그래서 행을
+    //    "이어서 계속 더하는" 방식으로 두면 타일마다 7.18px씩 밀려 결국 칸막이를 밟는다.
+    //    **타일마다 RowY를 처음부터 다시 쓴다** — 벽 사진이 반복되므로 그게 맞다.
+    private const string WallTexPath = "Columbarium/wall_tile";
+    private const string UrnTexPath  = "Columbarium/urn_card";
+    private const float TileW = 1920f, TileH = 988f;
+    private const float CardW = 284f, CardH = 288f;
+    private static readonly float[] ColX = { 485.94f, 810f, 1134.06f };
+    private static readonly float[] RowY = { 23.06f, 350f, 676.94f };
+    private const int SlotsPerTile = 9;          // 3열 × 3행
+    private const int MinTiles = 2;              // 시안이 기본으로 두 장을 깐다(스크롤 여지)
+
+    // 카드 안 텍스트 (593:700 계열) — 카드 좌상단 기준 오프셋
+    private const float TextDX = 73.5f, TextW = 137f;
+    private const float NameDY = 84.94f, NameH = 108f;   // 28px × 3줄 = 15자
+    private const float TimeDY = 204.94f, TimeH = 36f;
+    private const float TextPt = 28f;
+
+    // 하단 버튼 (593:712) — Go Home은 시안이 291.5지만 300으로 통일(디자이너 확정 2026-08-22)
+    private const float BtnX = 1528f, BtnY0 = 798f, BtnGap = 110f, BtnW = 300f, BtnH = 80f;
 
     private Canvas canvas;
     private ScrollRect scrollRect;
     private RectTransform content;
     private TextMeshProUGUI statusText;
     private GameObject restartHintWrapper;
+    private GameObject playAgainBtn, goHomeBtn;
+    /// <summary>홈에서 들어온 관람 모드. 아직 판을 한 판도 안 끝냈으므로 "Play Again"이 성립하지 않는다.</summary>
+    private bool isViewOnly;
     private TMP_FontAsset koreanFont;
 
     // v10 다국어: 하단 버튼(Play Again/Go Home) 라벨 → 키. Show() 때 현재 언어로 재설정.
     private readonly List<(TextMeshProUGUI tmp, string key)> endButtonLabels = new();
+
+    private Sprite wallSprite;   // 납골당 벽 타일 (1920×988)
+    private Sprite urnSprite;    // 유골함 카드 (284×288) — 아직 없으면 null
 
     private Coroutine scrollCoroutine;
     private bool isShowing;
@@ -74,16 +110,47 @@ public class GraveyardUI : MonoBehaviour
 
     public void Show(float myTime, string myName, int myRegressionCount = 0, bool isTestPlay = false)
     {
+        isViewOnly = false;
         canvas.gameObject.SetActive(true);
         isShowing = true;
         hasReachedEnd = false;
         restartHintWrapper.SetActive(false);
         RefreshEndButtons(); // v10 다국어: 현재 언어로 하단 버튼 라벨 갱신
+        ApplyEndButtonMode(); // 관람 모드에서 감췄던 Play Again을 되살린다(엔딩 재진입 대비)
         statusText.text = LocalizationManager.L("grave.loading");
 
         if (scrollCoroutine != null)
             StopCoroutine(scrollCoroutine);
         scrollCoroutine = StartCoroutine(CoLoadAndScroll(myTime, myName, myRegressionCount, isTestPlay));
+    }
+
+    /// <summary>
+    /// 홈에서 여는 관람 모드. 저장된 기록만 보여주고 **내 기록을 새로 얹지 않는다**.
+    /// (isTestPlay 플래그가 "내 비석 생략"을 겸하고 있어 그대로 재사용한다 —
+    ///  호출부에서 `isTestPlay: true`라고 쓰면 뜻이 거꾸로 읽혀서 이 이름으로 감쌌다.)
+    /// ⚠️ 이 캔버스는 sortingOrder=190, 타이틀은 250이다. 타이틀을 내리지 않고 부르면
+    ///    납골당이 타이틀 뒤에 가려 아무것도 안 보인다 — TitleScreenUI.OpenColumbarium 참고.
+    /// </summary>
+    public void ShowViewOnly()
+    {
+        Show(0f, string.Empty, 0, isTestPlay: true);
+        isViewOnly = true;   // Show()가 false로 되돌리므로 **뒤에** 세운다
+        ApplyEndButtonMode();
+    }
+
+    /// <summary>
+    /// 관람 모드면 "Play Again"을 감추고 "Go Home"만 남긴다.
+    /// 홈 → 납골당은 아직 아무 판도 안 끝낸 상태라 "다시 하기"가 말이 안 된다(2026-08-25 지적).
+    /// 남은 한 개는 시안의 **첫 번째 자리**로 올린다 — 아래 칸에 혼자 두면 위가 비어 어색하다.
+    /// </summary>
+    private void ApplyEndButtonMode()
+    {
+        if (playAgainBtn != null) playAgainBtn.SetActive(!isViewOnly);
+        if (goHomeBtn != null)
+            UIWindow.Place(goHomeBtn.GetComponent<RectTransform>(),
+                           BtnX - UISkin.Outset,
+                           (isViewOnly ? BtnY0 : BtnY0 + BtnGap) - UISkin.Outset,
+                           BtnW + UISkin.Outset * 2f, BtnH + UISkin.Outset * 2f);
     }
 
     public void Hide()
@@ -128,6 +195,10 @@ public class GraveyardUI : MonoBehaviour
 
     private IEnumerator CoLoadAndScroll(float myTime, string myName, int myRegressionCount, bool isTestPlay = false)
     {
+        // 로딩(최대 15초) 동안에도 벽은 서 있어야 한다. v18까지는 전체화면 흰 배경이 그 역할을
+        // 했는데, 벽이 content 안으로 들어가면서 **비면 게임 화면이 그대로 비쳤다**. 먼저 깔아 둔다.
+        LayoutWall(0);
+
         List<RecordEntry> records = null;
         bool done = false;
 
@@ -158,19 +229,14 @@ public class GraveyardUI : MonoBehaviour
 
         yield return null; // Destroy 반영 대기
 
-        // 다른 플레이어 비석 (그리드 배치는 GridLayoutGroup이 처리)
-        foreach (var rec in records)
-        {
-            CreateTombstone(rec.player_name, rec.clear_time_seconds, rec.regression_count, false);
-        }
+        // 내 기록은 **순위 자리에** 끼운다 — 시안이 첫 줄을 1·2·3등으로 부르는 랭킹 벽이라
+        // 맨 뒤에 덧붙이면 빠른 기록이 맨 아래 칸에 앉는다. (관람 모드는 내 기록이 없다.)
+        if (!isTestPlay) InsertMyRecord(records, myName, myTime, myRegressionCount);
 
-        // 마지막에 내 비석 (테스트 플레이 시 생략)
-        if (!isTestPlay)
-        {
-            CreateTombstone(myName, myTime, myRegressionCount, true);
-        }
+        LayoutWall(records.Count);
+        for (int i = 0; i < records.Count; i++)
+            CreateNiche(i, records[i].player_name, records[i].clear_time_seconds);
 
-        LayoutRebuilder.ForceRebuildLayoutImmediate(content);
         scrollRect.verticalNormalizedPosition = 1f; // 맨 위
 
         // 그리드 완성 후 잠시 뒤 버튼 노출 (가로 자동스크롤 대체)
@@ -184,62 +250,89 @@ public class GraveyardUI : MonoBehaviour
     // 비석 생성
     // ------------------------------------------------------------------
 
-    private void CreateTombstone(string playerName, float clearTimeSeconds, int regressionCount, bool isMe)
+    /// <summary>
+    /// 기록 한 건을 벽의 index번째 칸에 얹는다. 채우는 순서는 좌→우, 위→아래.
+    /// index는 **랭킹 순위**다(서버가 regression asc, time asc로 내려준다) — 시안의
+    /// "일등은여기 / 이등은여기 / 3등은여기"가 첫 줄 세 칸인 이유다.
+    /// </summary>
+    private void CreateNiche(int index, string playerName, float clearTimeSeconds)
     {
-        // 비석 루트 — 크기는 GridLayoutGroup의 cellSize(220×200)가 제어
-        var tombGo = new GameObject("Tombstone", typeof(RectTransform));
-        tombGo.transform.SetParent(content, false);
+        int tile = index / SlotsPerTile;
+        int inTile = index % SlotsPerTile;
+        float x = ColX[inTile % 3];
+        float y = tile * TileH + RowY[inTile / 3];
 
-        // Card — 단일 회색 사각 카드 (stretch full)
-        var cardGo = new GameObject("Card", typeof(RectTransform));
-        cardGo.transform.SetParent(tombGo.transform, false);
+        // 유골함 카드 — 시안은 칸마다 같은 사진을 깐다.
+        var cardGo = new GameObject($"Niche{index}", typeof(RectTransform));
+        cardGo.transform.SetParent(content, false);
+        UIWindow.Place(cardGo.GetComponent<RectTransform>(), x, y, CardW, CardH);
 
-        var cardRt = cardGo.GetComponent<RectTransform>();
-        cardRt.anchorMin = Vector2.zero;
-        cardRt.anchorMax = Vector2.one;
-        cardRt.offsetMin = Vector2.zero;
-        cardRt.offsetMax = Vector2.zero;
+        if (urnSprite != null)
+        {
+            var img = cardGo.AddComponent<Image>();
+            img.sprite = urnSprite;
+            img.type = Image.Type.Simple;
+        }
 
-        var cardImg = cardGo.AddComponent<Image>();
-        cardImg.color = isMe
-            ? new Color(0.98f, 0.90f, 0.55f, 1f)  // 옅은 금색 (내 카드)
-            : new Color(0.82f, 0.82f, 0.82f, 1f); // 회색
-
-        // NameText (카드 상부)
-        var nameGo = new GameObject("NameText", typeof(RectTransform));
-        nameGo.transform.SetParent(cardGo.transform, false);
-
-        var nameRt = nameGo.GetComponent<RectTransform>();
-        nameRt.anchorMin = new Vector2(0.08f, 0.45f);
-        nameRt.anchorMax = new Vector2(0.92f, 0.90f);
-        nameRt.offsetMin = Vector2.zero;
-        nameRt.offsetMax = Vector2.zero;
-
-        var nameTmp = nameGo.AddComponent<TextMeshProUGUI>();
-        nameTmp.text = playerName;
-        nameTmp.fontSize = 20f;
-        nameTmp.color = isMe ? Color.black : new Color(0.15f, 0.15f, 0.15f, 1f);
-        nameTmp.alignment = TextAlignmentOptions.Center;
+        // 이름 — 15자가 28px 세 줄로 딱 맞는 칸이다(NameInputUI의 characterLimit와 짝).
+        var nameTmp = UIWindow.Label(cardGo.transform, "Name", playerName,
+                                     TextPt, TextAlignmentOptions.Center, koreanFont);
+        UIWindow.Place(nameTmp.rectTransform, TextDX, NameDY, TextW, NameH);
         nameTmp.textWrappingMode = TextWrappingModes.Normal;
         nameTmp.overflowMode = TextOverflowModes.Truncate;
-        if (koreanFont != null) nameTmp.font = koreanFont;
 
-        // TimeText (카드 하부)
-        var timeGo = new GameObject("TimeText", typeof(RectTransform));
-        timeGo.transform.SetParent(cardGo.transform, false);
+        var timeTmp = UIWindow.Label(cardGo.transform, "Time", FormatTime(clearTimeSeconds),
+                                     TextPt, TextAlignmentOptions.Center, koreanFont);
+        UIWindow.Place(timeTmp.rectTransform, TextDX, TimeDY, TextW, TimeH);
+    }
 
-        var timeRt = timeGo.GetComponent<RectTransform>();
-        timeRt.anchorMin = new Vector2(0.08f, 0.10f);
-        timeRt.anchorMax = new Vector2(0.92f, 0.45f);
-        timeRt.offsetMin = Vector2.zero;
-        timeRt.offsetMax = Vector2.zero;
+    /// <summary>
+    /// 기록 수에 맞춰 벽을 깐다. 타일을 세로로 이어 붙이고 content 높이를 맞춘다.
+    /// 카드를 만들기 **전에** 불러야 한다 — content 크기가 정해져야 배치가 맞는다.
+    /// </summary>
+    private void LayoutWall(int recordCount)
+    {
+        int tiles = Mathf.Max(MinTiles, Mathf.CeilToInt(recordCount / (float)SlotsPerTile));
+        content.sizeDelta = new Vector2(0f, UISkin.Px(tiles * TileH));
 
-        var timeTmp = timeGo.AddComponent<TextMeshProUGUI>();
-        timeTmp.text = $"{LocalizationManager.LF("grave.regression", regressionCount)}\n{FormatTime(clearTimeSeconds)}";
-        timeTmp.fontSize = 15f;
-        timeTmp.color = isMe ? new Color(0.25f, 0.15f, 0f, 1f) : new Color(0.4f, 0.4f, 0.4f, 1f);
-        timeTmp.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) timeTmp.font = koreanFont;
+        for (int i = 0; i < tiles; i++)
+        {
+            var tileGo = new GameObject($"WallTile{i}", typeof(RectTransform));
+            tileGo.transform.SetParent(content, false);
+            UIWindow.Place(tileGo.GetComponent<RectTransform>(), 0f, i * TileH, TileW, TileH);
+            var img = tileGo.AddComponent<Image>();
+            if (wallSprite != null) { img.sprite = wallSprite; img.type = Image.Type.Simple; }
+            else img.color = new Color(0.16f, 0.13f, 0.09f, 1f); // 사진 없을 때도 글자는 읽히게
+        }
+    }
+
+    /// <summary>
+    /// 내 기록을 순위 자리에 끼워 넣는다. 서버 정렬 키(regression asc, time asc)를 그대로 쓴다.
+    ///
+    /// ⚠️ 목록을 받아오는 GET과 내 기록을 올리는 POST가 **경주한다**(GameManager가 PostRecord를
+    ///    콜백으로 띄우고 곧바로 Show를 부른다). POST가 먼저 닿았으면 목록에 이미 내가 있으므로
+    ///    같은 값이 두 번 걸리지 않게 걸러낸다.
+    /// </summary>
+    private static void InsertMyRecord(List<RecordEntry> records, string myName, float myTime, int myRegression)
+    {
+        foreach (var r in records)
+            if (r.player_name == myName && Mathf.Approximately(r.clear_time_seconds, myTime)
+                && r.regression_count == myRegression) return;
+
+        int at = records.Count;
+        for (int i = 0; i < records.Count; i++)
+        {
+            var r = records[i];
+            if (myRegression < r.regression_count ||
+                (myRegression == r.regression_count && myTime < r.clear_time_seconds))
+            { at = i; break; }
+        }
+        records.Insert(at, new RecordEntry
+        {
+            player_name = myName,
+            clear_time_seconds = myTime,
+            regression_count = myRegression,
+        });
     }
 
     // ------------------------------------------------------------------
@@ -251,7 +344,9 @@ public class GraveyardUI : MonoBehaviour
         canvas.gameObject.SetActive(true);
         isShowing = true; hasReachedEnd = true;
         restartHintWrapper.SetActive(false);
+        isViewOnly = false;
         RefreshEndButtons();
+        ApplyEndButtonMode();
         statusText.text = "";
         if (scrollCoroutine != null) { StopCoroutine(scrollCoroutine); scrollCoroutine = null; }
         scrollCoroutine = StartCoroutine(CoShowPreview());
@@ -261,10 +356,10 @@ public class GraveyardUI : MonoBehaviour
     {
         for (int i = content.childCount - 1; i >= 0; i--) Destroy(content.GetChild(i).gameObject);
         yield return null; // Destroy 반영
-        string[] names = {"홍길동","김철수","이영희","박민수","최지우","정해인","강동원","한소희"};
-        for (int i = 0; i < names.Length; i++) CreateTombstone(names[i], 180f + i*20f, i % 3, false);
-        CreateTombstone("나", 200f, 1, true);
-        LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+        string[] names = {"일등은여기","이등은여기","3등은여기","일이삼사오육칠팔구십일이삼사오",
+                          "최지우","정해인","강동원","한소희","김철수","이영희","박민수","나"};
+        LayoutWall(names.Length);
+        for (int i = 0; i < names.Length; i++) CreateNiche(i, names[i], 180f + i * 20f);
         scrollRect.verticalNormalizedPosition = 1f;
         restartHintWrapper.SetActive(true);
         scrollCoroutine = null;
@@ -278,27 +373,29 @@ public class GraveyardUI : MonoBehaviour
     {
         koreanFont = KoreanFont.GetTMP();
 
-        // Canvas — Screen Space Overlay, sortingOrder=200
+        // Canvas — Screen Space Overlay, sortingOrder=190
+        // v19: 200 → 190. BootCurtain이 200이라 **같은 값이면 누가 위인지 정해지지 않는다**.
+        // 납골당을 커튼 아래로 확실히 내려야 들고 날 때 검은 막으로 덮어 전환할 수 있다.
+        // 위쪽 이웃은 그대로다: LifePanoramaUI 210 · 타이틀 250 · 설정 260 · 이름입력 300.
         var canvasGo = new GameObject("GraveyardCanvas");
         canvasGo.transform.SetParent(transform, false);
         canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 200;
+        canvas.sortingOrder = 190;
         var scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1280, 720);
         canvasGo.AddComponent<GraphicRaycaster>();
 
-        // Background — 전체화면 흰색 (Figma Image#13)
-        var bgGo = new GameObject("Background", typeof(RectTransform));
-        bgGo.transform.SetParent(canvasGo.transform, false);
-        var bgImg = bgGo.AddComponent<Image>();
-        bgImg.color = Color.white;
-        var bgRt = bgGo.GetComponent<RectTransform>();
-        bgRt.anchorMin = Vector2.zero;
-        bgRt.anchorMax = Vector2.one;
-        bgRt.offsetMin = Vector2.zero;
-        bgRt.offsetMax = Vector2.zero;
+        // 배경 사진 — 벽은 **스크롤과 함께 움직여야** 하므로 전체화면 한 장이 아니라
+        // content 안에 타일로 깐다(LayoutWall). 여기서는 텍스처만 읽어 스프라이트로 굽는다.
+        // 프로젝트 관례대로 Texture2D로 읽고 Sprite.Create 한다(타이틀 배경과 같은 방식).
+        wallSprite = LoadSprite(WallTexPath);
+        urnSprite  = LoadSprite(UrnTexPath);
+        if (wallSprite == null)
+            Debug.LogWarning($"[GraveyardUI] 벽 사진 없음: Resources/{WallTexPath} — 어두운 단색으로 대체");
+        if (urnSprite == null)
+            Debug.LogWarning($"[GraveyardUI] 유골함 카드 없음: Resources/{UrnTexPath} — 빈 칸에 글자만 얹는다");
 
         // ScrollRect — 수직 3열 그리드, 전체화면 (Figma Image#13)
         var scrollGo = new GameObject("ScrollRect", typeof(RectTransform));
@@ -336,18 +433,8 @@ public class GraveyardUI : MonoBehaviour
         content.pivot = new Vector2(0.5f, 1f);
         content.anchoredPosition = Vector2.zero;
 
-        var grid = contentGo.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(220f, 200f);
-        grid.spacing = new Vector2(36f, 36f);
-        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = 3;
-        grid.childAlignment = TextAnchor.UpperCenter;
-        grid.padding = new RectOffset(0, 0, 90, 120);
-
-        var csf = contentGo.AddComponent<ContentSizeFitter>();
-        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
+        // v19: GridLayoutGroup/ContentSizeFitter 제거 — 칸 위치가 **벽 사진의 니치에 박혀 있어서**
+        // 자동 배치로는 맞출 수 없다. LayoutWall/CreateNiche가 시안 좌표로 직접 놓는다.
         scrollRect.content = content;
 
         // StatusText — 중앙
@@ -361,28 +448,22 @@ public class GraveyardUI : MonoBehaviour
         statusText = statusGo.AddComponent<TextMeshProUGUI>();
         statusText.text = "";
         statusText.fontSize = 20f;
-        statusText.color = new Color(0.3f, 0.3f, 0.3f, 1f); // 흰 배경 위 가독
+        statusText.color = new Color(0.95f, 0.93f, 0.85f, 1f); // v19: 어두운 금색 벽 위 가독
         statusText.alignment = TextAlignmentOptions.Center;
         if (koreanFont != null) statusText.font = koreanFont;
 
-        // v9(260703): Play Again / Go Home 버튼 (하단 중앙)
+        // Play Again / Go Home — 시안 593:712는 우측 **세로 2개**다(예전엔 우하단 가로 2개).
+        // 벽은 스크롤해도 버튼은 화면에 붙어 있어야 하므로 content가 아니라 캔버스 직속이다.
         restartHintWrapper = new GameObject("EndButtons", typeof(RectTransform));
         restartHintWrapper.transform.SetParent(canvasGo.transform, false);
         var btnsRt = restartHintWrapper.GetComponent<RectTransform>();
-        btnsRt.anchorMin = new Vector2(1f, 0f); // 우하단 (Figma Image#13)
-        btnsRt.anchorMax = new Vector2(1f, 0f);
-        btnsRt.pivot = new Vector2(1f, 0f);
-        btnsRt.sizeDelta = new Vector2(440f, 72f);
-        btnsRt.anchoredPosition = new Vector2(-40f, 40f);
+        btnsRt.anchorMin = Vector2.zero;   // 화면 전체를 덮는 배치판 — UIWindow.Place가 시안 좌표를 쓴다
+        btnsRt.anchorMax = Vector2.one;
+        btnsRt.offsetMin = Vector2.zero;
+        btnsRt.offsetMax = Vector2.zero;
 
-        var hlgBtns = restartHintWrapper.AddComponent<HorizontalLayoutGroup>();
-        hlgBtns.spacing = 40f;
-        hlgBtns.childAlignment = TextAnchor.MiddleCenter;
-        hlgBtns.childForceExpandWidth = false;
-        hlgBtns.childForceExpandHeight = false;
-
-        CreateEndButton("grave.play_again", () => GameManager.Instance?.RestartGame(false));
-        CreateEndButton("grave.go_home", () => GameManager.Instance?.RestartGame(true));
+        playAgainBtn = CreateEndButton("grave.play_again", BtnY0,          () => LeaveTo(false));
+        goHomeBtn    = CreateEndButton("grave.go_home",    BtnY0 + BtnGap, () => LeaveTo(true));
 
         restartHintWrapper.SetActive(false);
 
@@ -394,47 +475,43 @@ public class GraveyardUI : MonoBehaviour
     // 유틸리티
     // ------------------------------------------------------------------
 
-    private void CreateEndButton(string locKey, UnityEngine.Events.UnityAction onClick)
+    private GameObject CreateEndButton(string locKey, float designY, UnityEngine.Events.UnityAction onClick)
     {
-        var btnGo = new GameObject($"Btn_{locKey}", typeof(RectTransform));
-        btnGo.transform.SetParent(restartHintWrapper.transform, false);
-        var le = btnGo.AddComponent<LayoutElement>();
-        le.preferredWidth = 200f;
-        le.preferredHeight = 64f;
-
-        // v18: 검정 사각 버튼 → 게임 공통 스킨(광택 베벨).
-        // ⚠️ 이 화면은 시안(UI최종시안 0817)에 **없다.** 그래서 "시안대로"가 아니라
-        //    다른 화면들과 같은 부품을 쓰게 맞춘 것뿐이다 — 목록 배치는 참조가 없어 손대지 않았다.
-        var img = btnGo.AddComponent<Image>();
-        img.sprite = UISkin.Raised;
-        img.type = Image.Type.Sliced;
-        img.color = Color.white;
-        var btn = btnGo.AddComponent<Button>();
-        btn.transition = Selectable.Transition.SpriteSwap;
-        btn.spriteState = new SpriteState
-        {
-            highlightedSprite = UISkin.RaisedHover,
-            pressedSprite     = UISkin.Sunken,
-            selectedSprite    = UISkin.RaisedHover,
-            disabledSprite    = UISkin.Raised,
-        };
-        btn.targetGraphic = img;
-        btn.onClick.AddListener(onClick);
-        var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
-        hover.HoverPose = HandPose.PointIndex;
-
-        var txtGo = new GameObject("Label", typeof(RectTransform));
-        txtGo.transform.SetParent(btnGo.transform, false);
-        var txtRt = txtGo.GetComponent<RectTransform>();
-        txtRt.anchorMin = Vector2.zero; txtRt.anchorMax = Vector2.one;
-        txtRt.offsetMin = Vector2.zero; txtRt.offsetMax = Vector2.zero;
-        var tmp = txtGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = LocalizationManager.L(locKey);
-        tmp.fontSize = 22f;
-        tmp.color = UISkin.Ink;   // 밝은 면 위 → 흰 글자는 안 읽힌다
-        tmp.alignment = TextAlignmentOptions.Center;
-        if (koreanFont != null) tmp.font = koreanFont;
+        // v19: 게임 공통 창 부품(UIWindow)으로 통일. 예전에는 이 화면이 시안에 없어서
+        // LayoutElement + 자체 조립이었는데, 0822가 좌표까지 정해줬다.
+        var go = UIWindow.MakeButton(LocalizationManager.L(locKey), restartHintWrapper.transform, onClick,
+                                     BtnX, designY, BtnW, BtnH, koreanFont, out var tmp);
         endButtonLabels.Add((tmp, locKey));
+        return go;
+    }
+
+    private static Sprite LoadSprite(string resourcePath)
+    {
+        var tex = Resources.Load<Texture2D>(resourcePath);
+        return tex == null ? null
+             : Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+    }
+
+    /// <summary>
+    /// 납골당을 떠난다. **검은 막을 먼저 올린다** — 곧바로 RestartGame을 부르면 배경 이미지·돌이
+    /// 아직 안 붙은 날것의 씬(하늘 그라디언트 + 회색 탁자)이 몇 프레임 그대로 노출된다.
+    /// 타이틀에서 게임을 시작할 때 BootCurtain을 쓰는 이유와 똑같은데, 이 경로만 빠져 있었다.
+    ///
+    /// 막을 내리는 쪽이 갈린다:
+    ///   게임 시작(toTitle=false) → GameManager.StartStage가 FadeOut(0.6f)을 부른다.
+    ///   타이틀 복귀(toTitle=true) → 아무도 안 부르므로 여기서 직접 내린다.
+    /// </summary>
+    private void LeaveTo(bool toTitle) => StartCoroutine(CoLeaveTo(toTitle));
+
+    private IEnumerator CoLeaveTo(bool toTitle)
+    {
+        const float CurtainIn = 0.25f;
+        restartHintWrapper.SetActive(false);   // 막이 오르는 동안 연타 방지
+        BootCurtain.Instance?.Raise(CurtainIn);
+        yield return new WaitForSecondsRealtime(CurtainIn);
+
+        GameManager.Instance?.RestartGame(toTitle);
+        if (toTitle) BootCurtain.Instance?.FadeOut(0.5f);
     }
 
     /// <summary>하단 버튼(Play Again/Go Home) 라벨을 현재 언어로 재설정.</summary>

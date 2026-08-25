@@ -214,12 +214,14 @@ public class TitleScreenUI : MonoBehaviour
         CreateSpeechBubbles(parent);
 
         // v11: 홈은 항상 게임 시작 단일 버튼으로 통일. 연습 모드(IsTestPlay)는 디버그 HUD 테스트 패널에서 진입 (에디터/연습빌드 전용).
-        // 시안 실측: 버튼 380×80이 y=639부터 110px 간격으로 3개. 라벨은 전부 40px.
-        // 세 버튼의 크기·글자를 다르게 두면 "Play가 더 중요하다"가 아니라 그냥 정렬이 안 맞아 보인다.
+        // 시안 실측(0822 Home 593:756): Buttons 380×410 @(770,600) — 버튼 380×80이 110px 간격으로 **4개**.
+        // 0817은 3개(블록 y=640,h=300)였다. 납골당이 붙으면서 블록이 통째로 40px 올라갔다.
+        // 네 버튼의 크기·글자를 다르게 두면 "Play가 더 중요하다"가 아니라 그냥 정렬이 안 맞아 보인다.
         const float LabelPx = 40f;
-        float playY     = UISkin.Px(540f - 679f);
-        float settingsY = UISkin.Px(540f - 789f);
-        float exitY     = UISkin.Px(540f - 899f);
+        float playY     = UISkin.Px(540f - 640f);
+        float settingsY = UISkin.Px(540f - 750f);
+        float exitY     = UISkin.Px(540f - 860f);
+        float graveY    = UISkin.Px(540f - 970f);
 
         RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.play"), parent, new Vector2(0f, playY), UISkin.Px(LabelPx), () => OnModeSelected(false)), "home.play");
 
@@ -227,12 +229,6 @@ public class TitleScreenUI : MonoBehaviour
         RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.settings"), parent, new Vector2(0f, settingsY), UISkin.Px(LabelPx), () => {
             SettingsPopupUI.EnsureInstance().Open();
         }), "home.settings");
-
-        // v18: 홈의 묘지(관람 모드) 버튼 제거 — UI 시안이 Play/Settings/Exit 3개로 확정.
-        // ⚠️ 묘지 화면 자체는 남는다. GraveyardUI는 올클리어 **엔딩 화면**이기도 하다
-        //    (GameManager.DoAllClearTransition → GraveyardUI.Show). 지운 것은 홈에서 다시
-        //    들어가는 입구뿐이다. 되돌리려면 PlayerPrefs "EndingSeen"==1 조건으로 버튼을
-        //    다시 만들면 된다(해금 플래그는 그대로 기록되고 있다).
 
         // "나가기" — 우측 상단
         // v18: 나가기를 우상단 투명 영역에서 **세로 메뉴 3번째**로 옮긴다.
@@ -246,7 +242,13 @@ public class TitleScreenUI : MonoBehaviour
 #endif
         }), "home.exit");
 
-        // 토스트 메시지 (하단, 처음엔 숨김)
+        // "납골당" — v19에서 부활. v18에 "시안이 3개로 확정"이라며 지웠던 그 입구다(시안 0822가 4번째로 되살렸다).
+        // 해금 조건은 두지 않는다 — 시안에 조건 표기가 없고, 디자이너가 "시안대로"로 확정했다(2026-08-22).
+        // PlayerPrefs "EndingSeen"은 계속 기록되므로 나중에 잠그고 싶으면 조건만 붙이면 된다.
+        RegisterLocalized(CreateMenuButton(LocalizationManager.L("home.columbarium"), parent, new Vector2(0f, graveY), UISkin.Px(LabelPx),
+                                           OpenColumbarium), "home.columbarium");
+
+        // 토스트 메시지 (처음엔 숨김)
         CreateToast(parent);
     }
 
@@ -259,7 +261,10 @@ public class TitleScreenUI : MonoBehaviour
         toastRect.anchorMax = new Vector2(0.5f, 0f);
         toastRect.pivot = new Vector2(0.5f, 0f);
         toastRect.sizeDelta = new Vector2(700f, 50f);
-        toastRect.anchoredPosition = new Vector2(0f, 30f);
+        // v19: 버튼이 4개가 되면서 스택 아래변이 시안 y=1010까지 내려왔다.
+        // 화면 바닥(y=30)에 두면 띠가 "납골당" 버튼을 덮어 **버튼을 못 누른다**.
+        // 로고 아래변(455)과 버튼 스택 위변(600) 사이 빈칸으로 올린다 — 띠 아래변이 시안 y=585.
+        toastRect.anchoredPosition = new Vector2(0f, UISkin.Px(1080f - 585f));
 
         // 반투명 배경
         var bgImg = toastGo.AddComponent<Image>();
@@ -849,6 +854,31 @@ public class TitleScreenUI : MonoBehaviour
         SetDecoStone3DActive(false);
         Debug.Log("[TitleScreenUI] Hidden.");
         onComplete?.Invoke();
+    }
+
+    /// <summary>
+    /// 홈 → 납골당 관람. **타이틀을 먼저 내린다** — 타이틀 캔버스(250)가 납골당(200)보다 위라
+    /// 그냥 부르면 납골당이 타이틀 뒤에 가려 화면이 그대로다.
+    /// 돌아오는 길은 납골당의 Go Home → GameManager.RestartGame(true) → TitleScreenUI.Show()다.
+    /// </summary>
+    private void OpenColumbarium()
+    {
+        // 페이드(0.5초) 동안에도 버튼은 계속 눌린다 — 먼저 입력을 끊는다.
+        // Hide()는 페이드가 **끝난 뒤에야** blocksRaycasts를 내려서, 그 사이 연타하면
+        // 납골당이 두 번 열리거나 "게임 시작"이 겹쳐 들어온다.
+        // (기존 게임 시작 경로는 커튼이 0.25초 만에 화면을 덮어 이 틈이 안 보였다.)
+        rootGroup.blocksRaycasts = false;
+
+        // 타이틀이 그냥 페이드아웃하면 그 0.5초 동안 **날것의 씬**이 드러난다 —
+        // 배경 이미지·돌이 아직 안 붙은 하늘 그라디언트 + 회색 탁자다(2026-08-25 스크린샷).
+        // 타이틀(250) 뒤·씬 앞에 검은 막(200)을 즉시 세워두면, 타이틀이 걷힐 때 나오는 건 검정이다.
+        // 납골당(190)은 그 막 아래에서 준비된 뒤 막이 걷히며 함께 밝아진다.
+        BootCurtain.Instance?.RaiseInstant();
+        Hide(() =>
+        {
+            GraveyardUI.Instance?.ShowViewOnly();
+            BootCurtain.Instance?.FadeOut(0.5f);
+        });
     }
 
     private void OnStartClicked() => StartCoroutine(DoStartBehindCurtain(null));
