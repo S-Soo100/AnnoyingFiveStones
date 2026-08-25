@@ -633,8 +633,9 @@ public class GameManager : MonoBehaviour
             _ => null
         };
 
-        // v9(260703): 기본 조작 자막은 10살(첫 삶)에만 표시. 15살+는 이미 조작을 익혔으므로 숨김.
-        bool showBasicGuide = session != null && session.CurrentAge == 10;
+        // v9(260703): 기본 조작 자막은 첫 삶(루프 1)에만 표시. 15살+는 이미 조작을 익혔으므로 숨김.
+        // v19: 나이가 단마다 +1 되므로 (11~14살도 첫 삶) 판정 기준을 나이 → 루프로 교체.
+        bool showBasicGuide = session != null && session.CurrentLoop == 1;
         if (guide != null && showBasicGuide)
             GameUI.Instance.UpdateGuideText(guide);
         else

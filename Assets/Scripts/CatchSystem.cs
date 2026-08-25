@@ -29,6 +29,12 @@ public class CatchSystem : MonoBehaviour
     public bool IsCatchPhase => isCatchPhase;
     public float BoardSurfaceY => boardSurfaceY;
 
+    // v19(0825 피드백): 받기 허용을 보드 앞변(아랫쪽 끝)까지 확장 —
+    // 1~4단 받기 중 낙 판정선도 손 받기 경계(HandController.Update)와 함께 앞변으로 내린다.
+    // ⚠️ boardSurfaceY(SkyFloorY)는 그대로 둔다: 5단이 stage5BoardSurfaceY로 이어받아 쓰는
+    // 값이라 여기서 바꾸면 "아주 안정적"이라던 5단 감각이 변한다.
+    private static float CatchFailY => BoardSpace.FrontScreenY;
+
     private void Start()
     {
         handController = FindFirstObjectByType<HandController>();
@@ -53,7 +59,7 @@ public class CatchSystem : MonoBehaviour
     {
         if (!isCatchPhase) return;
 
-        // Bouncing 돌 감시: boardSurfaceY 도달 시 탈락, boardFloorY(-9f)는 안전망
+        // Bouncing 돌 감시: CatchFailY(보드 앞변) 도달 시 탈락, boardFloorY(-9f)는 안전망
         for (int i = bouncingStones.Count - 1; i >= 0; i--)
         {
             var stone = bouncingStones[i];
@@ -62,7 +68,7 @@ public class CatchSystem : MonoBehaviour
                 bouncingStones.RemoveAt(i);
                 continue;
             }
-            if (stone.transform.position.y <= boardSurfaceY)
+            if (stone.transform.position.y <= CatchFailY)
             {
                 OnStoneFell(stone);
                 return;
@@ -92,7 +98,7 @@ public class CatchSystem : MonoBehaviour
                 inAirStones.RemoveAt(i);
                 continue;
             }
-            if (stone.transform.position.y <= boardSurfaceY)
+            if (stone.transform.position.y <= CatchFailY)
             {
                 OnStoneFell(stone);
                 return;

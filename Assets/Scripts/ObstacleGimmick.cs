@@ -270,11 +270,38 @@ public class ObstacleGimmick : StageGimmick
                 pushDir = pushDir.normalized;
 
                 Vector2 newPos = closest + pushDir * rulerSafeRadius;
-                stone.transform.position = new Vector3(newPos.x, newPos.y, 0f);
+
+                // v19(0825 피드백): 다른 돌 위로 텔레포트하면 콜라이더 겹침 → 물리 사출로
+                // 돌이 밀려다닌다. 겹치면 같은 방향으로 조금씩 더 밀어 빈자리를 찾는다.
+                for (int step = 0; step < 3 && OverlapsOtherStone(newPos, stone, activeStones); step++)
+                    newPos += pushDir * 0.5f;
+
+                // v19: transform 직접 이동은 v17 보드좌표(BoardPos)를 낡게 만들어
+                // "보이는 자리에서 안 집히는" 원인이 됐다 → SetBoardMotion으로 이동해
+                // 위치·BoardPos·원근 크기를 함께 갱신한다. 보드 밖으로는 밀지 않는다(낙 방지).
+                Vector2 board = BoardSpace.ToBoard(newPos);
+                float hw = BoardSpace.LogicalWidth * 0.5f - 0.6f;
+                float hd = BoardSpace.LogicalDepth * 0.5f - 0.6f;
+                board.x = Mathf.Clamp(board.x, -hw, hw);
+                board.y = Mathf.Clamp(board.y, -hd, hd);
                 stone.Rb.linearVelocity = Vector3.zero;
+                stone.SetBoardMotion(board, 0f);
                 Debug.Log($"[ObstacleGimmick] Stone {stone.StoneIndex} nudged away from ruler (dist was {dist:F2})");
             }
         }
+    }
+
+    /// <summary>후보 위치가 다른 OnBoard 돌과 겹치는가 (콜라이더 사출 방지용, 화면 좌표 거리).</summary>
+    private static bool OverlapsOtherStone(Vector2 pos, Stone self, Stone[] stones)
+    {
+        foreach (var other in stones)
+        {
+            if (other == null || other == self) continue;
+            if (other.CurrentState != Stone.State.OnBoard) continue;
+            Vector2 op = new Vector2(other.transform.position.x, other.transform.position.y);
+            if (Vector2.Distance(pos, op) < 0.8f) return true;
+        }
+        return false;
     }
 
     /// <summary>2D 점과 선분 사이의 최단 거리 + 최근접점 반환</summary>

@@ -36,6 +36,9 @@ public partial class HandController : MonoBehaviour
 
     private List<Stone> pickedStones = new List<Stone>();
     private Stone throwStone;
+    private CatchSystem catchSystemRef;
+    private CatchSystem CatchSystemRef
+        => catchSystemRef != null ? catchSystemRef : (catchSystemRef = FindFirstObjectByType<CatchSystem>());
     private bool isOnBoard;
     private bool isCatchMode;
     private bool isHolding;  // 클릭 Hold 상태
@@ -146,10 +149,17 @@ public partial class HandController : MonoBehaviour
             // catch mode가 아닐 때만 위치 갱신 (catch mode는 LateUpdate에서 처리)
             if (!isCatchMode && !suppressCursorFollow) UpdatePosition();
 
-            // v11-fix2: 하늘 경계 = BoardBounds.SkyFloorY (=-2.45, 보드 메시 상단)
-            // 히스테리시스 0.2 unit: 한 번 catch 모드면 (SkyFloor - 0.2 = -2.65) 아래로 가야 해제 → chattering 방지
-            float skyEnter = BoardBounds.SkyFloorY;
-            float skyExit  = BoardBounds.SkyFloorY - 0.2f;
+            // v11-fix2: 하늘 경계 = BoardBounds.SkyFloorY (보드 뒷변)
+            // 히스테리시스 0.2 unit: 한 번 catch 모드면 경계 - 0.2 아래로 가야 해제 → chattering 방지
+            // v19(0825 피드백): 받기 허용 영역을 보드 앞변(아랫쪽 끝)까지 확장.
+            // 던진 돌이 낙하 중(catch phase)이고 줍기 홀드 중이 아니면, 보드 앞변이 경계가 된다.
+            // 홀드 중엔 기존 경계 유지 — 보드 위 쓸기(줍기)가 받기 자세로 끊기면 안 된다.
+            var catchSys = CatchSystemRef;
+            float boundary = (catchSys != null && catchSys.IsCatchPhase && !isHolding)
+                ? BoardSpace.FrontScreenY
+                : BoardBounds.SkyFloorY;
+            float skyEnter = boundary;
+            float skyExit  = boundary - 0.2f;
             bool inSky = isCatchMode
                 ? transform.position.y > skyExit
                 : transform.position.y > skyEnter;
@@ -664,6 +674,29 @@ public partial class HandController : MonoBehaviour
             yield break;
         }
 
+        // v19(0825 피드백): 최후 판정 — 손이 낮게(보드 위쪽~앞변 사이) 있으면 돌이
+        // 손의 화면 높이를 '통과'하지 못한 채 지면(h=0)에 닿아 IsAtCatchMoment가
+        // 영영 안 걸린다. 받기 자세로 x가 정렬돼 있으면 지면 도달 시점에 받아준다.
+        if (isCatchMode)
+        {
+            var lastVerdict = JudgeBoardCatch(throwBoardPos);
+            if (lastVerdict != BoardCatchVerdict.Miss)
+            {
+                if (lastVerdict == BoardCatchVerdict.Palm)
+                {
+                    catchSystem?.OnPalmCatch(stone);
+                }
+                else
+                {
+                    float awayX = Mathf.Sign(stone.transform.position.x - transform.position.x);
+                    if (Mathf.Approximately(awayX, 0f)) awayX = 1f;
+                    catchSystem?.OnFingerBounce(stone, new Vector3(awayX, 1f, 0f).normalized);
+                }
+                throwCoroutine = null;
+                yield break;
+            }
+        }
+
         // 못 받음 → 실패 (CatchSystem이 미처 감지 못한 경우 fallback)
         AudioManager.Instance?.PlayCatchFail();
         if (catchSystem != null) catchSystem.StopCatch();
@@ -709,6 +742,12 @@ public partial class HandController : MonoBehaviour
     {
         if (handModel == null) return;
         if (stage5Coroutine != null) { handModel.SetPerspectiveScale(1f); return; }
+
+        // v19(0825 피드백): 줍기 홀드로 손가락이 접힌(또는 접힘 애니메이션 중인) 채 재면
+        // 손끝 거리가 작게 나와 배율(target/reach)이 커진다 — "간헐적으로 손이 커짐"의 원인.
+        // 받기 자세는 항상 펼친 손이므로 측정 전에 접힘을 즉시 푼다.
+        if (fingerFoldCoroutine != null) { StopCoroutine(fingerFoldCoroutine); fingerFoldCoroutine = null; }
+        handModel.Rig?.ResetAll();
 
         // 배율 1에서 **지금 자세의** 화면 손끝 반경을 잰 뒤, 그 값이 판정 반경이 되도록 다시 건다.
         // 받기 자세는 손을 눕히므로(-60°) 정면 길이로 계산하면 실제보다 크게 나온다.
@@ -812,9 +851,11 @@ public partial class HandController : MonoBehaviour
     {
         Vector3 palm = handModel != null ? handModel.GetPalmCenter() : transform.position;
         Vector2 handBoard = BoardSpace.ToBoard(new Vector2(palm.x, palm.y));
-        Vector2 stoneBoard = stone.HasBoardMotion
-            ? stone.BoardPos
-            : BoardSpace.ToBoard(new Vector2(stone.transform.position.x, stone.transform.position.y));
+        // v19(0825 피드백): 판정은 **눈에 보이는 위치(transform)**로 한다.
+        // OnBoard 돌은 비-kinematic이라 안착 후 물리 접촉(옆 돌 겹침 등)으로 밀릴 수 있는데,
+        // 그때 BoardPos가 낡은 값으로 남아 "보이는 자리에서 안 집히는" 어긋남이 됐다.
+        // (줍기 대상은 전부 OnBoard = 지면이므로 transform 역투영이 항상 유효하다)
+        Vector2 stoneBoard = BoardSpace.ToBoard(new Vector2(stone.transform.position.x, stone.transform.position.y));
         return Vector2.Distance(handBoard, stoneBoard) <= PickRadiusBoard;
     }
 

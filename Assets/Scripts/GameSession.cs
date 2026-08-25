@@ -73,12 +73,16 @@ public class GameSession : MonoBehaviour
     }
 
     /// <summary>
-    /// 단계 클리어 처리. 나이++, 5단 완료 시 루프 증가.
-    /// 순서: age++ → IsGameClear 체크 → false면 5단 시 loop++, stageInLoop=1
+    /// 단계 클리어 처리. 나이+1/단, 5단 완료 시 루프 증가.
+    /// 순서: age 갱신 → IsGameClear 체크 → false면 5단 시 loop++, stageInLoop=1
     /// </summary>
     public void OnStageComplete(int completedStage)
     {
-        if (completedStage == 5) currentAge += 5;
+        // v19(0825 피드백): 1단마다 1살 — 나이는 "루프 시작 나이 + 클리어한 단 수"로 파생한다.
+        // 누적(+1)이 아니라 파생인 이유: 실패 후 재도전하면 같은 단을 다시 깨는데,
+        // 누적이면 그때마다 나이를 또 먹어 60살 클리어 판정이 조기 발동한다.
+        // 5단 완료 시 base+5 = 다음 루프 시작 나이(StageConfig.Age)와 정확히 이어진다.
+        currentAge = LoopBaseAge(currentLoop) + completedStage;
         currentStageInLoop = completedStage;
 
         // IsGameClear (age >= 60) 이면 루프/단계 변경 없음 (게임 종료)
@@ -98,7 +102,16 @@ public class GameSession : MonoBehaviour
     {
         regressionCount++;
         currentStageInLoop = 1;
-        Debug.Log($"[GameSession] Failed. Age={currentAge}, Loop={currentLoop} (unchanged). Reset to stage 1. Regression={regressionCount}");
+        // v19: 회귀는 이번 루프의 시작 나이로 되돌린다 (단수 파생 구조와 일치).
+        currentAge = LoopBaseAge(currentLoop);
+        Debug.Log($"[GameSession] Failed. Age={currentAge}, Loop={currentLoop} (loop unchanged). Reset to stage 1. Regression={regressionCount}");
+    }
+
+    /// <summary>루프 시작 나이 — SOT는 StageConfig.Age (10, 15, …, 55).</summary>
+    private static int LoopBaseAge(int loop)
+    {
+        var cfg = StageConfig.Get(loop);
+        return cfg != null ? cfg.Age : 10 + (loop - 1) * 5;
     }
 
     /// <summary>

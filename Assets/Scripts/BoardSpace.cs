@@ -46,9 +46,16 @@ public static class BoardSpace
     // v17-d: 좌우 확대. 배경에 그려진 면들의 앞변 반폭 실측 구간(6.5~8.2)의 위쪽에 맞춰
     //   7.20 → 8.00 (+11%). 사다리꼴 비율(0.583)은 유지 — 모양은 그대로 두고 폭만 키운다.
     //   화면 가로 반폭이 12.44(ortho 7 × 16:9)라 여유는 아직 많다.
+    // v19(0825 피드백): "보드 맨 앞과 뒤에서 돌 크기 차이가 너무 남 — 훨씬 덜 나도록".
+    //   돌·손 크기 차이는 사다리꼴 비율(뒷변폭/앞변폭)과 **정확히 같은 값**이다
+    //   (BoardGeometryTests가 "물체 축소율 = 보드 폭 축소율"을 잠가 놓았다 — 따로 풀면
+    //   '보이는 손 안인데 안 잡히는' v17 이전 버그 클래스가 되살아난다).
+    //   → 비율 자체를 0.583 → 0.78로 올린다: 크기 차이 1.71배 → 1.28배.
+    //   0.78은 배경 실측 구간(0.57~0.80)의 위쪽 끝(교실책상 0.79 / 30살 패드 0.80)이라
+    //   배경과의 원근 정합도 유지된다. 보드가 덜 사다리꼴로 보이는 것은 이 결정의 대가.
     public const float BackScreenY   = -3.30f;
     public const float FrontScreenY  = -6.90f;
-    public const float BackHalfWidth =  4.66f;  // 앞변 대비 0.583 유지
+    public const float BackHalfWidth =  6.24f;  // 앞변 대비 0.78
     public const float FrontHalfWidth = 8.00f;
     public const float CenterScreenX =  0f;
 
