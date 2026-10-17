@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/caof-reminder.sh game image",
+            "command": "~/.claude/hooks/caof-reminder.sh image",
             "statusMessage": "CAOF 체크 중..."
           }
         ]

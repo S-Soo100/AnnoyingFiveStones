@@ -79,7 +79,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 
 ### 역할 매핑
 - **Designer**: game-designer (범용, 엔진 무관)
-- **Implementer**: unity-unity-game-coder (Unity C# 전용)
+- **Implementer**: unity-game-coder (Unity C# 전용) — Critical 트랙에서 투입, Trivial·Standard는 메인이 직접
 
 ### 사용자 안내 규칙
 게임 관련 작업 요청 시, 메인 Claude는 **트랙 판단 결과를 먼저 알려준다**:
@@ -94,22 +94,22 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 
 | 트랙 | 기준 | 파이프라인 |
 |------|------|-----------|
-| **Trivial** | 단일 파일, 기존 동작 변경 없음, 되돌리기 <5분 | Implementer 직행 |
-| **Standard** | 2~3 파일 또는 기존 동작 변경, 되돌리기 <1시간 | Designer 분석 → Implementer |
+| **Trivial** | 단일 파일, 기존 동작 변경 없음, 되돌리기 <5분 | 메인 직접 처리 |
+| **Standard** | 2~3 파일 또는 기존 동작 변경, 되돌리기 <1시간 | 메인이 분석서 → 합의 → 직접 구현 |
 | **Critical** | 4+ 파일, 새 시스템, 외부 의존성 | 풀 GATE (리서치→설계→승인→구현→검수) |
 
-> **트랙 선언 = 파이프라인 실행 의무.** "Standard"라고 적어놓고 Designer 분석 없이 직접 코딩하면 안 된다.
-> 기술적 장벽(렌더링/물리/좌표계)이 예상되면 반드시 Designer 에이전트에 먼저 분석 요청.
-> 실패 시 패치를 누적하지 말고 1회 실패 후 Designer 재분석으로 돌아간다.
+> **트랙 선언 = 파이프라인 실행 의무.** "Standard"라고 적어놓고 분석서 없이 바로 코딩하면 안 된다.
+> 기술적 장벽(렌더링/물리/좌표계)이 예상되면 구현 전에 원인·방향 분석서를 먼저 쓰고 합의를 받는다.
+> 실패 시 패치를 누적하지 말고 1회 실패 후 분석으로 돌아간다.
 > (타이틀 3D 돌 전환 시 트랙 선언만 하고 즉흥 코딩 → 3연속 패치 실패 교훈)
 
 ### 라우팅 트리
 ```
 요청 수신
-├─ 버그/에러 → game-designer 원인 분석 → unity-unity-game-coder 수정
+├─ 버그/에러 → 메인 Claude 원인 분석 → 직접 수정 (Standard, 진단 먼저)
 ├─ 새 시스템/기능 → Critical 트랙 (풀 GATE)
-├─ 기존 기능 수정 → Standard 트랙 (Designer → Implementer)
-├─ 오타/상수/로그 추가 → Trivial (unity-unity-game-coder 직행)
+├─ 기존 기능 수정 → Standard 트랙 (메인이 분석서 → 합의 → 직접 구현)
+├─ 오타/상수/로그 추가 → Trivial (메인 직접)
 └─ 단순 질문 → 메인 Claude 직접
 ```
 
