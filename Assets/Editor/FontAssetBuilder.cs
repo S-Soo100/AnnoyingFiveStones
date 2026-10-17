@@ -25,7 +25,13 @@ public static class FontAssetBuilder
     // 진짜 Bold가 필요해지면 위 릴리스에서 IosevkaCharonMono-Bold.ttf를 받아 같은 방식으로 구우면 된다.
     private const string SourceTtf = "Assets/Fonts/IosevkaCharon/IosevkaCharonMono-Regular.ttf";
     private const string OutputPath = "Assets/Resources/Fonts/IosevkaCharonMono SDF.asset";
-    private const string KoreanFallback = "Assets/Resources/Fonts/NanumGothic SDF.asset";
+
+    // 한글 폴백 — Noto Sans KR Bold.
+    // 시안(공기게임 페이지 화면정리, 2026-10 실측)의 한글 UI 텍스트가 전부 Noto Sans KR Bold다.
+    // 나눔고딕 Regular로 그리면 "폰트가 안 맞는다"는 피드백이 나온 그 화면이 된다.
+    // 출처: https://github.com/notofonts/noto-cjk (SIL OFL — Assets/Fonts/NotoSansKR/OFL.txt 동봉)
+    private const string KoreanFallback = "Assets/Resources/Fonts/NotoSansKRBold SDF.asset";
+    private const string KoreanSourceOtf = "Assets/Fonts/NotoSansKR/NotoSansKR-Bold.otf";
 
     // 아틀라스 설정 — 라틴만 담으므로 1024면 넉넉하다(한글용은 4096이 필요했다).
     private const int SamplingPointSize = 90;
@@ -108,6 +114,111 @@ public static class FontAssetBuilder
         Debug.Log($"[FontAssetBuilder] 생성 완료: {OutputPath} / " +
                   $"글리프 {fontAsset.characterTable.Count}자, 아틀라스 {fontAsset.atlasTextures.Length}장, " +
                   $"폴백 {(fallback != null ? fallback.name : "없음")} / 성공={ok}");
+    }
+
+    /// <summary>
+    /// 한글 폴백 폰트(Noto Sans KR Bold)의 TMP 에셋을 만들고, Iosevka 에셋의 폴백을 이걸로 바꾼다.
+    ///
+    /// **Dynamic 모드로 남겨둔다** — 묘비명(이름 입력)은 임의의 한글 음절이 올 수 있어서
+    /// Static으로 굳히면 흔치 않은 글자가 □로 깨진다. 대신 게임 코드에 등장하는 한글을
+    /// 전부 미리 구워 두어(프리워밍) 평소 플레이에서는 런타임 생성이 일어나지 않게 한다.
+    /// Dynamic 에셋은 소스 OTF를 참조하므로 빌드에 폰트 파일(~4.8MB)이 함께 들어간다.
+    /// </summary>
+    [MenuItem("Tools/폰트: 한글 폴백(Noto Sans KR Bold) TMP 에셋 생성")]
+    public static void BuildKoreanBold()
+    {
+        var font = AssetDatabase.LoadAssetAtPath<Font>(KoreanSourceOtf);
+        if (font == null)
+        {
+            Debug.LogError($"[FontAssetBuilder] OTF 없음: {KoreanSourceOtf}");
+            return;
+        }
+
+        // 한글은 글리프가 커서(90pt + 패딩) 한 장에 ~300자 — 멀티 아틀라스로 늘려 받는다.
+        var fontAsset = TMP_FontAsset.CreateFontAsset(
+            font, SamplingPointSize, Padding, GlyphRenderMode.SDFAA,
+            2048, 2048, AtlasPopulationMode.Dynamic, enableMultiAtlasSupport: true);
+
+        if (fontAsset == null)
+        {
+            Debug.LogError("[FontAssetBuilder] CreateFontAsset 실패 (Noto Sans KR Bold)");
+            return;
+        }
+
+        fontAsset.name = "NotoSansKRBold SDF";
+
+        string charset = CollectKoreanCharsInUse();
+        bool ok = fontAsset.TryAddCharacters(charset, out string missing);
+        if (!string.IsNullOrEmpty(missing))
+            Debug.LogWarning($"[FontAssetBuilder] 이 폰트에 없는 문자: {missing}");
+
+        if (fontAsset.material != null)
+        {
+            // Iosevka와 같은 이유(BuildIosevka 주석 참고)로 TMP_SDF 셰이더 + 비율 갱신.
+            var sdf = Shader.Find("TextMeshPro/Distance Field");
+            if (sdf != null) fontAsset.material.shader = sdf;
+            ShaderUtilities.UpdateShaderRatios(fontAsset.material);
+        }
+
+        AssetDatabase.DeleteAsset(KoreanFallback);
+        AssetDatabase.CreateAsset(fontAsset, KoreanFallback);
+
+        foreach (var tex in fontAsset.atlasTextures)
+        {
+            if (tex == null) continue;
+            tex.name = fontAsset.name + " Atlas";
+            AssetDatabase.AddObjectToAsset(tex, fontAsset);
+        }
+        if (fontAsset.material != null)
+        {
+            fontAsset.material.name = fontAsset.name + " Material";
+            AssetDatabase.AddObjectToAsset(fontAsset.material, fontAsset);
+        }
+
+        EditorUtility.SetDirty(fontAsset);
+
+        // Iosevka(게임 표준 폰트)의 폴백을 나눔고딕 → 이 에셋으로 교체.
+        var iosevka = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(OutputPath);
+        if (iosevka != null)
+        {
+            iosevka.fallbackFontAssetTable = new List<TMP_FontAsset> { fontAsset };
+            EditorUtility.SetDirty(iosevka);
+            Debug.Log("[FontAssetBuilder] Iosevka 폴백 교체: NanumGothic → NotoSansKRBold");
+        }
+        else
+        {
+            Debug.LogWarning($"[FontAssetBuilder] Iosevka 에셋 없음({OutputPath}) — 폴백 교체 생략. " +
+                             "BuildIosevka를 먼저 돌리고 이 메뉴를 다시 실행할 것.");
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        Debug.Log($"[FontAssetBuilder] 생성 완료: {KoreanFallback} / " +
+                  $"프리워밍 {charset.Length}자(실제 {fontAsset.characterTable.Count}자), " +
+                  $"아틀라스 {fontAsset.atlasTextures.Length}장, Dynamic 유지 / 성공={ok}");
+    }
+
+    /// <summary>
+    /// Assets/Scripts의 모든 .cs에서 한글 문자를 모은다(주석 포함 — 해가 없는 상위집합).
+    /// 여기 포함된 글자는 아틀라스에 미리 구워져 런타임 생성이 없고,
+    /// 빠진 글자(임의 이름 입력 등)는 Dynamic 모드가 런타임에 채운다.
+    /// </summary>
+    private static string CollectKoreanCharsInUse()
+    {
+        var set = new SortedSet<char>();
+        foreach (string path in System.IO.Directory.GetFiles(
+                     "Assets/Scripts", "*.cs", System.IO.SearchOption.AllDirectories))
+        {
+            foreach (char c in System.IO.File.ReadAllText(path))
+            {
+                if ((c >= '가' && c <= '힣') || (c >= 'ㄱ' && c <= 'ㅣ'))
+                    set.Add(c);
+            }
+        }
+        var sb = new StringBuilder(set.Count);
+        foreach (char c in set) sb.Append(c);
+        return sb.ToString();
     }
 
     /// <summary>ASCII 출력 가능 문자 + 화면에 실제로 쓰는 기호 몇 개.</summary>

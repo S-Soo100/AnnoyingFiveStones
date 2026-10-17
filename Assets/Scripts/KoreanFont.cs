@@ -4,7 +4,7 @@ using TMPro;
 /// <summary>
 /// 크로스 플랫폼 한글 폰트 유틸리티.
 /// OnGUI용 Font + TMP용 TMP_FontAsset 모두 제공.
-/// TMP: Resources/Fonts/NanumGothic SDF.asset (Font Asset Creator로 사전 생성)
+/// TMP: Resources/Fonts/IosevkaCharonMono SDF (주) + NotoSansKRBold SDF (한글 폴백)
 /// OnGUI: Mac AppleGothic, Windows Malgun Gothic, 폴백 Arial
 /// </summary>
 public static class KoreanFont
@@ -24,10 +24,12 @@ public static class KoreanFont
     /// <summary>
     /// 게임 전체가 쓰는 TMP 폰트.
     ///
-    /// v18: UI 시안 폰트(Iosevka Charon Mono)를 **주 폰트**로, 나눔고딕을 **폴백**으로 쓴다.
+    /// v18: UI 시안 폰트(Iosevka Charon Mono)를 **주 폰트**로 쓴다.
     /// 시안 폰트에는 한글이 없다 — Figma에서 보이던 한글도 시스템 폴백으로 그려진 것이었다.
-    /// 그래서 라틴·숫자·기호는 시안 폰트로, 한글은 폴백으로 넘어간다. 시안을 가장 가깝게
-    /// 재현하면서 39MB짜리 한글 아틀라스를 새로 만들지 않는 유일한 방법이다.
+    /// 그래서 라틴·숫자·기호는 시안 폰트로, 한글은 폴백으로 넘어간다.
+    /// v20: 한글 폴백을 나눔고딕 → **Noto Sans KR Bold**로 교체.
+    /// 시안(공기게임 페이지 화면정리)의 한글 UI가 전부 Noto Sans KR Bold 실측이라
+    /// 나눔고딕 Regular로는 "폰트가 안 맞는다"는 피드백이 나왔다.
     /// (폴백 연결은 IosevkaCharonMono SDF 에셋 안에 있다 — Assets/Editor/FontAssetBuilder.cs)
     ///
     /// 이름이 KoreanFont로 남은 건 호출부가 많아서다. 하는 일은 "이 게임의 표준 폰트".
@@ -41,9 +43,10 @@ public static class KoreanFont
 
             if (_tmpFont == null)
             {
-                // 시안 폰트가 없으면 한글이라도 살린다 — 예전 동작 그대로.
-                _tmpFont = Resources.Load<TMP_FontAsset>("Fonts/NanumGothic SDF");
-                Debug.LogWarning("[KoreanFont] 시안 폰트(IosevkaCharonMono SDF) 없음 → 나눔고딕으로 폴백");
+                // 시안 폰트가 없으면 한글이라도 살린다.
+                // v20: 비상 폴백도 Noto Bold로 — 나눔고딕(39MB)은 빌드 이중 적재라 제거했다.
+                _tmpFont = Resources.Load<TMP_FontAsset>("Fonts/NotoSansKRBold SDF");
+                Debug.LogWarning("[KoreanFont] 시안 폰트(IosevkaCharonMono SDF) 없음 → Noto Sans KR Bold로 폴백");
             }
 
             if (_tmpFont != null)
