@@ -210,6 +210,10 @@ public class GameUI : MonoBehaviour
             num.alignment = TextAlignmentOptions.Center;
             num.raycastTarget = false;
             if (koreanTmpFont != null) num.font = koreanTmpFont;
+            // v20(직접 플레이 검증): 숫자 그라디언트(하늘색 계열)가 하늘 배경과 동색이라
+            // 플레이 중 3·4번 숫자가 사실상 안 보였다. 그라디언트는 시안대로 두고
+            // 얇은 먹색 외곽선만 둘러 배경에서 분리한다.
+            UISkin.ApplyTextOutline(num, 0.12f);
             dotNumbers[i] = num;
             // 기본 배색을 여기서 미리 입힌다 — UpdateProgressDots가 처음 불릴 때까지
             // TMP 기본색(흰색)이면 하늘색 원 위에서 숫자가 보이지 않는다.
@@ -262,8 +266,11 @@ public class GameUI : MonoBehaviour
         guideText.fontSizeMin = UISkin.GamePx(20f);
         guideText.fontSizeMax = UISkin.GamePx(30f);
         if (koreanTmpFont != null) guideText.font = koreanTmpFont;
-        // 외곽선은 쓰지 않는다(시안에도 없다). 이 크기의 나눔고딕은 획이 얇아서
-        // 외곽선을 넣으면 흰 심이 깎여 오히려 회색으로 보인다 — 대비는 판 쪽에서 만든다.
+        // v20: 얇은 외곽선 복귀. "외곽선 금지(흰 심이 깎여 회색으로 보임)"는 **얇은 나눔고딕**
+        // 전제였는데, 한글 폰트가 Noto Sans KR Bold로 바뀌며 획이 굵어져 전제가 사라졌다.
+        // 직접 플레이 검증에서 밝은 문/창 배경 위 흰 글자가 띠(50%, 디자이너 확정)만으로는
+        // 묻혔다 — 띠는 시안대로 두고 글자 쪽에 최소한의 분리만 더한다. (디자이너 재확인 대상)
+        UISkin.ApplyTextOutline(guideText, 0.15f);
         var textRt = textGo.GetComponent<RectTransform>();
         textRt.anchorMin = Vector2.zero;
         textRt.anchorMax = Vector2.one;
@@ -835,7 +842,9 @@ public class GameUI : MonoBehaviour
             int size = DotPx((i == 4) ? DotLarge : DotSmall);
 
             progressDots[i].sprite = UISkin.Dot(size, cleared);
-            progressDots[i].color = stage > currentStage ? new Color(1f, 1f, 1f, 0.55f) : Color.white;
+            // v20: 미래 단 0.55는 밝은 하늘 위에서 원 자체가 사라졌다(직접 플레이 검증).
+            // "아직 아니다"는 기색은 유지하되 실루엣은 남는 0.8로.
+            progressDots[i].color = stage > currentStage ? new Color(1f, 1f, 1f, 0.8f) : Color.white;
             progressDots[i].transform.localScale = Vector3.one;
 
             ApplyNumberGradient(dotNumbers[i],
@@ -857,6 +866,9 @@ public class GameUI : MonoBehaviour
     {
         HideGuideText();
         StopOverlay();
+        // v20: 성공의 마침표 — 0.06초 히트스톱. 클리어 시점은 isTransitioning이라 입력이
+        // 이미 막혀 있고, 돌도 전부 안착/캐치 상태라 물리 정지의 부작용이 없다.
+        ScreenShake.PlayClearImpact();
         overlayCoroutine = StartCoroutine(DoClear());
     }
 
@@ -1023,6 +1035,22 @@ public class GameUI : MonoBehaviour
         overlayBg.color = new Color(0, 0, 0, 0.3f);
         overlayGroup.alpha = 1f;
 
+        // v20: 등장 스탬프 — 크게 시작해 제자리에 찍힌다(1.3→1.0, EaseOut).
+        // unscaled로 돈다: ShowClear의 히트스톱(timeScale=0) **동안** 찍히는 게 연출의 핵심이다.
+        var mainRt = overlayMainText.rectTransform;
+        float stamp = 0f;
+        const float StampDuration = 0.12f;
+        while (stamp < StampDuration)
+        {
+            stamp += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(stamp / StampDuration);
+            float eased = 1f - (1f - t) * (1f - t);
+            mainRt.localScale = Vector3.one * Mathf.Lerp(1.3f, 1f, eased);
+            overlayMainText.color = new Color(1f, 0.84f, 0f, 1f);
+            yield return null;
+        }
+        mainRt.localScale = Vector3.one;
+
         // 금색 밝기 펄스
         float elapsed = 0f;
         while (elapsed < 1.5f)
@@ -1074,7 +1102,9 @@ public class GameUI : MonoBehaviour
             {
                 elapsed += Time.deltaTime;
                 float a = Mathf.Clamp01(elapsed / 0.2f);
-                overlaySubText.color = new Color(1f, 1f, 1f, a * 0.9f);
+                // v20: 0.9 → 1.0. 실패 사유는 "왜 죽었는지"를 전하는 유일한 글자인데
+                // 밝은 보드 위에서 반투명이면 묻힌다(직접 플레이 검증).
+                overlaySubText.color = new Color(1f, 1f, 1f, a);
                 yield return null;
             }
         }
@@ -1213,7 +1243,11 @@ public class GameUI : MonoBehaviour
         if (overlayDim != null && !endingBlackout)
             overlayDim.color = new Color(0f, 0f, 0f, 0f);
         if (overlayMainText != null)
+        {
             overlayMainText.color = Color.white;
+            // v20: DoClear 스탬프가 중간에 끊기면 1.3배로 굳는다 — 다음 연출이 물려받지 않게.
+            overlayMainText.rectTransform.localScale = Vector3.one;
+        }
         if (overlaySubText != null)
             overlaySubText.color = Color.white;
     }

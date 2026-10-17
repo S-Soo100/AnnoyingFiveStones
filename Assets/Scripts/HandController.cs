@@ -234,7 +234,7 @@ public partial class HandController : MonoBehaviour
                 // Release → 게이지 확정
                 stage5GaugeActive = false;
                 stage5GaugePending = true;
-                GaugeBarUI.Instance?.Hide();
+                GaugeBarUI.Instance?.ConfirmPunch(); // v20: 확정 펀치 후 스스로 숨는다
             }
         }
     }
@@ -552,10 +552,15 @@ public partial class HandController : MonoBehaviour
 
         // 출발점도 그 보드 좌표의 지면으로 맞춘다 (그림자와 발밑이 어긋나지 않게).
         stone.SetBoardMotion(throwBoardPos, 0f);
+        stone.SetTrailActive(true); // v20: 던진 돌 꼬리 — 공중의 돌을 눈이 놓치지 않게
         startX = groundScreen.x;
         startY = groundScreen.y;
 
         AudioManager.Instance?.PlayThrowUp();
+        // v21: 비행 중 완만한 회전 — 위치만 보간하면 돌이 뻣뻣하게 수직 이동하는 것처럼 보인다.
+        // 뿌리기(DoScatter)는 이미 랜덤 스핀을 주고 있어, 던지기만 비어 있었다.
+        // 코루틴이 kinematic으로 위치를 모는 동안 transform 회전만 돌리므로 물리·판정 무관.
+        float throwSpin = Random.Range(140f, 240f) * (Random.value < 0.5f ? -1f : 1f);
         TestLogger.Instance?.LogStoneState(stone.StoneIndex, "thrown_up", stone.transform.position);
         Debug.Log($"[Hand] Threw stone {stone.StoneIndex} from y={startY:F1} to peak y={throwPeakY}");
 
@@ -575,6 +580,7 @@ public partial class HandController : MonoBehaviour
             // v17: 화면 y가 아니라 높이(h)를 보간하고, 화면 위치는 투영으로 얻는다.
             float h = Mathf.Lerp(0f, peakHeight, eased);
             stone.SetBoardMotion(throwBoardPos, h);
+            stone.transform.Rotate(0f, 0f, throwSpin * Time.deltaTime); // v21: 상승 회전
             yield return null;
         }
 
@@ -630,6 +636,7 @@ public partial class HandController : MonoBehaviour
             // v17: 화면 y가 아니라 높이(h)를 보간한다. 보드 좌표는 고정.
             float h = Mathf.Lerp(peakHeight, 0f, eased);
             stone.SetBoardMotion(throwBoardPos, h);
+            stone.transform.Rotate(0f, 0f, throwSpin * Time.deltaTime); // v21: 낙하 회전
             var p = new Vector2(stone.transform.position.x, stone.transform.position.y);
 
             // ── v17 받기 판정 ────────────────────────────────────────────────

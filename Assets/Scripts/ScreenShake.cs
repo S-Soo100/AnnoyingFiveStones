@@ -39,6 +39,14 @@ public class ScreenShake : MonoBehaviour
     /// <summary>실패 타격감 — 짧게 멈췄다가 흔들린다.</summary>
     public static void PlayFailImpact() => Instance?.Play(0.28f, 0.22f, 0.07f);
 
+    /// <summary>
+    /// v20: 클리어 마침표 — 흔들림 없는 순수 히트스톱.
+    /// 성공 순간 세상이 찰나 멈추고 그 위로 CLEAR!가 찍힌다(GameUI.DoClear의 스탬프는
+    /// unscaled 시간으로 돌므로 정지 중에도 움직인다). 실패와 달리 흔들지 않는다 —
+    /// 흔들림은 "부정"의 어휘로 남겨둔다.
+    /// </summary>
+    public static void PlayClearImpact() => Instance?.Play(0f, 0f, 0.06f);
+
     /// <param name="duration">흔들림 길이(초, 실시간).</param>
     /// <param name="magnitude">최대 흔들림 폭(월드 유닛). ortho 7 기준 화면 높이가 14다.</param>
     /// <param name="hitStopSeconds">흔들림 직전 정지 길이(초, 실시간).</param>

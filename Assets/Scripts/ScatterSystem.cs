@@ -133,15 +133,8 @@ public class ScatterSystem : MonoBehaviour
 
         GaugeBarUI.Instance?.SetValue(currentGaugeValue);
         // 링 중심도 커서(손) 위치 — DoScatter의 centerUV와 동일 계산/clamp로 프리뷰 정합.
-        Vector2 ringCenter = new Vector2(0.5f, 0.5f);
-        if (handController != null)
-        {
-            ringCenter = BoardUV(new Vector2(handController.transform.position.x, handController.transform.position.y));
-            ringCenter.x = Mathf.Clamp(ringCenter.x, 0.12f, 0.88f);
-            ringCenter.y = Mathf.Clamp(ringCenter.y, 0.12f, 0.88f);
-        }
         rangeIndicator?.UpdateRing(RadiusBoard(currentGaugeValue),
-                                   BoardSpace.Current.UvToBoard(ringCenter));
+                                   BoardSpace.Current.UvToBoard(ScatterCenterUV()));
         AudioManager.Instance?.PlayGaugeTick();
     }
 
@@ -222,7 +215,7 @@ public class ScatterSystem : MonoBehaviour
         }
 
         isGaugeActive = false;
-        GaugeBarUI.Instance?.Hide();
+        GaugeBarUI.Instance?.ConfirmPunch(); // v20: 확정 펀치 후 스스로 숨는다
         rangeIndicator?.Hide();
         AudioManager.Instance?.PlayGaugeConfirm();
         // v14: 게이지 값을 그대로 넘김. 퍼짐/낙은 DoScatter에서 코루틴 토스로 결정.
@@ -285,18 +278,8 @@ public class ScatterSystem : MonoBehaviour
         //   이렇게 해야 안착한 돌이 자기 BoardPos를 갖고, 그림자가 실제 착지 지점에 찍힌다.
         var boardTargets = new Vector2[n];
 
-        // ★산개 중심 = 커서(손) 위치. 손이 없으면 보드 중앙(0.5,0.5) 폴백.
-        //   테이블 밖 산개로 전-낙되는 것 방지 위해 [0.12,0.88]로 clamp(플레이 가능성 보존).
-        //   밸런스(반경·간격·낙 판정)는 전부 불변 — 링/목표의 원점만 이동.
-        Vector2 centerUV = new Vector2(0.5f, 0.5f);
-        if (handController != null)
-        {
-            Vector2 handPos = new Vector2(handController.transform.position.x, handController.transform.position.y);
-            centerUV = BoardUV(handPos);
-            centerUV.x = Mathf.Clamp(centerUV.x, 0.12f, 0.88f);
-            centerUV.y = Mathf.Clamp(centerUV.y, 0.12f, 0.88f);
-        }
-
+        // ★산개 중심 = 커서(손) 위치 (ScatterCenterUV — 링 프리뷰와 동일 계산).
+        Vector2 centerUV = ScatterCenterUV();
         Vector2 centerBoard = BoardSpace.Current.UvToBoard(centerUV);
 
         // v15: 각도만 유기화(반경 매핑·낙 파이프라인 불변). 매 throw 방향 랜덤 + 지터 확대 + 뭉침 클럼프.
@@ -521,6 +504,26 @@ public class ScatterSystem : MonoBehaviour
         //    baseScale로 덮으면 원근이 지워져 뒤쪽 돌이 다시 커진다(스쿼시 복원은 여기 불필요).
         s.SetBoardMotion(boardTarget, 0f);
         s.Rb.isKinematic = true; // 드리프트 방지 최종 고정
+    }
+
+    /// <summary>
+    /// 산개 중심 uv — 링 프리뷰(UpdateRing)와 실제 목표(DoScatter)가 **반드시 이 하나**를 쓴다.
+    ///
+    /// 손이 보드 **안**이면: 기존대로 [0.12, 0.88] 가장자리 클램프(가장자리 조준의 낙 위험은
+    /// 게이지 선택의 의미이므로 보존 — 밸런스 불변).
+    /// 손이 보드 **밖**이면(특히 하늘 — 스토리 멘트를 클릭한 직후가 딱 이 상황): 그 축만
+    /// 중앙(0.5)으로 되돌린다. 예전처럼 가장자리 줄(0.12)로 클램프하면 중심이 뒷변에 박혀
+    /// 반경 대부분이 보드 밖 = 낙 확률 급등 — 조준한 적도 없는 자리로 뿌려져 죽는 함정이었다
+    /// (2026-10-17 직접 플레이 검증). 링이 중앙으로 점프하므로 플레이어에게도 즉시 보인다.
+    /// </summary>
+    private Vector2 ScatterCenterUV()
+    {
+        if (handController == null) return new Vector2(0.5f, 0.5f);
+        Vector2 raw = BoardUV(new Vector2(handController.transform.position.x,
+                                          handController.transform.position.y));
+        return new Vector2(
+            (raw.x < 0f || raw.x > 1f) ? 0.5f : Mathf.Clamp(raw.x, 0.12f, 0.88f),
+            (raw.y < 0f || raw.y > 1f) ? 0.5f : Mathf.Clamp(raw.y, 0.12f, 0.88f));
     }
 
     /// <summary>보드 사다리꼴 역매핑 (앞/뒤 변 수평 가정 — 이 게임 보드 구조). world → uv.

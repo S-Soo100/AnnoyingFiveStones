@@ -191,17 +191,28 @@ public class DebugHUD : MonoBehaviour
         GUI.backgroundColor = new Color(0.6f, 1f, 0.6f, 0.8f);
         if (GUI.Button(new Rect(x, y, btnW, btnH), "다음 스테이지로 (+5살)", btnStyle))
         {
-            // 1~4단은 GameSession에만 반영 (부작용 없음)
-            for (int i = 1; i <= 4; i++)
-                session.OnStageComplete(i);
-            // 5단은 GameManager.DebugCompleteCurrentLoop() 경유 — IsGameClear 분기/전환 코루틴 정상 작동
-            // v12-fix: GameManager 측 메서드가 `#if UNITY_EDITOR || DEVELOPMENT_BUILD` 가드 안에 정의되므로
-            //          Release Player 빌드에서 stripping → 호출부도 동일 가드로 차단해 CS1061 회피.
+            // v20: 전환(클리어/멘트) 중에는 통째로 무시한다. 예전엔 세션만 먼저 +4단 올려놓고
+            // 아래 DebugCompleteCurrentLoop가 전환 가드에 걸려 무시되면, 나이/단이 어긋난 채
+            // 남았다(2026-10-17 직접 플레이에서 나이 20→24 꼬임 실측). 세션과 GameManager는
+            // 항상 한 덩어리로 진행되거나 한 덩어리로 무시돼야 한다.
+            if (gm.IsTransitioning)
+            {
+                Debug.Log("[DebugHUD] 다음 스테이지로 — 전환 중이라 무시(세션 불변)");
+            }
+            else
+            {
+                // 1~4단은 GameSession에만 반영 (부작용 없음)
+                for (int i = 1; i <= 4; i++)
+                    session.OnStageComplete(i);
+                // 5단은 GameManager.DebugCompleteCurrentLoop() 경유 — IsGameClear 분기/전환 코루틴 정상 작동
+                // v12-fix: GameManager 측 메서드가 `#if UNITY_EDITOR || DEVELOPMENT_BUILD` 가드 안에 정의되므로
+                //          Release Player 빌드에서 stripping → 호출부도 동일 가드로 차단해 CS1061 회피.
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            gm.DebugCompleteCurrentLoop();
+                gm.DebugCompleteCurrentLoop();
 #endif
-            SidePanelUI.Instance?.Refresh();
-            AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
+                SidePanelUI.Instance?.Refresh();
+                AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
+            }
         }
         y += btnH + padding;
 

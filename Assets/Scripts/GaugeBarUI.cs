@@ -67,6 +67,7 @@ public class GaugeBarUI : MonoBehaviour
     public void Show()
     {
         if (barRoot == null) return;
+        StopPunch();
         barRoot.SetActive(true);
         SetValue(0f);
     }
@@ -74,7 +75,53 @@ public class GaugeBarUI : MonoBehaviour
     /// <summary>게이지 숨김</summary>
     public void Hide()
     {
+        StopPunch();
         if (barRoot != null) barRoot.SetActive(false);
+    }
+
+    // ── v20: 확정 펀치 ──────────────────────────────────────────────────────
+    // 게이지 확정은 이 게임에서 가장 자주 하는 "결정"인데, 지금까지 소리(gauge_confirm)만
+    // 나고 게이지는 그 자리에서 뚝 사라졌다. 살짝 부풀었다 숨으면 "내 입력이 박혔다"가
+    // 눈에도 남는다. 값·판정·타이밍에는 아무 영향이 없다 — 숨는 시점만 0.14초 늦어진다.
+
+    private Coroutine punchRoutine;
+
+    /// <summary>확정 순간의 Hide 대체 — 펀치 후 스스로 숨는다.</summary>
+    public void ConfirmPunch()
+    {
+        if (barRoot == null || !barRoot.activeSelf) { Hide(); return; }
+        if (punchRoutine != null) StopCoroutine(punchRoutine);
+        punchRoutine = StartCoroutine(DoConfirmPunch());
+    }
+
+    private void StopPunch()
+    {
+        if (punchRoutine != null)
+        {
+            StopCoroutine(punchRoutine);
+            punchRoutine = null;
+        }
+        if (barRoot != null) barRoot.transform.localScale = Vector3.one;
+    }
+
+    private System.Collections.IEnumerator DoConfirmPunch()
+    {
+        var rt = barRoot.transform;
+        const float Duration = 0.14f;
+        const float Peak = 1.07f;
+        float elapsed = 0f;
+        while (elapsed < Duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / Duration);
+            float s = t < 0.35f ? Mathf.Lerp(1f, Peak, t / 0.35f)             // 튀고
+                                : Mathf.Lerp(Peak, 1f, (t - 0.35f) / 0.65f);  // 돌아온다
+            rt.localScale = Vector3.one * s;
+            yield return null;
+        }
+        rt.localScale = Vector3.one;
+        punchRoutine = null;
+        Hide();
     }
 
     private void CreateUI()

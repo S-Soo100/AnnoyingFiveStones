@@ -52,6 +52,7 @@ public static class UIWindow
         var bodyImg = winGo.AddComponent<Image>();
         bodyImg.sprite = UISkin.WindowBody;
         bodyImg.type = Image.Type.Sliced;
+        winGo.AddComponent<WindowOpenPop>(); // v21: 열릴 때마다 0.12s 스케일 팝 (어둠막 제외, 창 본체만)
 
         // 머리띠 — 위 모서리만 둥글다. 아래 테두리선이 몸통과의 구분선이 된다.
         var headGo = new GameObject("Header");
@@ -207,6 +208,7 @@ public static class UIWindow
         if (onClick != null) btn.onClick.AddListener(onClick);
 
         btnGo.AddComponent<HandCursorHoverTrigger>().HoverPose = HandPose.PointIndex;
+        btnGo.AddComponent<ButtonPressScale>(); // v21: 눌림 스케일 — Sunken 스프라이트와 한 세트
 
         label = Label(btnGo.transform, "Label", text, BodyPt, TextAlignmentOptions.Center, font);
         var lr = label.rectTransform;

@@ -655,6 +655,7 @@ public class TitleScreenUI : MonoBehaviour
         // 호버 시 손가락 가리킴 포즈
         var hover = btnGo.AddComponent<HandCursorHoverTrigger>();
         hover.HoverPose = HandPose.PointIndex;
+        btnGo.AddComponent<ButtonPressScale>(); // v21: 눌림 스케일 (이미 중앙 피벗이라 그대로 동작)
 
         var labelGo = new GameObject("Label");
         labelGo.transform.SetParent(btnGo.transform, false);

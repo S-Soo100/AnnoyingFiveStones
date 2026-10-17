@@ -148,6 +148,78 @@ public class Stone : MonoBehaviour
             popScale = Vector3.one;
             if (baseScaleCaptured) ApplyScaleWithPop();
         }
+
+        // 풀 재사용 시 이전 위치→새 위치로 꼬리가 한 줄 그어지는 것을 막는다.
+        if (trail != null)
+        {
+            trail.emitting = false;
+            trail.Clear();
+        }
+    }
+
+    // ── v20: 던진 돌 꼬리 ────────────────────────────────────────────────────
+    // 던진 돌은 작고 빠른데 그동안 궤적 단서가 그림자(착지점)뿐이라 공중의 돌 자체는
+    // 눈으로 쫓기 어려웠다. 짧은 꼬리를 남기면 받기 직전까지 시선이 돌을 따라간다.
+    // 기획서 v11 §8("정보는 오브젝트 자체가 말한다")과 같은 결 — 화면 위 주석이 아니라
+    // 돌의 움직임이 스스로 궤적을 그린다. **뿌리기(산개)에는 켜지 않는다** — 다섯 줄이
+    // 사방으로 흩어지면 소음이고, 범위는 산개 링이 이미 말해준다.
+    // (5단 토스는 수직·평행 궤적이라 켠다 — 낙하 추적을 돕는 쪽이 크다)
+
+    private TrailRenderer trail;
+    private static Material trailMaterial; // 모든 돌이 공유 — 돌마다 만들면 누수
+
+    /// <summary>던지기 경로(DoThrow·5단 토스)에서만 켠다. 꺼지는 건 SetState가 처리한다.</summary>
+    public void SetTrailActive(bool active)
+    {
+        if (active)
+        {
+            if (trail == null) BuildTrail();
+            // 폭은 켜는 순간의 실제 그려지는 크기 기준 — 원근으로 작아진 돌은 꼬리도 가늘게.
+            // v20 직접 플레이 검증: 0.45폭 + 흰색 55%는 밝은 하늘에서 전혀 안 보였다 → 돌 폭
+            // 수준(0.8)으로 키운다. 어차피 끝폭 0으로 좁아지는 쐐기라 두껍게 느껴지지 않는다.
+            var r = GetComponent<Renderer>();
+            if (r != null) trail.startWidth = r.bounds.size.x * 0.8f;
+            trail.Clear();   // 직전 위치에서 현재 위치로 이어지는 순간이동 줄 방지
+            trail.emitting = true;
+        }
+        else if (trail != null)
+        {
+            trail.emitting = false; // 남은 꼬리는 time 동안 자연 소멸
+        }
+    }
+
+    private void BuildTrail()
+    {
+        if (trailMaterial == null)
+        {
+            // URP에서도 Sprites/Default는 호환 지원된다. 없으면 URP Unlit으로.
+            var shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+            trailMaterial = new Material(shader);
+        }
+
+        var go = new GameObject("Trail");
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = new Vector3(0f, 0f, 0.05f); // 돌보다 살짝 화면 안쪽
+
+        trail = go.AddComponent<TrailRenderer>();
+        trail.time = 0.25f;
+        trail.minVertexDistance = 0.03f;
+        trail.material = trailMaterial;
+        trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        trail.receiveShadows = false;
+        trail.endWidth = 0f;
+        trail.emitting = false;
+
+        // v20: 순백 55%는 밝은 하늘과 분리가 안 됐다(직접 플레이 검증).
+        // 돌 색(노랑)에 가까운 웜톤 + 머리쪽 85%로 — 하늘(한랭색)과 색상으로도 분리된다.
+        var warm = new UnityEngine.Color(1f, 0.93f, 0.55f);
+        var g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(warm, 0f),
+                    new GradientColorKey(warm, 1f) },
+            new[] { new GradientAlphaKey(0.85f, 0f), new GradientAlphaKey(0f, 1f) });
+        trail.colorGradient = g;
     }
 
     /// <summary>보드 좌표 + 높이를 지정하고 화면 위치·크기를 투영으로 갱신한다.</summary>
@@ -192,6 +264,19 @@ public class Stone : MonoBehaviour
             originalMaterialColor = r.material.HasProperty("_BaseColor")
                 ? r.material.GetColor("_BaseColor")
                 : r.material.color;
+
+            // v21: 돌마다 색감을 아주 조금 다르게 — 다섯 개가 완전히 같은 노랑이면
+            // 공산품(플레이스홀더)처럼 보인다. 모양은 이미 StoneShape가 다르게 깎는다.
+            // ⚠️ 지터는 **기본색에만** 묻는다: originalMaterialColor를 바꿔두면
+            //    SetColor(Default) 복원 경로가 그대로 이 돌의 고유색을 쓴다.
+            //    기믹 색(15살 색선택 등)은 팔레트 원색 그대로라 색 판별이 흐려지지 않는다.
+            UnityEngine.Color.RGBToHSV(originalMaterialColor, out float hue, out float sat, out float val);
+            hue = Mathf.Repeat(hue + Random.Range(-0.015f, 0.015f), 1f);
+            sat = Mathf.Clamp01(sat * Random.Range(0.92f, 1.08f));
+            val = Mathf.Clamp01(val * Random.Range(0.94f, 1.06f));
+            originalMaterialColor = UnityEngine.Color.HSVToRGB(hue, sat, val);
+            r.material.SetColor("_BaseColor", originalMaterialColor);
+            r.material.color = originalMaterialColor;
         }
         // 빠른 낙하 시 터널링 방지
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
@@ -348,6 +433,11 @@ public class Stone : MonoBehaviour
 
         // v6-1: InAir/Bouncing일 때 그림자 활성
         shadow?.UpdateVisibility(newState);
+
+        // v20: 비행이 끝나는 상태에서 꼬리를 끈다. InAir/Bouncing 동안은 유지 —
+        // 손가락에 튕긴 돌도 아직 공중이므로 꼬리가 따라가는 게 맞다.
+        if (newState == State.InHand || newState == State.Caught || newState == State.OnBoard)
+            SetTrailActive(false);
 
         switch (newState)
         {

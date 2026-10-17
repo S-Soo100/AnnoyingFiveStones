@@ -148,6 +148,7 @@ public partial class HandController
         float[] targetBX = spreadX ? GenerateSpreadPositions(count) : new float[count];
         float[] startBX  = new float[count];
         float[] peakH    = new float[count];
+        float[] spin     = new float[count]; // v21: 토스 회전 — 1~4단 던지기와 같은 이유
 
         for (int i = 0; i < count; i++)
         {
@@ -166,6 +167,8 @@ public partial class HandController
             stones[i].SetState(Stone.State.InAir); // layer=AirLayer, col=true
             stones[i].Rb.isKinematic = true;       // SetState 후 덮어쓰기 (코루틴 위치 제어용)
             stones[i].Rb.useGravity = false;
+            stones[i].SetTrailActive(true); // v20: 토스 궤적 꼬리 — 낙하 추적이 가장 어려운 구간
+            spin[i] = Random.Range(140f, 240f) * (Random.value < 0.5f ? -1f : 1f);
         }
 
         // 올라가기 (EaseOut — 중력에 거슬러 감속하는 상승. 물리적으로 맞다)
@@ -180,6 +183,7 @@ public partial class HandController
             {
                 float bx = spreadX ? Mathf.Lerp(startBX[i], targetBX[i], eased) : targetBX[i];
                 stones[i].SetBoardMotion(new Vector2(bx, handBoard.y), Mathf.Lerp(0f, peakH[i], eased));
+                stones[i].transform.Rotate(0f, 0f, spin[i] * Time.deltaTime); // v21
             }
             yield return null;
         }
