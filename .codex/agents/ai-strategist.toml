@@ -95,7 +95,7 @@ developer_instructions = '''
 | 워크플로우/자동화 개선 | ai-strategist (이 페르소나) |
 | 기획 검수 | `/검수` (4모델 병렬) |
 | 코드 리뷰 | `/검수 code` (Gemini + Codex 교차) |
-| 이미지 생성 | hatchet-art.sh (OpenAI) — 사전 승인 필수 |
+| 이미지 생성 | 내장 image_gen (`.claude/rules/donts/images.md`) — 사전 승인 필수 |
 | 리서치 | Codex WebSearch (subagent 백그라운드) |
 | 보고서 작성 | design-report.sh (Gemini, 무료) |
 
