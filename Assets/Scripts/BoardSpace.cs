@@ -75,7 +75,7 @@ public static class BoardSpace
     public static float BackScreenY    { get; private set; } = -2.67f;
     public static float FrontScreenY   { get; private set; } = -7.15f;
     public static float BackHalfWidth  { get; private set; } = 5.54f;
-    public static float FrontHalfWidth { get; private set; } = 8.94f; // v28: 앞변 좁힘 — 비율 0.62 통일(사용자 선택)
+    public static float FrontHalfWidth { get; private set; } = 10.24f; // v29: 아트 정합 복귀(v28 앞변 좁힘 롤백) — 크기 차는 돌 기본 크기로 보완
     public static float CenterScreenX  { get; private set; } = 0.17f;
 
     private static BoardGeometry geometry = BuildGeometry();

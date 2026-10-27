@@ -699,7 +699,9 @@ public class GameManager : MonoBehaviour
         // Rigidbody 없음 = Static Collider (움직이지 않음)
     }
 
-    private static readonly Vector3 StoneOriginalScale = new Vector3(0.3f, 0.3f, 0.3f);
+    // v29: 0.3 → 0.345 (+15%) — 보드를 아트 정합(원근 0.54)으로 되돌리며 뒤쪽 돌의 절대 크기를
+    // 보완(사용자 선택). 판정(돌 중심 거리)·뿌리기 간격(보드 단위)은 돌 크기와 무관.
+    private static readonly Vector3 StoneOriginalScale = new Vector3(0.345f, 0.345f, 0.345f);
 
     private void ResetAllStones()
     {
