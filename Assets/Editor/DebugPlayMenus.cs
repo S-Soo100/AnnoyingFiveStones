@@ -28,6 +28,16 @@ public static class DebugPlayMenus
         AgeSaturationController.Instance?.UpdateSaturation(session.CurrentAge);
     }
 
+    /// <summary>v23: 보드 판정 영역 오버레이(구 돗자리) 토글 — 평시 숨김, 켜면 반투명 표시.</summary>
+    [MenuItem("Tools/디버그: 보드 영역 오버레이 토글")]
+    private static void ToggleBoardOverlay()
+    {
+        BoardMatVisual.DebugShow = !BoardMatVisual.DebugShow;
+        if (Application.isPlaying)
+            Object.FindFirstObjectByType<BoardMatVisual>(FindObjectsInactive.Include)?.ApplyVisibility();
+        Debug.Log($"[DebugPlayMenus] 보드 영역 오버레이: {(BoardMatVisual.DebugShow ? "ON (반투명)" : "OFF")}");
+    }
+
     /// <summary>CLEAR 연출을 6초로 늘린다 — 스크린샷 캡처 지연(~1.5s)보다 길게. Play 재시작 시 원복.</summary>
     [MenuItem("Tools/디버그: CLEAR 연출 6초로 (캡처용)")]
     private static void StretchClearDuration()

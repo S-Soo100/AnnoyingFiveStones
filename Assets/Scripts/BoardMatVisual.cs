@@ -32,10 +32,16 @@ public class BoardMatVisual : MonoBehaviour
     private const float BorderRatio = 0.055f; // 테두리 두께 (텍스처 비율)
     private const float TrimRatio   = 0.018f; // 테두리 안쪽 밝은 실
 
-    /// <summary>돗자리 불투명도. 배경(책상·패드)이 비쳐 "얇게 깔린 천" 느낌이 난다. ⚠️ 재튜닝 대상.</summary>
-    private const float MatAlpha = 0.78f;
-    /// <summary>테두리는 더 진하게 — 가장자리가 흐리면 물건 윤곽이 무너진다.</summary>
-    private const float BorderAlpha = 0.92f;
+    /// <summary>돗자리 불투명도. v23: 디버그 오버레이로 강등되며 대폭 반투명화(0.78→0.30) —
+    /// 아트 테이블 위에서 "판정 영역 가이드"로만 읽히면 된다.</summary>
+    private const float MatAlpha = 0.30f;
+    /// <summary>테두리 — 오버레이 윤곽 식별용 (v23: 0.92→0.45).</summary>
+    private const float BorderAlpha = 0.45f;
+
+    /// <summary>v23 — 돗자리는 **디버그 오버레이**다. 배경 v2 정식 아트(배경+판)가 플레이면을
+    /// 그리므로 평시엔 숨기고, 판정 영역 확인이 필요할 때만 Tools 메뉴 토글로 켠다.
+    /// 판정(BoardSpace/BoardBounds)은 이 표시 여부와 무관하게 동일하다.</summary>
+    public static bool DebugShow = false;
 
     private GameObject dropShadow;
 
@@ -43,6 +49,15 @@ public class BoardMatVisual : MonoBehaviour
     {
         ApplyMatTexture();
         BuildDropShadow();
+        ApplyVisibility();
+    }
+
+    /// <summary>현재 DebugShow 값으로 돗자리+밑그림자 표시를 갱신. 스테이지 전환·토글 시 호출.</summary>
+    public void ApplyVisibility()
+    {
+        var rd = GetComponent<MeshRenderer>();
+        if (rd != null) rd.enabled = DebugShow;
+        if (dropShadow != null) dropShadow.SetActive(DebugShow);
     }
 
     private void ApplyMatTexture()
