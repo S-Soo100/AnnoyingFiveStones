@@ -52,12 +52,18 @@ public class BoardMatVisual : MonoBehaviour
         ApplyVisibility();
     }
 
+    private float builtAspect = -1f;
+
     /// <summary>현재 DebugShow 값으로 돗자리+밑그림자 표시를 갱신. 스테이지 전환·토글 시 호출.</summary>
     public void ApplyVisibility()
     {
         var rd = GetComponent<MeshRenderer>();
         if (rd != null) rd.enabled = DebugShow;
         if (dropShadow != null) dropShadow.SetActive(DebugShow);
+
+        // v26: 보드가 스테이지별이라 텍스처 비율도 단마다 다르다 — 표시 중일 때만 재생성(숨김 시 비용 0).
+        if (DebugShow && !Mathf.Approximately(builtAspect, BoardAspect))
+            ApplyMatTexture();
     }
 
     private void ApplyMatTexture()
@@ -79,6 +85,8 @@ public class BoardMatVisual : MonoBehaviour
 
         // 반투명 — 배경(책상·마우스패드)이 비쳐 "얇게 깔린 천"으로 읽힌다.
         SetTransparent(mat);
+
+        builtAspect = BoardAspect; // v26: 재생성 필요 판단용
     }
 
     /// <summary>테두리 + 안쪽 실 + 짜임(위빙) 패턴을 가진 돗자리 텍스처.</summary>

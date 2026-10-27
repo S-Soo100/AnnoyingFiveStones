@@ -69,7 +69,12 @@ public class StageConfig
     public Vector2 BoardSize   = Vector2.zero;  // 플레이 영역 월드 크기. (0,0)=미설정→override 없음
 
     // v9: 사다리꼴 플레이 영역 ([0]=BL, [1]=BR, [2]=FL, [3]=FR). null이면 BoardCenter/Size Rect 폴백.
+    // ⚠️ v17 이후 미사용 레거시(BackgroundManager가 무시) — v26부터는 아래 Board 프로필이 정본.
     public Vector2[] BoardQuad = null;
+
+    // v26: 스테이지별 보드 사다리꼴 — 디자이너 영역 가이드 실측(분석서-스테이지별보드-2026-10-28).
+    // (backY, frontY, backHalf, frontHalf, centerX). 미지정 시 1단(age10) 값.
+    public BoardProfile Board = new BoardProfile(-2.67f, -7.15f, 5.54f, 10.24f, 0.17f);
 
     // 정적 데이터: 10개 스테이지 정의
     private static readonly StageConfig[] stages = new StageConfig[]
@@ -133,6 +138,7 @@ public class StageConfig
             TableColor=new Color(0.4f,0.7f,0.35f), ClothColor=new Color(0.4f,0.75f,0.7f),
             BackgroundImage="StageBackgrounds/Life/v2/age20_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age20")
             BoardImage     ="StageBackgrounds/Life/v2/age20_board", // 포장마차 테이블 레이어
+            Board = new BoardProfile(-2.95f, -7.52f, 5.28f, 10.05f, 0f), // v26 가이드 실측
             // ⚠️ v16 배경 교체 시 재측정: 새 렌더의 중앙 테이블 상판은 back y≈+0.19 / front y≈-6.75,
             //    front 반폭 ≈±8.2 (구 스케치보다 넓고 깊음). 아래 quad는 그 상판 "안쪽"에 들어가므로
             //    시각 이탈 없음(앞변만 0.15 아래로 살짝 넘침 — IsOutsideMat 마진 0.2 내부). 플레이 영역을
@@ -181,6 +187,7 @@ public class StageConfig
             TableColor=new Color(0.5f,0.45f,0.4f), ClothColor=new Color(0.85f,0.78f,0.65f),
             BackgroundImage = "StageBackgrounds/Life/v2/age25_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age25")
             BoardImage      = "StageBackgrounds/Life/v2/age25_board", // 책상 패드 레이어
+            Board = new BoardProfile(-2.95f, -7.43f, 5.54f, 10.25f, 0.02f), // v26 가이드 실측
             // v11 B정렬: age25 마우스패드에 맞춤 (ImageMagick CC 측정: back 57.6%/front 85.5%). 빗금 매트 제거 — 마우스패드(배경)가 플레이면.
             // 되돌리려면 mat 복원 + BoardQuad -3.95/-7.10.
             //
@@ -213,6 +220,7 @@ public class StageConfig
             TableColor=new Color(0.25f,0.35f,0.5f), ClothColor=new Color(0.6f,0.7f,0.85f),
             BackgroundImage="StageBackgrounds/Life/v2/age30_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age30")
             BoardImage     ="StageBackgrounds/Life/v2/age30_board", // 책상 패드 레이어
+            Board = new BoardProfile(-2.95f, -7.41f, 5.60f, 10.23f, 0.07f), // v26 가이드 실측
             // v11 B정렬: age30 마우스패드에 맞춤 (CC 측정: back 57.6%/front 85%).
             // ⚠️ ObstacleGimmick 방해물 영역이 BoardBounds 기반이라 함께 이동/축소됨. 되돌리려면 -3.95/-7.10.
             //
@@ -249,6 +257,7 @@ public class StageConfig
             SkyBottom=new Color(0.55f,0.5f,0.65f), SkyTop=new Color(0.3f,0.25f,0.4f),
             TableColor=new Color(0.35f,0.25f,0.2f), ClothColor=new Color(0.25f,0.4f,0.25f),
             BackgroundImage = "StageBackgrounds/Life/v2/age35_bg", // v22 정식 아트 — 판 레이어 없음(배경에 테이블 내장, 영역 가이드만 제공됨)
+            Board = new BoardProfile(-2.98f, -7.60f, 5.64f, 10.03f, 0f), // v26: 가이드 앞변 -8.48 → -7.60 캡+에지 보간
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
@@ -274,6 +283,7 @@ public class StageConfig
             TableColor=new Color(0.45f,0.25f,0.15f), ClothColor=new Color(0.55f,0.25f,0.2f),
             BackgroundImage = "StageBackgrounds/Life/v2/age40_bg", // v22 정식 아트 (노을 창 — 구: "StageBackgrounds/Life/age40")
             BoardImage      = "StageBackgrounds/Life/v2/age40_board", // 탁자 레이어
+            Board = new BoardProfile(-2.70f, -7.60f, 6.20f, 10.50f, 0f), // v26: 아트 전폭(변 없음) → 제안 사다리꼴(합의 §3)
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
@@ -299,6 +309,7 @@ public class StageConfig
             TableColor=new Color(0.55f,0.5f,0.45f), ClothColor=new Color(0.75f,0.8f,0.85f),
             BackgroundImage = "StageBackgrounds/Life/v2/age45_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age45")
             BoardImage      = "StageBackgrounds/Life/v2/age45_board", // 탁자 레이어
+            Board = new BoardProfile(-2.70f, -7.60f, 6.20f, 10.50f, 0f), // v26: 40단과 동일(아트 전폭)
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
@@ -324,6 +335,7 @@ public class StageConfig
             TableColor=new Color(0.2f,0.15f,0.1f), ClothColor=new Color(0.25f,0.15f,0.3f),
             BackgroundImage = "StageBackgrounds/Life/v2/age50_bg", // v22 정식 아트 (밤 침실 — 구: "StageBackgrounds/Life/age50")
             BoardImage      = "StageBackgrounds/Life/v2/age50_board", // 침대 위 나무 놀이판 레이어
+            Board = new BoardProfile(-2.85f, -7.54f, 5.48f, 10.26f, -0.01f), // v26 가이드 실측
             // v22: 구 WIP 렌더용 확대/오프셋(1.3 / -0.8,-1.0) 제거 — 새 아트는 카메라 프레임 1:1
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(0.10f, -2.06f), // v12 침대 정렬 3차 (라벨 측정 기반, 매트리스 4모서리 직접 맞춤)
@@ -350,6 +362,7 @@ public class StageConfig
             TableColor=new Color(0.35f,0.35f,0.35f), ClothColor=new Color(0.65f,0.65f,0.65f),
             BackgroundImage = "StageBackgrounds/Life/v2/age55_bg", // v22 정식 아트 (저승사자 침실 — 무저승사자판은 Editor/ArtReference/Alternates)
             BoardImage      = "StageBackgrounds/Life/v2/age50_board", // 나무 놀이판 — 50살과 공용 (55살 전용 판 없음)
+            Board = new BoardProfile(-2.85f, -7.54f, 5.48f, 10.26f, -0.01f), // v26: 50살과 동일 가이드
             // v22: 구 WIP 렌더용 확대/오프셋(1.3 / -0.8,-1.0) 제거 — 새 아트는 카메라 프레임 1:1
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(0.10f, -2.06f), // v12 침대 정렬 3차 (라벨 측정 기반, 매트리스 4모서리 직접 맞춤)

@@ -88,6 +88,10 @@ public class BackgroundManager : MonoBehaviour
     {
         if (config == null) return;
 
+        // v26: 스테이지별 보드 프로필을 가장 먼저 적용 — 아래의 UnifiedQuad 등록,
+        // SkyFloorY 자동 동기, CatchSystem 재계산, 돗자리 동기가 전부 이 값을 탄다.
+        BoardSpace.ApplyProfile(config.Board);
+
         // v8-2f: 보드 영역 override (책상 wood = 플레이 영역). 미설정 stage는 Cloth.bounds 폴백.
         boardBaseCenter = config.BoardCenter;
         boardBaseSize   = config.BoardSize;

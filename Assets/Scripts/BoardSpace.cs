@@ -15,6 +15,15 @@ using FiveStones.Core;
 /// - **Board Space (논리)**: 완전한 직사각형. 모든 게임 로직이 여기서만 돈다.
 /// - **Screen Space (표현)**: 아래 상수로 정의된 사다리꼴. 렌더링에만 쓴다.
 /// </summary>
+/// <summary>v26 — 스테이지별 보드 사다리꼴 프로필. 출처: 디자이너 영역 가이드 실측(분석서-스테이지별보드).</summary>
+public struct BoardProfile
+{
+    public float BackY, FrontY, BackHalf, FrontHalf, CenterX;
+
+    public BoardProfile(float backY, float frontY, float backHalf, float frontHalf, float centerX)
+    { BackY = backY; FrontY = frontY; BackHalf = backHalf; FrontHalf = frontHalf; CenterX = centerX; }
+}
+
 public static class BoardSpace
 {
     // ── 논리 (판정) — 스테이지 무관 ──────────────────────────────────────────
@@ -58,20 +67,37 @@ public static class BoardSpace
     //   비율 0.55는 v19의 0.78 절충을 폐기한다: 앞뒤 돌 크기 차이 1.28배 → 1.82배.
     //   사용자 확인(2026-10-27): 아트 정합을 우선, 크기 차이 복귀를 수용. 되돌리려면
     //   -3.30 / -6.90 / 6.24 / 8.00 복구.
-    public const float BackScreenY   = -2.90f;
-    public const float FrontScreenY  = -7.45f;
-    public const float BackHalfWidth =  5.50f;  // 앞변 대비 0.55 (영역 가이드 실측)
-    public const float FrontHalfWidth = 10.00f;
-    public const float CenterScreenX =  0f;
+    // v26(2026-10-28, 분석서 합의): 표현 사다리꼴을 **스테이지별 프로필**로 로드한다.
+    //   v17 통일의 유산("모든 판정·시각은 BoardSpace 하나를 읽는다")은 그대로 — 그 하나의 값이
+    //   스테이지 시작 시 ApplyProfile로 바뀔 뿐이다. 값의 출처는 디자이너 영역 가이드 PNG의
+    //   스크립트 실측(에지 직선 피팅)이라 v17 이전의 "손으로 재던" 수작업과 다르다.
+    //   기본값 = 1단(age10) 프로필. 되돌리기: 전 단 프로필을 v22 값(-2.90/-7.45/5.50/10.00/0)으로.
+    public static float BackScreenY    { get; private set; } = -2.67f;
+    public static float FrontScreenY   { get; private set; } = -7.15f;
+    public static float BackHalfWidth  { get; private set; } = 5.54f;
+    public static float FrontHalfWidth { get; private set; } = 10.24f;
+    public static float CenterScreenX  { get; private set; } = 0.17f;
 
-    private static readonly BoardGeometry geometry = new BoardGeometry(
+    private static BoardGeometry geometry = BuildGeometry();
+
+    private static BoardGeometry BuildGeometry() => new BoardGeometry(
         LogicalWidth, LogicalDepth,
         BackHalfWidth, FrontHalfWidth,
         BackScreenY, FrontScreenY,
         CenterScreenX, HeightScale);
 
-    /// <summary>전 스테이지 공통 기하.</summary>
+    /// <summary>현재 스테이지 기하. ApplyProfile 호출 시 재생성.</summary>
     public static BoardGeometry Current => geometry;
+
+    /// <summary>v26 — 스테이지 시작 시 BackgroundManager.ApplyStage가 호출.
+    /// 이후의 UnifiedQuad 등록 → SkyFloorY 자동 동기 → CatchSystem 재계산이 전부 이 값을 탄다.</summary>
+    public static void ApplyProfile(BoardProfile p)
+    {
+        BackScreenY = p.BackY; FrontScreenY = p.FrontY;
+        BackHalfWidth = p.BackHalf; FrontHalfWidth = p.FrontHalf;
+        CenterScreenX = p.CenterX;
+        geometry = BuildGeometry();
+    }
 
     /// <summary>기존 <see cref="BoardBounds"/>에 넘길 사다리꼴 4꼭짓점 [BL, BR, FL, FR].
     /// 낙 판정·Flee·뿌리기 등 기존 소비자들이 전부 이 하나의 보드를 쓰게 된다.</summary>
@@ -83,11 +109,12 @@ public static class BoardSpace
         new Vector2(CenterScreenX + FrontHalfWidth, FrontScreenY),  // FR
     };
 
-    /// <summary>v24 — 낙(장외) 판정 유예 마진 SOT. 보드 경계에서 이만큼 밖까지는 낙이 아니다.
-    /// 0.2 → 0.5 (2026-10-27 승인): "모서리에 걸친 돌" 구제 2.5배 — 판정이 아트 테이블보다
-    /// 좁은 스테이지(35·40·45)의 체감 불공정도 완화. 2영역 판정(득점/유예/낙) 승격 시
-    /// 이 상수가 유예 밴드 폭의 출발점이 된다. 뿌리기 배치·Flee 이동 경계(Strict)는 별개.</summary>
-    public const float FailMargin = 0.5f;
+    /// <summary>v25 — 유예 밴드 폭 SOT (B안 2영역 판정, 2026-10-27 분석서 합의).
+    /// 보드 경계 밖 이 폭까지는 "유예 밴드": 낙이 아니고 돌은 생존·줍기 가능한 가장자리 상태다.
+    /// 밴드 너머가 낙. 폭 0 = v22, 0.5 = v24(구 FailMargin)와 낙 경계가 동일 — 되돌리기는 이 상수 하나.
+    /// 0.8 근거: 판정보다 아트 테이블이 큰 스테이지(35·40·45) 격차(최대 ~1.0)의 대부분 흡수.
+    /// ⚠️ 뿌리기 낙(ScatterSystem, 조준 실력 영역)과 배치·Flee 이동 경계(Strict)에는 적용하지 않는다(합의 §4-1).</summary>
+    public const float GraceBandWidth = 0.8f;
 
     /// <summary>보드가 고정이라 무효화할 캐시가 없다. 기존 호출부 호환용 no-op.</summary>
     public static void Invalidate() { }
