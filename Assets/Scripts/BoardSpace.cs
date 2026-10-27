@@ -83,6 +83,12 @@ public static class BoardSpace
         new Vector2(CenterScreenX + FrontHalfWidth, FrontScreenY),  // FR
     };
 
+    /// <summary>v24 — 낙(장외) 판정 유예 마진 SOT. 보드 경계에서 이만큼 밖까지는 낙이 아니다.
+    /// 0.2 → 0.5 (2026-10-27 승인): "모서리에 걸친 돌" 구제 2.5배 — 판정이 아트 테이블보다
+    /// 좁은 스테이지(35·40·45)의 체감 불공정도 완화. 2영역 판정(득점/유예/낙) 승격 시
+    /// 이 상수가 유예 밴드 폭의 출발점이 된다. 뿌리기 배치·Flee 이동 경계(Strict)는 별개.</summary>
+    public const float FailMargin = 0.5f;
+
     /// <summary>보드가 고정이라 무효화할 캐시가 없다. 기존 호출부 호환용 no-op.</summary>
     public static void Invalidate() { }
 

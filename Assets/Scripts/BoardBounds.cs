@@ -64,7 +64,7 @@ public static class BoardBounds
 
     /// <summary>매트 밖 판정. quad 있으면 점-사각형(CCW: BL→BR→FR→FL) 판정, 없으면 AABB 판정.
     /// Y 상한 무시 규칙 계승: 던지기 중 위로 올라간 돌 보호.</summary>
-    public static bool IsOutsideMat(Vector2 pos, float marginAbsolute = 0.2f)
+    public static bool IsOutsideMat(Vector2 pos, float marginAbsolute = BoardSpace.FailMargin)
     {
         if (HasQuad)
         {
