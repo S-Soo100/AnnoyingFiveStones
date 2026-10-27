@@ -20,6 +20,10 @@ public class BackgroundManager : MonoBehaviour
     // v8-2b: 풀스크린 배경 이미지 quad (이미지가 지정된 stage에서만 활성)
     private GameObject bgImageQuad;
 
+    // v22: 테이블(판) 전경 레이어 quad. 배경과 같은 1600×900 프레임의 투명 레이어라
+    // 배경과 동일 offset/scale로 포개야 원본 합성과 일치한다. 배경보다 앞, 돗자리·돌보다 뒤.
+    private GameObject boardImageQuad;
+
     // v8-2e: 매트(책상 상판) 별도 레이어 quad
     private GameObject matImageQuad;
     [SerializeField] private Vector2 liveMatOffset = Vector2.zero;
@@ -146,6 +150,12 @@ public class BackgroundManager : MonoBehaviour
                     SpawnProp(prop);
             }
         }
+
+        // ── v22: 테이블(판) 전경 레이어 — 배경이 있는 스테이지에서만, 배경과 동일 transform ──
+        if (useImage && !string.IsNullOrEmpty(config.BoardImage))
+            ApplyBoardImage(config.BoardImage, config.BgImageOffset, config.BgImageScale);
+        else if (boardImageQuad != null)
+            boardImageQuad.SetActive(false);
 
         // ── 공통: Table Renderer 가시성 ──
         if (tableRenderer != null) tableRenderer.enabled = !hideTableCloth;
@@ -353,16 +363,72 @@ public class BackgroundManager : MonoBehaviour
 
     /// <summary>quad 위치/스케일을 stage별 offset/scale로 갱신.</summary>
     private void ApplyQuadTransform(Vector2 offset, Vector2 scale)
+        => ApplyFullscreenQuad(bgImageQuad, offset, scale, 50f); // 로컬 z 50 → 월드 40
+
+    /// <summary>v22: 판 레이어 — 배경(월드 40)보다 앞, 돗자리·돌(z≈0)보다 뒤인 월드 30.</summary>
+    private void ApplyBoardQuadTransform(Vector2 offset, Vector2 scale)
+        => ApplyFullscreenQuad(boardImageQuad, offset, scale, 40f); // 로컬 z 40 → 월드 30
+
+    private void ApplyFullscreenQuad(GameObject quad, Vector2 offset, Vector2 scale, float localZ)
     {
-        if (bgImageQuad == null) return;
+        if (quad == null) return;
         var cam = Camera.main;
         if (cam == null || !cam.orthographic) return;
 
         float h = 2f * cam.orthographicSize;
         float w = h * cam.aspect;
-        // 매트(z=0)보다 멀리(z=50)에 배치. offset.xy로 미세조정.
-        bgImageQuad.transform.localPosition = new Vector3(offset.x, offset.y, 50f);
-        bgImageQuad.transform.localScale = new Vector3(w * scale.x, h * scale.y, 1f);
+        quad.transform.localPosition = new Vector3(offset.x, offset.y, localZ);
+        quad.transform.localScale = new Vector3(w * scale.x, h * scale.y, 1f);
+    }
+
+    // v22: 판 레이어 quad 생성 — EnsureBgImageQuad와 동일 패턴. 레이어 PNG라 알파 블렌딩 필수.
+    private void EnsureBoardImageQuad()
+    {
+        if (boardImageQuad != null) return;
+        var cam = Camera.main;
+        if (cam == null || !cam.orthographic) return;
+
+        boardImageQuad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        boardImageQuad.name = "BoardImageQuad";
+        var col = boardImageQuad.GetComponent<Collider>();
+        if (col != null) Object.Destroy(col);
+
+        boardImageQuad.transform.SetParent(cam.transform, false);
+        boardImageQuad.transform.localRotation = Quaternion.identity;
+
+        var rd = boardImageQuad.GetComponent<Renderer>();
+        var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.EnableKeyword("_EMISSION");
+        mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        SetTransparent(mat);
+        rd.material = mat;
+
+        boardImageQuad.SetActive(false);
+    }
+
+    private void ApplyBoardImage(string resourcePath, Vector2 offset, Vector2 scale)
+    {
+        EnsureBoardImageQuad();
+        if (boardImageQuad == null) return;
+
+        ApplyBoardQuadTransform(offset, scale);
+
+        var tex = Resources.Load<Texture2D>(resourcePath);
+        if (tex == null)
+        {
+            Debug.LogWarning($"[BackgroundManager] Board image not found: {resourcePath}");
+            boardImageQuad.SetActive(false);
+            return;
+        }
+
+        var rd = boardImageQuad.GetComponent<Renderer>();
+        var mat = rd.material;
+        mat.SetTexture("_BaseMap", tex);
+        mat.SetColor("_BaseColor", Color.white);
+        mat.SetTexture("_EmissionMap", tex);
+        mat.SetColor("_EmissionColor", Color.white);
+
+        boardImageQuad.SetActive(true);
     }
 
     /// <summary>URP Unlit/Lit을 알파 블렌딩으로 전환. <see cref="BoardMatVisual"/>과 동일한 설정을 쓴다.</summary>
@@ -409,6 +475,10 @@ public class BackgroundManager : MonoBehaviour
         if (!liveTuningEnabled) return;
         if (lastImageConfig == null || bgImageQuad == null || !bgImageQuad.activeSelf) return;
         ApplyQuadTransform(liveOffset, liveScale);
+
+        // v22: 판 레이어는 배경과 한 몸 — 같은 live 값으로 함께 움직인다.
+        if (boardImageQuad != null && boardImageQuad.activeSelf)
+            ApplyBoardQuadTransform(liveOffset, liveScale);
 
         // 매트 라이브 튜닝
         if (lastImageConfig != null && !string.IsNullOrEmpty(lastImageConfig.MatImage)

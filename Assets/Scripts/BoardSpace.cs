@@ -51,12 +51,17 @@ public static class BoardSpace
     //   (BoardGeometryTests가 "물체 축소율 = 보드 폭 축소율"을 잠가 놓았다 — 따로 풀면
     //   '보이는 손 안인데 안 잡히는' v17 이전 버그 클래스가 되살아난다).
     //   → 비율 자체를 0.583 → 0.78로 올린다: 크기 차이 1.71배 → 1.28배.
-    //   0.78은 배경 실측 구간(0.57~0.80)의 위쪽 끝(교실책상 0.79 / 30살 패드 0.80)이라
-    //   배경과의 원근 정합도 유지된다. 보드가 덜 사다리꼴로 보이는 것은 이 결정의 대가.
-    public const float BackScreenY   = -3.30f;
-    public const float FrontScreenY  = -6.90f;
-    public const float BackHalfWidth =  6.24f;  // 앞변 대비 0.78
-    public const float FrontHalfWidth = 8.00f;
+    // v22(2026-10-27): 배경 v2 정식 아트의 "영역" 가이드 실측 정합.
+    //   디자이너가 10단 전부에 사실상 동일한 플레이 영역 사다리꼴을 그려 보냈다
+    //   (10/20/25/30/50세 가이드 실측 수렴: 뒷변 y≈-2.90 반폭≈5.5 / 앞변 y≈-7.45 반폭≈10.0,
+    //    35세는 더 크고 40·45세는 화면 전폭 — 공통값이 전부 그 안에 들어간다).
+    //   비율 0.55는 v19의 0.78 절충을 폐기한다: 앞뒤 돌 크기 차이 1.28배 → 1.82배.
+    //   사용자 확인(2026-10-27): 아트 정합을 우선, 크기 차이 복귀를 수용. 되돌리려면
+    //   -3.30 / -6.90 / 6.24 / 8.00 복구.
+    public const float BackScreenY   = -2.90f;
+    public const float FrontScreenY  = -7.45f;
+    public const float BackHalfWidth =  5.50f;  // 앞변 대비 0.55 (영역 가이드 실측)
+    public const float FrontHalfWidth = 10.00f;
     public const float CenterScreenX =  0f;
 
     private static readonly BoardGeometry geometry = new BoardGeometry(

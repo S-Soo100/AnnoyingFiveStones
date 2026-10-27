@@ -53,6 +53,9 @@ public class StageConfig
 
     // v8-2b 풀스크린 배경 이미지 (Resources/{경로}). null/empty면 placeholder(Sky/Props) 사용.
     public string BackgroundImage = null;
+    // v22 배경 v2: 테이블(판) 전경 레이어. 배경과 같은 1600×900 프레임의 투명 레이어라
+    // 배경과 **동일 transform**으로 포개야 원본 합성과 일치한다. null이면 레이어 없음(35·55단 등).
+    public string BoardImage = null;
     // v8-2c 이미지 매트 정렬 미세조정. offset=quad localPos.xy 가산, scale=화면 채움 배율(1=정확히 화면).
     public Vector2 BgImageOffset = Vector2.zero;
     public Vector2 BgImageScale  = Vector2.one;
@@ -80,7 +83,8 @@ public class StageConfig
             Gimmick=GimmickType.None, TotalStones=5,
             SkyBottom=new Color(1.0f,0.95f,0.7f), SkyTop=new Color(0.55f,0.85f,1.0f),
             TableColor=new Color(0.95f,0.85f,0.7f), ClothColor=new Color(1.0f,0.5f,0.5f),
-            BackgroundImage = "StageBackgrounds/Life/age10", // v11 나이대별 배경 (기존 완성본: "StageBackgrounds/Stage02_Classroom")
+            BackgroundImage = "StageBackgrounds/Life/v2/age10_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age10")
+            BoardImage      = "StageBackgrounds/Life/v2/age10_board", // 학교 책상 레이어
             // v11 Desk 매트 제거: age10/15는 배경에 책상 내장 → 매트 중복(이중 책상) 해결. 플레이면=배경 책상.
             MatCenter       = new Vector2(-0.14f, -2.70f),
             MatSize         = new Vector2(20.6f, 11.6f),
@@ -103,7 +107,8 @@ public class StageConfig
             Gimmick=GimmickType.ColorSelect, TotalStones=18,
             SkyBottom=new Color(1.0f,0.8f,0.85f), SkyTop=new Color(0.55f,0.7f,0.95f),
             TableColor=new Color(0.6f,0.5f,0.4f), ClothColor=new Color(0.6f,0.65f,0.75f),
-            BackgroundImage = "StageBackgrounds/Life/age15", // v11 나이대별 배경 (age10과 동일 이미지 — WIP 중복)
+            BackgroundImage = "StageBackgrounds/Life/v2/age10_bg", // v22 정식 아트 — 15살은 10살과 동일(사용자 확정 2026-10-27)
+            BoardImage      = "StageBackgrounds/Life/v2/age10_board",
             // v11 Desk 매트 제거: age10/15는 배경에 책상 내장 → 매트 중복(이중 책상) 해결. 플레이면=배경 책상.
             MatCenter       = new Vector2(-0.14f, -2.70f),
             MatSize         = new Vector2(20.6f, 11.6f),
@@ -126,7 +131,8 @@ public class StageConfig
             Gimmick=GimmickType.Flee, TotalStones=5,
             SkyBottom=new Color(0.7f,0.9f,1.0f), SkyTop=new Color(0.3f,0.65f,0.95f),
             TableColor=new Color(0.4f,0.7f,0.35f), ClothColor=new Color(0.4f,0.75f,0.7f),
-            BackgroundImage="StageBackgrounds/Life/age20", // v16: 정식 렌더로 교체(20살배경newrender — 기존 돗자리 스케치 대체)
+            BackgroundImage="StageBackgrounds/Life/v2/age20_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age20")
+            BoardImage     ="StageBackgrounds/Life/v2/age20_board", // 포장마차 테이블 레이어
             // ⚠️ v16 배경 교체 시 재측정: 새 렌더의 중앙 테이블 상판은 back y≈+0.19 / front y≈-6.75,
             //    front 반폭 ≈±8.2 (구 스케치보다 넓고 깊음). 아래 quad는 그 상판 "안쪽"에 들어가므로
             //    시각 이탈 없음(앞변만 0.15 아래로 살짝 넘침 — IsOutsideMat 마진 0.2 내부). 플레이 영역을
@@ -173,7 +179,8 @@ public class StageConfig
             Gimmick=GimmickType.Sequence, TotalStones=5,
             SkyBottom=new Color(0.7f,0.75f,0.8f), SkyTop=new Color(0.45f,0.5f,0.6f),
             TableColor=new Color(0.5f,0.45f,0.4f), ClothColor=new Color(0.85f,0.78f,0.65f),
-            BackgroundImage = "StageBackgrounds/Life/age25", // v11 나이대별 배경 (⚠️ WIP: 무채색 렌더)
+            BackgroundImage = "StageBackgrounds/Life/v2/age25_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age25")
+            BoardImage      = "StageBackgrounds/Life/v2/age25_board", // 책상 패드 레이어
             // v11 B정렬: age25 마우스패드에 맞춤 (ImageMagick CC 측정: back 57.6%/front 85.5%). 빗금 매트 제거 — 마우스패드(배경)가 플레이면.
             // 되돌리려면 mat 복원 + BoardQuad -3.95/-7.10.
             //
@@ -204,7 +211,8 @@ public class StageConfig
             ScatterDropHeightAdd=1.0f, ScatterSpreadMultiplier=1.5f, BallSpeedMultiplier=1.4f,
             SkyBottom=new Color(0.2f,0.3f,0.55f), SkyTop=new Color(0.1f,0.15f,0.3f),
             TableColor=new Color(0.25f,0.35f,0.5f), ClothColor=new Color(0.6f,0.7f,0.85f),
-            BackgroundImage="StageBackgrounds/Life/age30", // v11 나이대별 배경 (기존: "StageBackgrounds/Stage05_Office" — 둘 다 임시)
+            BackgroundImage="StageBackgrounds/Life/v2/age30_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age30")
+            BoardImage     ="StageBackgrounds/Life/v2/age30_board", // 책상 패드 레이어
             // v11 B정렬: age30 마우스패드에 맞춤 (CC 측정: back 57.6%/front 85%).
             // ⚠️ ObstacleGimmick 방해물 영역이 BoardBounds 기반이라 함께 이동/축소됨. 되돌리려면 -3.95/-7.10.
             //
@@ -240,7 +248,7 @@ public class StageConfig
             Gimmick=GimmickType.FakeStone, TotalStones=10,
             SkyBottom=new Color(0.55f,0.5f,0.65f), SkyTop=new Color(0.3f,0.25f,0.4f),
             TableColor=new Color(0.35f,0.25f,0.2f), ClothColor=new Color(0.25f,0.4f,0.25f),
-            BackgroundImage = "StageBackgrounds/Life/age35", // v11 나이대별 배경 (⚠️ WIP: 3D 에디터 스크린샷)
+            BackgroundImage = "StageBackgrounds/Life/v2/age35_bg", // v22 정식 아트 — 판 레이어 없음(배경에 테이블 내장, 영역 가이드만 제공됨)
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
@@ -264,7 +272,8 @@ public class StageConfig
             Gimmick=GimmickType.Gravity, TotalStones=5,
             SkyBottom=new Color(1.0f,0.55f,0.3f), SkyTop=new Color(0.7f,0.3f,0.2f),
             TableColor=new Color(0.45f,0.25f,0.15f), ClothColor=new Color(0.55f,0.25f,0.2f),
-            BackgroundImage = "StageBackgrounds/Life/age40", // v11 나이대별 배경 (⚠️ WIP: 3D 에디터 스크린샷)
+            BackgroundImage = "StageBackgrounds/Life/v2/age40_bg", // v22 정식 아트 (노을 창 — 구: "StageBackgrounds/Life/age40")
+            BoardImage      = "StageBackgrounds/Life/v2/age40_board", // 탁자 레이어
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
@@ -288,7 +297,8 @@ public class StageConfig
             Gimmick=GimmickType.AgedHand, TotalStones=5,
             SkyBottom=new Color(0.65f,0.7f,0.75f), SkyTop=new Color(0.45f,0.5f,0.6f),
             TableColor=new Color(0.55f,0.5f,0.45f), ClothColor=new Color(0.75f,0.8f,0.85f),
-            BackgroundImage = "StageBackgrounds/Life/age45", // v11 나이대별 배경 (⚠️ WIP: age40과 동일)
+            BackgroundImage = "StageBackgrounds/Life/v2/age45_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age45")
+            BoardImage      = "StageBackgrounds/Life/v2/age45_board", // 탁자 레이어
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(-0.13f, -3.08f),
             MatSize     = new Vector2(19.83f, 10.05f),
@@ -312,9 +322,9 @@ public class StageConfig
             Gimmick=GimmickType.Spotlight, TotalStones=5,
             SkyBottom=new Color(0.25f,0.1f,0.25f), SkyTop=new Color(0.05f,0.05f,0.1f),
             TableColor=new Color(0.2f,0.15f,0.1f), ClothColor=new Color(0.25f,0.15f,0.3f),
-            BackgroundImage = "StageBackgrounds/Life/age50", // v11 나이대별 배경 (⚠️ WIP: 무채색 침실 렌더)
-            BgImageScale  = new Vector2(1.3f, 1.3f),   // v12 병상 확대 (라이브튜닝 확정 — 좌우 정렬; 세로는 배경 아트 수정 대기)
-            BgImageOffset = new Vector2(-0.8f, -1.0f),  // 라이브튜닝 확정값
+            BackgroundImage = "StageBackgrounds/Life/v2/age50_bg", // v22 정식 아트 (밤 침실 — 구: "StageBackgrounds/Life/age50")
+            BoardImage      = "StageBackgrounds/Life/v2/age50_board", // 침대 위 나무 놀이판 레이어
+            // v22: 구 WIP 렌더용 확대/오프셋(1.3 / -0.8,-1.0) 제거 — 새 아트는 카메라 프레임 1:1
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(0.10f, -2.06f), // v12 침대 정렬 3차 (라벨 측정 기반, 매트리스 4모서리 직접 맞춤)
             MatSize     = new Vector2(14.76f, 13.39f),
@@ -338,9 +348,9 @@ public class StageConfig
             Gimmick=GimmickType.Monochrome, TotalStones=5,
             SkyBottom=new Color(0.7f,0.7f,0.7f), SkyTop=new Color(0.4f,0.4f,0.4f),
             TableColor=new Color(0.35f,0.35f,0.35f), ClothColor=new Color(0.65f,0.65f,0.65f),
-            BackgroundImage = "StageBackgrounds/Life/age55", // v11 나이대별 배경 (⚠️ WIP: age50과 동일 침실 렌더)
-            BgImageScale  = new Vector2(1.3f, 1.3f),   // v12 병상 확대 (라이브튜닝 확정 — 좌우 정렬; 세로는 배경 아트 수정 대기)
-            BgImageOffset = new Vector2(-0.8f, -1.0f),  // 라이브튜닝 확정값
+            BackgroundImage = "StageBackgrounds/Life/v2/age55_bg", // v22 정식 아트 (저승사자 침실 — 무저승사자판은 Editor/ArtReference/Alternates)
+            BoardImage      = "StageBackgrounds/Life/v2/age50_board", // 나무 놀이판 — 50살과 공용 (55살 전용 판 없음)
+            // v22: 구 WIP 렌더용 확대/오프셋(1.3 / -0.8,-1.0) 제거 — 새 아트는 카메라 프레임 1:1
             MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
             MatCenter   = new Vector2(0.10f, -2.06f), // v12 침대 정렬 3차 (라벨 측정 기반, 매트리스 4모서리 직접 맞춤)
             MatSize     = new Vector2(14.76f, 13.39f),
