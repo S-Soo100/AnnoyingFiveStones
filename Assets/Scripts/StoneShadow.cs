@@ -14,6 +14,7 @@ using UnityEngine;
 public class StoneShadow : MonoBehaviour
 {
     private Stone stone;
+    private Renderer stoneRenderer; // v27: 접지 그림자 크기 기준(보이는 돌 지름)
     private GameObject shadowObj;
     private Renderer shadowRenderer;
     private MaterialPropertyBlock mpb;
@@ -25,11 +26,14 @@ public class StoneShadow : MonoBehaviour
     private const float AlphaTtPeak    = 0.10f; // 최고점에서의 불투명도
     private const float HeightNormMax  = 10f;   // 정규화 기준 높이
 
-    // v13-1: 보드에 놓인 돌(OnBoard)의 접지 그림자 — 자기 발밑에 고정 크기/투명도.
-    // 낙하 그림자와 달리 중심선 투영을 하지 않고 돌 자신의 위치를 기준으로 한다.
-    private const float ContactScale   = 1.15f;  // 돌 지름(≈1)보다 크게 → 발밑에서 확실히 삐져나옴
-    private const float ContactAlpha   = 0.62f;  // 놓인 돌 그림자 진하기 (더 잘 보이게)
-    private const float ContactYOffset = -0.20f; // 돌 아래로 내려 그림자가 발밑에서 삐져나오게
+    // v13-1: 보드에 놓인 돌(OnBoard)의 접지 그림자 — 자기 발밑 그림자.
+    // v27: 고정 크기(구 1.15)·고정 오프셋(구 -0.20)은 "돌 지름 ≈1" 시절 값 — 원근으로 줄어든
+    // 돌(지름 ~0.4대, 뒤쪽은 더 작음)에 그대로 쓰면 그림자가 돌의 2~3배로 깔려 떠 보인다.
+    // → 보이는 돌 지름(renderer.bounds)에 비례 + 바닥 원근(세로 눌림)에 맞춘 납작 타원.
+    private const float ContactDiaMul   = 1.25f;  // 그림자 가로 = 돌 지름 × 1.25 (발밑에서 살짝 삐져나옴)
+    private const float ContactFlatten  = 0.55f;  // 세로 압축 — 보드 depthSquash(≈0.5)에 맞춘 접지감
+    private const float ContactAlpha    = 0.55f;  // 크기가 맞아진 만큼 살짝 연하게 (구 0.62)
+    private const float ContactYOffMul  = -0.35f; // 오프셋 = 돌 지름 × -0.35 (크기 비례)
 
     private const float ShadowZ        = -0.06f; // Cloth(Z=-0.05) 바로 앞 — 카메라(-10)에 더 가까워야 보임
 
@@ -40,6 +44,7 @@ public class StoneShadow : MonoBehaviour
     private void Awake()
     {
         stone = GetComponent<Stone>();
+        stoneRenderer = GetComponent<Renderer>();
         mpb = new MaterialPropertyBlock();
 
         // 그림자 Quad 생성
@@ -121,12 +126,13 @@ public class StoneShadow : MonoBehaviour
         UpdateFallingShadow();
     }
 
-    /// <summary>OnBoard: 돌 발밑 고정 크기/투명도 접지 그림자.</summary>
+    /// <summary>OnBoard: 접지 그림자 — 보이는 돌 지름에 비례하는 납작 타원 (v27).</summary>
     private void UpdateContactShadow()
     {
         Vector3 p = transform.position;
-        shadowObj.transform.localScale = new Vector3(ContactScale, ContactScale, 1f);
-        shadowObj.transform.position = new Vector3(p.x, p.y + ContactYOffset, ShadowZ);
+        float dia = stoneRenderer != null ? stoneRenderer.bounds.size.x : 0.5f;
+        shadowObj.transform.localScale = new Vector3(dia * ContactDiaMul, dia * ContactDiaMul * ContactFlatten, 1f);
+        shadowObj.transform.position = new Vector3(p.x, p.y + dia * ContactYOffMul, ShadowZ);
 
         shadowRenderer.GetPropertyBlock(mpb);
         mpb.SetColor("_BaseColor", new Color(0f, 0f, 0f, ContactAlpha));
