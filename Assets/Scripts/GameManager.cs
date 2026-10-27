@@ -302,7 +302,7 @@ public class GameManager : MonoBehaviour
                 || s == Stone.State.InAir || s == Stone.State.Bouncing) continue;
 
             Vector2 p = new Vector2(stone.transform.position.x, stone.transform.position.y);
-            if (BoardBounds.IsOutsideMat(p, marginAbsolute: BoardSpace.FailMargin)) // v24: 낙 유예 마진 SOT
+            if (BoardBounds.IsOutsideMat(p, marginAbsolute: BoardSpace.GraceBandWidth)) // v25: 유예 밴드 너머만 낙
             {
                 Debug.Log($"[GameManager] Stone {stone.name} out of mat at {p}. Triggering Fail.");
                 SetFailReason("낙!");
@@ -390,7 +390,7 @@ public class GameManager : MonoBehaviour
             // v14: SafeZone(±5.3 고정) → IsOutsideMat(보이는 보드 MatRect). 낙 경계를 보이는 테이블에 일치.
             // quad 스테이지는 CheckMatBoundaryGlobal이 이미 IsOutsideMat로 동일 판정 → 무변화.
             // 비-quad(age10 등)만 SafeZone(±5.3) → MatRect(±8)로 확장.
-            if (BoardBounds.IsOutsideMat(pos, BoardSpace.FailMargin)) // v24: 낙 유예 마진 SOT
+            if (BoardBounds.IsOutsideMat(pos, BoardSpace.GraceBandWidth)) // v25: 유예 밴드 너머만 낙
             {
                 Debug.Log($"[GameManager] Stone {stone.StoneIndex} out of bounds during play at ({pos.x:F1},{pos.y:F1})");
                 SetFailReason("낙!");

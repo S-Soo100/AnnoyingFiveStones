@@ -64,7 +64,7 @@ public static class BoardBounds
 
     /// <summary>매트 밖 판정. quad 있으면 점-사각형(CCW: BL→BR→FR→FL) 판정, 없으면 AABB 판정.
     /// Y 상한 무시 규칙 계승: 던지기 중 위로 올라간 돌 보호.</summary>
-    public static bool IsOutsideMat(Vector2 pos, float marginAbsolute = BoardSpace.FailMargin)
+    public static bool IsOutsideMat(Vector2 pos, float marginAbsolute = BoardSpace.GraceBandWidth)
     {
         if (HasQuad)
         {
@@ -83,6 +83,12 @@ public static class BoardBounds
         return pos.x < r.xMin - marginAbsolute || pos.x > r.xMax + marginAbsolute
             || pos.y < r.yMin - marginAbsolute; // Y 상한은 무시 (던지기 중 위로 올라간 돌 보호)
     }
+
+    /// <summary>v25 — 유예 밴드 질의: 보드 경계 밖이지만 낙은 아닌 "가장자리" 구간.
+    /// 시각 연출·통계·후속 기믹의 정보 훅 (판정 자체는 IsOutsideMat가 담당).
+    /// Strict 기반(하늘 면제 없음) — 던져 올라간 돌이 밴드로 오인되는 것을 막는다.</summary>
+    public static bool IsInGraceBand(Vector2 pos)
+        => IsOutsideMatStrict(pos, 0f) && !IsOutsideMatStrict(pos, BoardSpace.GraceBandWidth);
 
     /// <summary>매트 밖 엄격 판정 — SkyFloor 면제 없음. quad 있으면 사다리꼴 엄격 판정, 없으면 AABB(Y 상한 포함).
     /// 보드 면 위 이동(예: Stage 3 FleeMovement)에서 +Y로 새는 것을 막기 위해 사용.
