@@ -66,10 +66,14 @@ public class BoardMatVisual : MonoBehaviour
             ApplyMatTexture();
     }
 
+    private Texture2D matTexture;
+
     private void ApplyMatTexture()
     {
         var rd = GetComponent<MeshRenderer>();
+        if (matTexture != null) Destroy(matTexture); // v30: 스테이지별 재생성 시 구 텍스처 누수 방지
         var tex = CreateMatTexture();
+        matTexture = tex;
 
         var mat = rd.material; // 인스턴스 (공유 머티리얼 오염 방지)
         mat.mainTexture = tex;

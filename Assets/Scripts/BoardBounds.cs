@@ -68,11 +68,9 @@ public static class BoardBounds
     {
         if (HasQuad)
         {
-            // Y 상한: 사다리꼴 뒷변과 SkyFloor 중 위 값. 이 위는 "하늘"이라 outside 면제.
-            Vector2 centroidForSky = (overrideQuad[0] + overrideQuad[1] + overrideQuad[2] + overrideQuad[3]) * 0.25f;
-            Vector2 e0s = ExpandCorner(overrideQuad[0], centroidForSky, marginAbsolute);
-            Vector2 e1s = ExpandCorner(overrideQuad[1], centroidForSky, marginAbsolute);
-            float backY = Mathf.Max(e0s.y, e1s.y);
+            // Y 상한: 사다리꼴 뒷변(+균일 마진)과 SkyFloor 중 위 값. 이 위는 "하늘"이라 outside 면제.
+            // v30: 구 ExpandCorner 확장은 변마다 실효 마진이 달랐다 — 뒷변은 margin 그대로 더한다.
+            float backY = Mathf.Max(overrideQuad[0].y, overrideQuad[1].y) + marginAbsolute;
             float skyFloor = Mathf.Max(backY, SkyFloorY);
             if (pos.y > skyFloor) return false; // 위로 올라간 돌 보호 (하늘 영역)
 
@@ -86,9 +84,10 @@ public static class BoardBounds
 
     /// <summary>v25 — 유예 밴드 질의: 보드 경계 밖이지만 낙은 아닌 "가장자리" 구간.
     /// 시각 연출·통계·후속 기믹의 정보 훅 (판정 자체는 IsOutsideMat가 담당).
-    /// Strict 기반(하늘 면제 없음) — 던져 올라간 돌이 밴드로 오인되는 것을 막는다.</summary>
+    /// v30: 낙 판정(IsOutsideMat)과 같은 경계를 공유한다 — 모든 위치가 보드/밴드/낙 셋 중
+    /// 정확히 하나가 되도록. 하늘 면제 구간(뒷변 위 생존 돌)도 "보드 밖 생존"이므로 밴드로 분류.</summary>
     public static bool IsInGraceBand(Vector2 pos)
-        => IsOutsideMatStrict(pos, 0f) && !IsOutsideMatStrict(pos, BoardSpace.GraceBandWidth);
+        => IsOutsideMatStrict(pos, 0f) && !IsOutsideMat(pos, BoardSpace.GraceBandWidth);
 
     /// <summary>매트 밖 엄격 판정 — SkyFloor 면제 없음. quad 있으면 사다리꼴 엄격 판정, 없으면 AABB(Y 상한 포함).
     /// 보드 면 위 이동(예: Stage 3 FleeMovement)에서 +Y로 새는 것을 막기 위해 사용.
@@ -104,26 +103,38 @@ public static class BoardBounds
     }
 
     /// <summary>사다리꼴 내부 판정만 수행. SkyFloor 면제 없음.
-    /// 보드 면 위 이동(예: Flee)용 엄격 판정에 사용.</summary>
+    /// v30 — 균일 마진: 구 방식(꼭짓점을 centroid 방사 방향으로 margin만큼 확장)은 변의 방향에 따라
+    /// 실효 마진이 달랐다(마진 0.8에서 앞·뒷변 ~0.2-0.3, 측면 ~0.75 — 유예 밴드가 설계 폭이 안 됨).
+    /// 이제 "다각형 둘레까지의 유클리드 최단 거리 ≤ margin"으로 판정해 어느 변에서나 폭이 같다.</summary>
     private static bool IsOutsideQuadInterior(Vector2 pos, float marginAbsolute)
     {
-        // 확장 quad: 각 꼭짓점을 centroid 기준으로 margin만큼 바깥으로 밀어냄
-        Vector2 centroid = (overrideQuad[0] + overrideQuad[1] + overrideQuad[2] + overrideQuad[3]) * 0.25f;
-        Vector2 e0 = ExpandCorner(overrideQuad[0], centroid, marginAbsolute); // BL
-        Vector2 e1 = ExpandCorner(overrideQuad[1], centroid, marginAbsolute); // BR
-        Vector2 e2 = ExpandCorner(overrideQuad[2], centroid, marginAbsolute); // FL
-        Vector2 e3 = ExpandCorner(overrideQuad[3], centroid, marginAbsolute); // FR
-
-        // 점-사각형 내부 판정: 둘레 순서 CCW BL→BR→FR→FL = e0→e1→e3→e2
-        float cross0 = CrossEdge(e0, e1, pos);
-        float cross1 = CrossEdge(e1, e3, pos);
-        float cross2 = CrossEdge(e3, e2, pos);
-        float cross3 = CrossEdge(e2, e0, pos);
-
-        // 모두 같은 부호면 내부
+        // 점-사각형 내부 판정: 둘레 순서 CCW BL→BR→FR→FL
+        float cross0 = CrossEdge(overrideQuad[0], overrideQuad[1], pos);
+        float cross1 = CrossEdge(overrideQuad[1], overrideQuad[3], pos);
+        float cross2 = CrossEdge(overrideQuad[3], overrideQuad[2], pos);
+        float cross3 = CrossEdge(overrideQuad[2], overrideQuad[0], pos);
         bool inside = (cross0 >= 0f && cross1 >= 0f && cross2 >= 0f && cross3 >= 0f)
                    || (cross0 <= 0f && cross1 <= 0f && cross2 <= 0f && cross3 <= 0f);
-        return !inside;
+        if (inside) return false;
+        if (marginAbsolute <= 0f) return true;
+
+        return DistanceToQuadBoundary(pos) > marginAbsolute;
+    }
+
+    /// <summary>점에서 사다리꼴 둘레(4변 선분)까지의 최단 거리. 외부 점의 마진 판정용.</summary>
+    private static float DistanceToQuadBoundary(Vector2 pos)
+    {
+        float d = PointSegmentDistance(pos, overrideQuad[0], overrideQuad[1]);                  // 뒷변
+        d = Mathf.Min(d, PointSegmentDistance(pos, overrideQuad[1], overrideQuad[3]));          // 우측
+        d = Mathf.Min(d, PointSegmentDistance(pos, overrideQuad[3], overrideQuad[2]));          // 앞변
+        return Mathf.Min(d, PointSegmentDistance(pos, overrideQuad[2], overrideQuad[0]));       // 좌측
+    }
+
+    private static float PointSegmentDistance(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 ab = b - a;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-6f));
+        return Vector2.Distance(p, a + ab * t);
     }
 
     /// <summary>bilinear 매핑. u,v∈[0,1]. u=0,v=0→BL / u=1,v=0→BR / u=0,v=1→FL / u=1,v=1→FR.
@@ -213,13 +224,5 @@ public static class BoardBounds
         Vector2 e = p1 - p0;
         Vector2 d = point - p0;
         return e.x * d.y - e.y * d.x;
-    }
-
-    /// <summary>꼭짓점을 centroid 기준으로 margin만큼 바깥으로 밀어낸 확장 좌표. (할당 없는 헬퍼)</summary>
-    private static Vector2 ExpandCorner(Vector2 corner, Vector2 centroid, float margin)
-    {
-        Vector2 dir = corner - centroid;
-        float len = dir.magnitude;
-        return centroid + (len > 0f ? dir / len : Vector2.zero) * (len + margin);
     }
 }

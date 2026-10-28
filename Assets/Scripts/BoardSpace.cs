@@ -15,15 +15,6 @@ using FiveStones.Core;
 /// - **Board Space (논리)**: 완전한 직사각형. 모든 게임 로직이 여기서만 돈다.
 /// - **Screen Space (표현)**: 아래 상수로 정의된 사다리꼴. 렌더링에만 쓴다.
 /// </summary>
-/// <summary>v26 — 스테이지별 보드 사다리꼴 프로필. 출처: 디자이너 영역 가이드 실측(분석서-스테이지별보드).</summary>
-public struct BoardProfile
-{
-    public float BackY, FrontY, BackHalf, FrontHalf, CenterX;
-
-    public BoardProfile(float backY, float frontY, float backHalf, float frontHalf, float centerX)
-    { BackY = backY; FrontY = frontY; BackHalf = backHalf; FrontHalf = frontHalf; CenterX = centerX; }
-}
-
 public static class BoardSpace
 {
     // ── 논리 (판정) — 스테이지 무관 ──────────────────────────────────────────
@@ -134,4 +125,14 @@ public static class BoardSpace
         float hw = LogicalWidth * 0.5f, hd = LogicalDepth * 0.5f;
         return new Vector2(Mathf.Clamp(boardPos.x, -hw, hw), Mathf.Clamp(boardPos.y, -hd, hd));
     }
+}
+
+/// <summary>v26 — 스테이지별 보드 사다리꼴 프로필. 출처: 디자이너 영역 가이드 실측(분석서-스테이지별보드).
+/// 스테이지 시작 시 <see cref="BoardSpace.ApplyProfile"/>로 로드된다.</summary>
+public struct BoardProfile
+{
+    public float BackY, FrontY, BackHalf, FrontHalf, CenterX;
+
+    public BoardProfile(float backY, float frontY, float backHalf, float frontHalf, float centerX)
+    { BackY = backY; FrontY = frontY; BackHalf = backHalf; FrontHalf = frontHalf; CenterX = centerX; }
 }

@@ -20,7 +20,7 @@ public class StoneShadow : MonoBehaviour
     private MaterialPropertyBlock mpb;
 
     // 그림자 크기 범위 (높이 낮을수록 작고 진하게)
-    private const float ScaleAtGround  = 0.35f; // shadowSurfaceY에서의 크기
+    // v30: 지면 크기는 접지 그림자와 동일(돌 지름 비례)로 수렴 — 착지 프레임의 크기/모양 점프 제거.
     private const float ScaleAtPeak    = 0.9f;  // 최고점(10유닛 위)에서의 크기
     private const float AlphaAtGround  = 0.60f; // shadowSurfaceY에서의 불투명도
     private const float AlphaTtPeak    = 0.10f; // 최고점에서의 불투명도
@@ -165,9 +165,11 @@ public class StoneShadow : MonoBehaviour
 
         float normalizedH = Mathf.Clamp01(heightAbove / HeightNormMax);
 
-        // 크기: 높이 낮을수록 작게 (가까울수록 실제 그림자처럼 선명하고 작게)
-        float scale = Mathf.Lerp(ScaleAtGround, ScaleAtPeak, normalizedH);
-        shadowObj.transform.localScale = new Vector3(scale, scale, 1f);
+        // 크기: 높이 낮을수록 작게. v30: 지면(h=0)에서 접지 그림자와 정확히 같은 크기·납작비로
+        // 수렴시켜 OnBoard 전환 프레임에 그림자가 튀지 않는다.
+        float dia = stoneRenderer != null ? stoneRenderer.bounds.size.x : 0.5f;
+        float scale = Mathf.Lerp(dia * ContactDiaMul, ScaleAtPeak, normalizedH);
+        shadowObj.transform.localScale = new Vector3(scale, scale * ContactFlatten, 1f);
 
         // 위치: 돌 X, 사다리꼴 내부 Y + 0.01f, Z = ShadowZ (돌보다 뒤)
         shadowObj.transform.position = new Vector3(

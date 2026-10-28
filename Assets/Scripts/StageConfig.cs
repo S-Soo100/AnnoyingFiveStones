@@ -60,17 +60,9 @@ public class StageConfig
     public Vector2 BgImageOffset = Vector2.zero;
     public Vector2 BgImageScale  = Vector2.one;
 
-    // v8-2e 매트(책상 상판) 별도 레이어. null/empty면 매트 레이어 미사용(기존 stage = 그대로).
-    public string MatImage = null;  // Resources 경로. 예: "StageBackgrounds/Stage02_Desk"
-    // v8-2f 매트/보드 분리 (책상 시각 ≠ 플레이 영역). Size=(0,0)이면 미설정 → 기존 동작 폴백.
-    public Vector2 MatCenter   = Vector2.zero;  // 책상 quad 월드 중심
-    public Vector2 MatSize     = Vector2.zero;  // 책상 quad 월드 크기(PNG 전체). (0,0)=미설정→Cloth.bounds 폴백
+    // v30: v8-2e 매트 레이어 필드(MatImage/MatCenter/MatSize)는 v17부터 죽은 설정이라 삭제됨.
     public Vector2 BoardCenter = Vector2.zero;  // 플레이 영역(BoardBounds) 월드 중심
     public Vector2 BoardSize   = Vector2.zero;  // 플레이 영역 월드 크기. (0,0)=미설정→override 없음
-
-    // v9: 사다리꼴 플레이 영역 ([0]=BL, [1]=BR, [2]=FL, [3]=FR). null이면 BoardCenter/Size Rect 폴백.
-    // ⚠️ v17 이후 미사용 레거시(BackgroundManager가 무시) — v26부터는 아래 Board 프로필이 정본.
-    public Vector2[] BoardQuad = null;
 
     // v26: 스테이지별 보드 사다리꼴 — 디자이너 영역 가이드 실측(분석서-스테이지별보드-2026-10-28).
     // (backY, frontY, backHalf, frontHalf, centerX). 미지정 시 1단(age10) 값.
@@ -90,17 +82,9 @@ public class StageConfig
             TableColor=new Color(0.95f,0.85f,0.7f), ClothColor=new Color(1.0f,0.5f,0.5f),
             BackgroundImage = "StageBackgrounds/Life/v2/age10_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age10")
             BoardImage      = "StageBackgrounds/Life/v2/age10_board", // 학교 책상 레이어
-            // v11 Desk 매트 제거: age10/15는 배경에 책상 내장 → 매트 중복(이중 책상) 해결. 플레이면=배경 책상.
-            MatCenter       = new Vector2(-0.14f, -2.70f),
-            MatSize         = new Vector2(20.6f, 11.6f),
             BoardCenter     = new Vector2(0f, -4.8f),
             BoardSize       = new Vector2(10.6f, 3.8f),
-            BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=System.Array.Empty<BackgroundProp>(),
         },
         // Stage 2 — Age 15, 교실 배경 + 매트(책상) 레이어
@@ -114,17 +98,9 @@ public class StageConfig
             TableColor=new Color(0.6f,0.5f,0.4f), ClothColor=new Color(0.6f,0.65f,0.75f),
             BackgroundImage = "StageBackgrounds/Life/v2/age10_bg", // v22 정식 아트 — 15살은 10살과 동일(사용자 확정 2026-10-27)
             BoardImage      = "StageBackgrounds/Life/v2/age10_board",
-            // v11 Desk 매트 제거: age10/15는 배경에 책상 내장 → 매트 중복(이중 책상) 해결. 플레이면=배경 책상.
-            MatCenter       = new Vector2(-0.14f, -2.70f),
-            MatSize         = new Vector2(20.6f, 11.6f),
             BoardCenter     = new Vector2(0f, -4.8f),
             BoardSize       = new Vector2(10.6f, 3.8f),
-            BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=System.Array.Empty<BackgroundProp>(),
         },
         // Stage 3 — Age 20, 대학 캠퍼스 (사용자 픽셀아트 이미지)
@@ -139,36 +115,7 @@ public class StageConfig
             BackgroundImage="StageBackgrounds/Life/v2/age20_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age20")
             BoardImage     ="StageBackgrounds/Life/v2/age20_board", // 포장마차 테이블 레이어
             Board = new BoardProfile(-2.95f, -7.52f, 5.28f, 10.05f, 0f), // v26 가이드 실측
-            // ⚠️ v16 배경 교체 시 재측정: 새 렌더의 중앙 테이블 상판은 back y≈+0.19 / front y≈-6.75,
-            //    front 반폭 ≈±8.2 (구 스케치보다 넓고 깊음). 아래 quad는 그 상판 "안쪽"에 들어가므로
-            //    시각 이탈 없음(앞변만 0.15 아래로 살짝 넘침 — IsOutsideMat 마진 0.2 내부). 플레이 영역을
-            //    새 테이블 전체로 넓히려면 Flee 난이도·SafeZone 캡 재검토 후 별도 튜닝 필요.
-            // v11 B정렬 (ImageMagick 측정 기반): 구 age20 "실제 플레이 영역" 빨간 아웃라인에 맞춤.
-            // 뒷변 -2.10: 그리드 back(~-1.98)이 SafeZone yMax(-2.0) 초과 → 0.1 margin 캡. 앞변 -6.90: 그리드 front(88.5% 높이).
-            // SkyFloorY 자동 -2.10. 되돌리려면 -3.95/-7.10로 복구.
-            //
-            // ⚠️ v16 앞변 X 캡 해제: ±5.20 → ±7.20.
-            //  - 구 캡의 근거였던 "quad ⊆ SafeZone(±5.3)"은 **v14에서 이미 무효**가 됐다. 낙 판정이
-            //    GameManager.SafeZone → BoardBounds.IsOutsideMat(quad 기반)으로 옮겨갔고, Stage 3 경로
-            //    (FleeGimmick/FleeMovement/ScatterSystem/ScatterRangeIndicator)는 전부 quad만 읽는다.
-            //    GameManager.SafeZoneMin/Max의 유일한 잔존 소비자는 MonochromeGimmick(10단)뿐.
-            //  - 새 age20 렌더 실측(16:9, cam ortho 7 / y=-1.5 기준): 상판 앞변 좌 -7.84 / 우 +8.22,
-            //    뒷변 좌 -4.72 / 우 +4.44. 즉 **뒷변은 이미 정확**했고 앞변만 캡에 눌려 있었다.
-            //  - ±7.20 근거: 앞변 코너를 픽셀로 재검증 — ±7.20은 상판 위(여유 좌 0.64/우 1.02),
-            //    ±7.80은 좌측 코너가 테이블 모서리 곡면으로 올라가 이탈. 원근비도 7.20/4.44=1.62로
-            //    실제 테이블 원근(7.84/4.72=1.66)에 근접 → 돌·그림자 배치가 시각적으로 맞아떨어짐.
-            //  - ⚠️ 배경 quad는 카메라 비율로 스트레치되는데 BoardQuad는 월드 고정이라, 16:9가 아닌
-            //    비율에서는 테이블 위치가 어긋난다. 현재 ScreenManager가 창모드를 16:9로 강제하고
-            //    (EnforceAspectRatio) 개발기 디스플레이도 2560x1440이라 안전. 16:10 노트북 전체화면
-            //    등 더 좁은 비율을 지원하게 되면 앞변을 ±6.6 수준으로 낮춰야 한다.
-            //  - 난이도: 플레이 면적 +21%(46.3→55.9). Flee가 도망칠 공간이 늘어 3단이 다소 어려워진다.
-            //    되돌리려면 앞변 X만 5.20으로 복구(다른 값은 손대지 않았음).
-            BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -2.10f),  // BL 뒤-좌
-                new Vector2( 4.48f, -2.10f),  // BR 뒤-우
-                new Vector2(-7.20f, -6.90f),  // FL 앞-좌 (v16: 실측 테이블 앞변 -7.84 안쪽)
-                new Vector2( 7.20f, -6.90f),  // FR 앞-우 (v16: 실측 테이블 앞변 +8.22 안쪽)
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cylinder, Color=new Color(0.25f,0.6f,0.3f), Position=new Vector3(-3.2f,1.0f,0.5f), Scale=new Vector3(0.4f,1.2f,0.4f) },
@@ -188,20 +135,7 @@ public class StageConfig
             BackgroundImage = "StageBackgrounds/Life/v2/age25_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age25")
             BoardImage      = "StageBackgrounds/Life/v2/age25_board", // 책상 패드 레이어
             Board = new BoardProfile(-2.95f, -7.43f, 5.54f, 10.25f, 0.02f), // v26 가이드 실측
-            // v11 B정렬: age25 마우스패드에 맞춤 (ImageMagick CC 측정: back 57.6%/front 85.5%). 빗금 매트 제거 — 마우스패드(배경)가 플레이면.
-            // 되돌리려면 mat 복원 + BoardQuad -3.95/-7.10.
-            //
-            // ⚠️ v16 X 캡 해제 (Stage 3와 동일 사유 — SafeZone 근거는 v14에 소멸. 상세는 Stage 3 주석).
-            //  - age25 마우스패드 실측(16:9): 뒷변 좌 -5.45 / 우 +5.69, 앞변 좌 -7.16 / 우 +7.63.
-            //    Y(-2.55 / -6.47)는 재측정 결과 패드(py 548~815)와 정확히 일치 → 불변.
-            //  - 대칭 quad라 "좁은 쪽 - 0.2 마진" 기준: 뒷변 5.45-0.2=5.25, 앞변 7.16-0.2=6.95.
-            //  - 되돌리려면 X만 4.60 / 5.20으로 복구.
-            BoardQuad = new Vector2[] {
-                new Vector2(-5.25f, -2.55f),  // BL 뒤-좌 (v16: 실측 뒷변 -5.45 안쪽)
-                new Vector2( 5.25f, -2.55f),  // BR 뒤-우
-                new Vector2(-6.95f, -6.47f),  // FL 앞-좌 (v16: 실측 앞변 -7.16 안쪽)
-                new Vector2( 6.95f, -6.47f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.95f,0.95f,0.95f), Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(0.9f,0.6f,0.1f) },
@@ -221,24 +155,7 @@ public class StageConfig
             BackgroundImage="StageBackgrounds/Life/v2/age30_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age30")
             BoardImage     ="StageBackgrounds/Life/v2/age30_board", // 책상 패드 레이어
             Board = new BoardProfile(-2.95f, -7.41f, 5.60f, 10.23f, 0.07f), // v26 가이드 실측
-            // v11 B정렬: age30 마우스패드에 맞춤 (CC 측정: back 57.6%/front 85%).
-            // ⚠️ ObstacleGimmick 방해물 영역이 BoardBounds 기반이라 함께 이동/축소됨. 되돌리려면 -3.95/-7.10.
-            //
-            // ⚠️ v16 앞변 X 캡 해제 (Stage 3와 동일 사유 — SafeZone 근거는 v14에 소멸).
-            //  - age30 마우스패드 실측(16:9): 뒷변 좌 -5.47 / 우 +4.83, 앞변 좌 -7.00 / 우 +6.45.
-            //    Y(-2.55 / -6.40)는 패드(py 548~811)와 일치 → 불변.
-            //  - **패드가 좌로 약 0.3 치우쳐 있음.** 대칭 quad 유지(centroid x=0 전제인 Flee/Obstacle
-            //    중심 계산을 건드리지 않기 위해) → "좁은 쪽(우) - 0.2 마진" 기준.
-            //    뒷변: 4.83-0.2=4.63 ≈ 현재 4.60 → **변경 없음**. 앞변: 6.45-0.2=6.25.
-            //  - ObstacleGimmick 영향: 방해물 halfW = MatRect.width*0.5*0.65 → 3.38 → 4.06 (+20%).
-            //    centroid(-4.475) 높이의 패드 폭 안쪽이라 이탈은 없으나 방해물이 더 넓게 퍼진다.
-            //  - 되돌리려면 앞변 X만 5.20으로 복구.
-            BoardQuad = new Vector2[] {
-                new Vector2(-4.60f, -2.55f),  // BL 뒤-좌 (실측 우측 +4.83 기준 — 유지)
-                new Vector2( 4.60f, -2.55f),  // BR 뒤-우
-                new Vector2(-6.25f, -6.40f),  // FL 앞-좌 (v16: 실측 우측 +6.45 기준)
-                new Vector2( 6.25f, -6.40f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube,     Color=new Color(0.3f,0.3f,0.35f),  Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(1.0f,0.7f,0.15f) },
@@ -258,15 +175,7 @@ public class StageConfig
             TableColor=new Color(0.35f,0.25f,0.2f), ClothColor=new Color(0.25f,0.4f,0.25f),
             BackgroundImage = "StageBackgrounds/Life/v2/age35_bg", // v22 정식 아트 — 판 레이어 없음(배경에 테이블 내장, 영역 가이드만 제공됨)
             Board = new BoardProfile(-2.98f, -7.60f, 5.64f, 10.03f, 0f), // v26: 가이드 앞변 -8.48 → -7.60 캡+에지 보간
-            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
-            MatCenter   = new Vector2(-0.13f, -3.08f),
-            MatSize     = new Vector2(19.83f, 10.05f),
-            BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.55f,0.4f,0.25f), Position=new Vector3(3f,0.6f,0.5f), Scale=new Vector3(0.5f,0.1f,0.7f) },
@@ -284,15 +193,7 @@ public class StageConfig
             BackgroundImage = "StageBackgrounds/Life/v2/age40_bg", // v22 정식 아트 (노을 창 — 구: "StageBackgrounds/Life/age40")
             BoardImage      = "StageBackgrounds/Life/v2/age40_board", // 탁자 레이어
             Board = new BoardProfile(-2.70f, -7.60f, 6.20f, 10.50f, 0f), // v26: 아트 전폭(변 없음) → 제안 사다리꼴(합의 §3)
-            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
-            MatCenter   = new Vector2(-0.13f, -3.08f),
-            MatSize     = new Vector2(19.83f, 10.05f),
-            BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cylinder, Color=new Color(0.45f,0.3f,0.15f), Position=new Vector3(-3f,0.6f,0.5f), Scale=new Vector3(0.4f,0.5f,0.4f) },
@@ -310,15 +211,7 @@ public class StageConfig
             BackgroundImage = "StageBackgrounds/Life/v2/age45_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age45")
             BoardImage      = "StageBackgrounds/Life/v2/age45_board", // 탁자 레이어
             Board = new BoardProfile(-2.70f, -7.60f, 6.20f, 10.50f, 0f), // v26: 40단과 동일(아트 전폭)
-            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
-            MatCenter   = new Vector2(-0.13f, -3.08f),
-            MatSize     = new Vector2(19.83f, 10.05f),
-            BoardQuad = new Vector2[] {
-                new Vector2(-4.40f, -3.95f),  // BL 뒤-좌
-                new Vector2( 4.48f, -3.95f),  // BR 뒤-우
-                new Vector2(-8.05f, -7.10f),  // FL 앞-좌
-                new Vector2( 8.05f, -7.10f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Sphere, Color=new Color(0.7f,0.7f,0.7f), Position=new Vector3(3f,0.8f,0.5f), Scale=new Vector3(0.3f,0.3f,0.3f) },
@@ -336,16 +229,7 @@ public class StageConfig
             BackgroundImage = "StageBackgrounds/Life/v2/age50_bg", // v22 정식 아트 (밤 침실 — 구: "StageBackgrounds/Life/age50")
             BoardImage      = "StageBackgrounds/Life/v2/age50_board", // 침대 위 나무 놀이판 레이어
             Board = new BoardProfile(-2.85f, -7.54f, 5.48f, 10.26f, -0.01f), // v26 가이드 실측
-            // v22: 구 WIP 렌더용 확대/오프셋(1.3 / -0.8,-1.0) 제거 — 새 아트는 카메라 프레임 1:1
-            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
-            MatCenter   = new Vector2(0.10f, -2.06f), // v12 침대 정렬 3차 (라벨 측정 기반, 매트리스 4모서리 직접 맞춤)
-            MatSize     = new Vector2(14.76f, 13.39f),
-            BoardQuad = new Vector2[] {
-                new Vector2(-3.65f, -2.95f),  // BL 뒤-좌 (매트리스 뒤)
-                new Vector2( 3.85f, -2.95f),  // BR 뒤-우
-                new Vector2(-5.30f, -7.35f),  // FL 앞-좌 (매트리스 앞/발치)
-                new Vector2( 5.50f, -7.35f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Cube, Color=new Color(0.1f,0.1f,0.1f), Position=new Vector3(-3f,0.8f,0.5f), Scale=new Vector3(0.4f,0.4f,0.4f) },
@@ -363,16 +247,7 @@ public class StageConfig
             BackgroundImage = "StageBackgrounds/Life/v2/age55_bg", // v22 정식 아트 (저승사자 침실 — 무저승사자판은 Editor/ArtReference/Alternates)
             BoardImage      = "StageBackgrounds/Life/v2/age50_board", // 나무 놀이판 — 50살과 공용 (55살 전용 판 없음)
             Board = new BoardProfile(-2.85f, -7.54f, 5.48f, 10.26f, -0.01f), // v26: 50살과 동일 가이드
-            // v22: 구 WIP 렌더용 확대/오프셋(1.3 / -0.8,-1.0) 제거 — 새 아트는 카메라 프레임 1:1
-            MatImage    = "StageBackgrounds/BasicBoard_Hatch", // v11 빗금 매트(반투명) — 뒤 age 배경 비침
-            MatCenter   = new Vector2(0.10f, -2.06f), // v12 침대 정렬 3차 (라벨 측정 기반, 매트리스 4모서리 직접 맞춤)
-            MatSize     = new Vector2(14.76f, 13.39f),
-            BoardQuad = new Vector2[] {
-                new Vector2(-3.65f, -2.95f),  // BL 뒤-좌 (매트리스 뒤)
-                new Vector2( 3.85f, -2.95f),  // BR 뒤-우
-                new Vector2(-5.30f, -7.35f),  // FL 앞-좌 (매트리스 앞/발치)
-                new Vector2( 5.50f, -7.35f),  // FR 앞-우
-            },
+            // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
                 new BackgroundProp { Shape=BackgroundPropShape.Sphere, Color=new Color(0.55f,0.55f,0.55f), Position=new Vector3(-3f,1.0f,0.5f), Scale=new Vector3(0.4f,0.4f,0.4f) },
