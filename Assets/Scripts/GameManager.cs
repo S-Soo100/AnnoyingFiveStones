@@ -870,8 +870,10 @@ public class GameManager : MonoBehaviour
         session?.OnFail();
         SidePanelUI.Instance?.Refresh();
 
-        nakPresenter?.RestoreAll(); // M1-S7: 낙하 연출이 숨기거나 판 뒤로 보낸 돌 복구(렌더러·z·물리 플래그)
-        ResetAllStones();
+        // M1-S7: 낙하 연출이 판 뒤로 보낸 돌 복구(z·물리 플래그). 떨어져 숨은 돌은 실패 화면 동안 숨긴 채로 두고,
+        // 다음 StartStage에서 다시 놓일 때 보이게 한다(사용자 결정 2026-10-28).
+        nakPresenter?.RestoreAll(keepFallenHidden: true);
+        ResetAllStones(revealStones: false);
 
         // v12b: 실패도 스테이지 종료 — 기믹 UI/오브젝트(공기구성 헤더·번호 라벨 등)를 즉시 정리한다.
         // (기존엔 StartStage(1)까지 지연돼 실패/회귀 연출 동안 잔존.) null 대입으로 StartStage 이중 OnStageEnd 방지.
@@ -922,7 +924,8 @@ public class GameManager : MonoBehaviour
     // 보완(사용자 선택). 판정(돌 중심 거리)·뿌리기 간격(보드 단위)은 돌 크기와 무관.
     private static readonly Vector3 StoneOriginalScale = new Vector3(0.345f, 0.345f, 0.345f);
 
-    private void ResetAllStones()
+    /// <param name="revealStones">false = 숨긴 돌을 그대로 둔다(실패 화면). StartStage는 true — 곧바로 손에 쥐거나 배치한다.</param>
+    private void ResetAllStones(bool revealStones = true)
     {
         handController.ResetHand();
 
@@ -936,7 +939,7 @@ public class GameManager : MonoBehaviour
             stone.transform.SetParent(null);
             stone.transform.localScale = StoneOriginalScale; // 5단 스케일 변동 복원
             // 리뷰 반영(안전장치): 낙하 연출이 숨긴 돌·뿌리기 회전이 RestoreAll을 거치지 않는 경로로도 남지 않게
-            stone.SetRendererVisible(true);
+            if (revealStones) stone.SetRendererVisible(true);
             stone.transform.rotation = Quaternion.identity;
             stone.SetState(Stone.State.OnBoard);
             stone.Rb.linearVelocity = Vector3.zero;

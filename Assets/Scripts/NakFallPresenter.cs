@@ -177,14 +177,16 @@ public class NakFallPresenter : MonoBehaviour
 
     /// <summary>이 컴포넌트가 바꾼 돌을 원래대로 — 렌더러 켬, z=0, 그림자 차단·비행 그림자 해제, 물리 플래그 복원.
     /// 직후 ResetAllStones가 SetState(OnBoard)로 상태에 맞는 값을 다시 쓴다.</summary>
-    public void RestoreAll()
+    /// <param name="keepFallenHidden">실패 확정 직후(OnFailed)에는 낙하 끝에 숨긴 돌을 숨긴 채로 둔다 — 위치가 떨어진 자리
+    /// (책상 옆·아래)라 켜면 실패 화면 동안 거기 보인다. 다음 StartStage의 ResetAllStones가 다시 놓으며 켠다.</param>
+    public void RestoreAll(bool keepFallenHidden = false)
     {
         foreach (var e in running) if (e.Routine != null) StopCoroutine(e.Routine);
         running.Clear();
         foreach (var s in touched)
         {
             if (s == null) continue;
-            s.SetRendererVisible(true);
+            if (!keepFallenHidden) s.SetRendererVisible(true);
             var p = s.transform.position;
             s.transform.position = new Vector3(p.x, p.y, 0f);
             s.SetShadowGroundCut(false);
