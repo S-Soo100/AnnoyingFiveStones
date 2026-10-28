@@ -452,6 +452,130 @@ public static class GameTestMenu
         GoLoop(1);
     }
 
+    // ── M2-S4 회귀: 대기 중 받기·일시정지·점프, E1, F15 표류 측정 ─────────────────
+    [MenuItem("Tools/테스트 낙(플레이)/검증: S4 매트릭스")]
+    public static void VerifyM2Matrix() => StartEditorRoutine(VerifyM2MatrixRoutine(false));
+
+    [MenuItem("Tools/테스트 낙(플레이)/검증: S4 매트릭스 (F15 제외)")]
+    public static void VerifyM2MatrixNoF15() => StartEditorRoutine(VerifyM2MatrixRoutine(true));
+
+    private static string Dump(float t0) =>
+        string.Join("\n  ", capturedLogs.ConvertAll(l => $"+{float.Parse(l.Substring(0, l.IndexOf(' '))) - t0:F3} {l.Substring(l.IndexOf(' ') + 1)}"));
+
+    private static int CountFails() { int f = 0; foreach (var l in capturedLogs) if (l.Contains("Phase changed to: Failed")) f++; return f; }
+
+    private static System.Collections.IEnumerator VerifyM2MatrixRoutine(bool skipF15)
+    {
+        var gm = GameManager.Instance;
+        var hand = Object.FindFirstObjectByType<HandController>(FindObjectsInactive.Include);
+        var cs = Object.FindFirstObjectByType<CatchSystem>();
+        var F = FiveStones.Core.BoardEdge.Front;
+        Application.logMessageReceived += CaptureLog;
+        try
+        {
+            // (a) 받기 중(내려오는 중) 낙 → 받기 시도가 무시되고 던진 돌은 조용히 앉는다
+            var prep = PrepareInPlay(1); while (prep.MoveNext()) yield return prep.Current;
+            var thrown = gm.DebugNthOnBoard(0);
+            hand.DebugThrowNow(thrown);
+            float t0 = Time.time;
+            while (!cs.IsCatchPhase && Time.time - t0 < 3f) yield return null;
+            capturedLogs.Clear(); t0 = Time.time;
+            gm.DebugForceInPlayNak(F, 0.05f, 0);
+            while (!gm.IsNakPending && Time.time - t0 < 1f) yield return null;   // 감시가 다음 프레임에 잡는다
+            cs.OnPalmCatch(thrown);                  // 대기 중 받기 성공 타이밍 — 무시돼야 한다
+            bool fb = hand.DebugFingerBounceNow(Vector3.up);
+            var w = WaitGame(1.6f); while (w.MoveNext()) yield return null;
+            Debug.Log($"[M2Verify] (a) catch during wait: fingerBounceAccepted={fb} fails={CountFails()} palmLogged={capturedLogs.Exists(l => l.Contains("Palm catch"))} " +
+                      $"thrown={thrown.CurrentState}\n  {Dump(t0)}");
+
+            // (b) 대기 중 일시정지
+            prep = PrepareInPlay(1); while (prep.MoveNext()) yield return prep.Current;
+            capturedLogs.Clear(); t0 = Time.time; float r0 = Time.realtimeSinceStartup;
+            gm.DebugForceInPlayNak(F, 0.05f, 0);
+            w = WaitGame(0.15f); while (w.MoveNext()) yield return null;
+            PauseMenuUI.Instance.Toggle();
+            float pr = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - pr < 2f) yield return null;
+            bool pendingWhilePaused = gm.IsNakPending;
+            PauseMenuUI.Instance.Toggle();
+            w = WaitGame(1.5f); while (w.MoveNext()) yield return null;
+            Debug.Log($"[M2Verify] (b) pause: pendingWhilePaused={pendingWhilePaused} fails={CountFails()} game={Time.time - t0:F2}s real={Time.realtimeSinceStartup - r0:F2}s\n  {Dump(t0)}");
+
+            // (c) 대기 중 스테이지 점프
+            prep = PrepareInPlay(1); while (prep.MoveNext()) yield return prep.Current;
+            capturedLogs.Clear(); t0 = Time.time;
+            gm.DebugForceInPlayNak(F, 0.05f, 0);
+            w = WaitGame(0.15f); while (w.MoveNext()) yield return null;
+            GoLoop(3);
+            w = WaitGame(2.0f); while (w.MoveNext()) yield return null;
+            Debug.Log($"[M2Verify] (c) jump: fails={CountFails()} phase={gm.CurrentPhase}\n  {Dump(t0)}");
+            LogStoneRestore("after in-play jump");
+
+            // (d) E1 받기 실패 — 손이 보드 위(받기 모드 아님)라 못 받는다 → 현행처럼 즉시 실패, 낙 대기 없음
+            prep = PrepareInPlay(1); while (prep.MoveNext()) yield return prep.Current;
+            capturedLogs.Clear(); t0 = Time.time;
+            hand.DebugThrowNow(gm.DebugNthOnBoard(0));
+            var far = BoardSpace.ToScreen(new Vector2(-6f, 2f), 0f);
+            hand.DebugPlaceHand(new Vector3(far.x, far.y, 0f));   // 던진 자리에서 멀리 → 놓침
+            float tf = -1f;
+            while (Time.time - t0 < 3.5f) { if (tf < 0f && gm.CurrentPhase == GameManager.GamePhase.Failed) tf = Time.time - t0; yield return null; }
+            Debug.Log($"[M2Verify] (d) E1 miss: failedAt={tf:F2}s reason='{gm.LastFailReason}' nakWait={capturedLogs.Exists(l => l.Contains("NakWait begin"))} fails={CountFails()}");
+        }
+        finally { Application.logMessageReceived -= CaptureLog; }
+
+        // (e) F15 — 뿌린 뒤 가만히 둘 때 물리 표류로 생기는 플레이 중 낙 빈도 (D9 이후)
+        if (skipF15) { Debug.Log("[M2Verify] DONE"); GoLoop(1); yield break; }
+        int runs = 0, naks = 0, otherFails = 0, oldRuleWouldNak = 0, nonKinMax = 0;
+        float vMax = 0f;
+        foreach (int loop in new[] { 1, 2, 3, 9, 10 })
+            foreach (float g in new[] { 0.45f, 0.95f })
+                for (int seed = 1; seed <= 6; seed++)
+                {
+                    GoLoop(loop);
+                    float t0 = Time.time;
+                    while ((gm.CurrentPhase != GameManager.GamePhase.Scatter || gm.IsTransitioning) && Time.time - t0 < 8f) yield return null;
+                    var c = BoardSpace.ToScreen(Vector2.zero, 0f);
+                    hand.DebugPlaceHand(new Vector3(c.x, c.y, 0f));
+                    Object.FindFirstObjectByType<ScatterSystem>().DebugScatterSeeded(g, seed, new Vector2(0.5f, 0.5f));
+                    t0 = Time.time;
+                    while (gm.CurrentPhase == GameManager.GamePhase.Scatter && Time.time - t0 < 5f) yield return null;
+                    if (gm.CurrentPhase != GameManager.GamePhase.PickThrowStone) continue;   // 뿌리기 낙 등
+                    runs++;
+                    int nonKin = 0;
+                    foreach (var st in gm.Stones) if (st.CurrentState == Stone.State.OnBoard && !st.Rb.isKinematic) nonKin++;
+                    nonKinMax = Mathf.Max(nonKinMax, nonKin);
+                    t0 = Time.time;
+                    bool nak = false;
+                    while (Time.time - t0 < 2.0f)
+                    {
+                        foreach (var st in gm.Stones)
+                        {
+                            if (st.CurrentState != Stone.State.OnBoard) continue;
+                            vMax = Mathf.Max(vMax, st.Rb.isKinematic ? 0f : st.Rb.linearVelocity.magnitude);
+                        }
+                        if (gm.IsNakPending) { nak = true; break; }
+                        if (gm.CurrentPhase == GameManager.GamePhase.Failed) break;
+                        yield return null;
+                    }
+                    if (nak)
+                    {
+                        naks++;
+                        foreach (var st in gm.Stones)
+                        {
+                            var p = new Vector2(st.transform.position.x, st.transform.position.y);
+                            if (BoardBounds.IsOutsideMat(p, BoardSpace.GraceBandWidth)) { oldRuleWouldNak++; break; }
+                        }
+                        Debug.Log($"[M2Verify] F15 nak at loop={loop} g={g} seed={seed} nonKinematicOnBoard={nonKin}");
+                        while (gm.IsNakPending) yield return null;
+                    }
+                    else if (gm.CurrentPhase == GameManager.GamePhase.Failed) otherFails++;
+                }
+        Debug.Log($"[M2Verify] (e) F15 idle drift: runs={runs} inPlayNaks={naks} (old rule would also nak: {oldRuleWouldNak}) otherFails={otherFails} " +
+                  $"maxNonKinematicOnBoard={nonKinMax} maxSpeed={vMax:F3}");
+        Debug.Log("[M2Verify] DONE");
+        GoLoop(1);
+    }
+
     private static void ForceNak(params Vector2[] targets)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
