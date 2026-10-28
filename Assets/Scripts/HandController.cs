@@ -65,6 +65,9 @@ public partial class HandController : MonoBehaviour
     private Coroutine flickCoroutine;
     private Coroutine scatterSquashCoroutine;   // M1-S3 손 펼침 스쿼시
     private bool scatterHitStopWaiting;         // M1-S3 놓은 직후 히트스톱 신호 대기 중
+    private bool throwDisarmed;                 // M2-S2 낙 대기 중 — 진행 중인 던지기의 받기 판정 해제(D5 B)
+    private Stone throwingStone;                // M2-S2 진행 중인 던지기의 돌·보드 좌표 (강제 착지용)
+    private Vector2 throwingBoardPos;
 
     [Header("Stage 5 Height Settings")]
     [SerializeField] private float stage5HeightStep = 0.4f;   // 돌 간 높이 간격 (부드럽게 모임)
@@ -185,8 +188,8 @@ public partial class HandController : MonoBehaviour
         // 그게 호출되지 않는 모드에서 그림자가 마지막 위치에 얼어붙는다.
         UpdateHandShadow();
 
-        // 보드 모드에서만 줍기 판정
-        if (!isCatchMode && isHolding)
+        // 보드 모드에서만 줍기 판정 (M2-S2: 낙 대기 중에는 이미 누르고 있던 손도 더 줍지 못한다 — D5 B 입력 차단)
+        if (!isCatchMode && isHolding && !(GameManager.Instance != null && GameManager.Instance.IsNakPending))
         {
             if (phase == GameManager.GamePhase.PickThrowStone)
             {
@@ -516,8 +519,48 @@ public partial class HandController : MonoBehaviour
         }
     }
 
+    /// <summary>M2-S2 (D5 B) — 낙 대기에 들어가면 진행 중인 던지기의 판정을 해제한다.
+    /// 던진 돌은 받기 판정·실패 처리 없이 원래 궤적대로 내려와 던진 자리(h=0)에 조용히 앉는다.
+    /// 집은 돌은 손에 그대로 둔다. 던지기가 진행 중이 아니면 no-op.</summary>
+    /// <summary>M2-S2 — 실패 확정 순간 아직 공중인 판정 해제 던지기를 최종 자세(던진 자리 지면)로 맞춘다.
+    /// 실패 화면 동안 돌이 공중에 떠 있지 않게(A8과 같은 이유). 판정 해제 던지기가 없으면 no-op.</summary>
+    public void ForceLandDisarmedThrow()
+    {
+        if (!throwDisarmed || throwCoroutine == null) return;
+        StopCoroutine(throwCoroutine);
+        LandDisarmedThrow("forced");
+    }
+
+    private void LandDisarmedThrow(string how)
+    {
+        throwDisarmed = false;
+        SetCatchMode(false);
+        handModel?.SetCollidersEnabled(false);
+        var stone = throwingStone;
+        if (stone != null)
+        {
+            stone.SetBoardMotion(throwingBoardPos, 0f);
+            stone.SetState(Stone.State.OnBoard);
+            stone.Rb.linearVelocity = Vector3.zero;
+            stone.Rb.angularVelocity = Vector3.zero;
+            stone.Rb.isKinematic = true;   // 키네마틱으로 앉힌다 — 물리 사출로 다시 밀려나지 않게
+            Debug.Log($"[Hand] Disarmed throw landed quietly ({how}): stone {stone.StoneIndex} at {throwingBoardPos:F2}");
+        }
+        throwCoroutine = null;
+    }
+
+    public void DisarmThrow()
+    {
+        if (throwCoroutine == null) return;
+        throwDisarmed = true;
+        SetCatchMode(false);
+        handModel?.SetCollidersEnabled(false);
+        Debug.Log("[Hand] DisarmThrow — 받기 판정 해제 (낙 대기)");
+    }
+
     private IEnumerator DoThrow()
     {
+        throwDisarmed = false;
         var stone = throwStone;
         stone.transform.SetParent(null);
 
@@ -554,6 +597,7 @@ public partial class HandController : MonoBehaviour
 
         // 출발점도 그 보드 좌표의 지면으로 맞춘다 (그림자와 발밑이 어긋나지 않게).
         stone.SetBoardMotion(throwBoardPos, 0f);
+        throwingStone = stone; throwingBoardPos = throwBoardPos;   // M2-S2
         stone.SetTrailActive(true); // v20: 던진 돌 꼬리 — 공중의 돌을 눈이 놓치지 않게
         startX = groundScreen.x;
         startY = groundScreen.y;
@@ -589,9 +633,9 @@ public partial class HandController : MonoBehaviour
         // 최고점 사운드
         AudioManager.Instance?.PlayThrowPeak();
 
-        // Catch 판정 시작
+        // Catch 판정 시작 (M2-S2: 낙 대기 중이면 받기 없이 내려와 앉기만 한다)
         var catchSystem = FindFirstObjectByType<CatchSystem>();
-        catchSystem?.BeginCatch(stone);
+        if (!throwDisarmed) catchSystem?.BeginCatch(stone);
 
         // 받기 모드 Collider 활성화는 위치 기반 (Update에서 Y 체크로 자동 전환)
 
@@ -617,7 +661,8 @@ public partial class HandController : MonoBehaviour
         elapsed = 0f;
         while (elapsed < effectiveDownDuration)
         {
-            if (catchSystem != null && !catchSystem.IsCatchPhase)
+            // M2-S2: 판정 해제된 던지기는 받기 페이즈가 꺼져 있어도(StopCatch) 끝까지 내려온다
+            if (!throwDisarmed && catchSystem != null && !catchSystem.IsCatchPhase)
             {
                 Debug.Log("[Hand] Stone caught or fell (CatchSystem handled)!");
                 SetCatchMode(false);
@@ -648,7 +693,7 @@ public partial class HandController : MonoBehaviour
             //
             // 떨어지는 돌이 손의 화면 높이를 통과하는 순간 판정한다.
             // (손이 하늘로 들려 있으므로 "특정 h"가 아니라 "손 높이 통과"가 시각적으로 맞다)
-            if (IsAtCatchMoment(p.y))
+            if (!throwDisarmed && IsAtCatchMoment(p.y))
             {
                 var verdict = JudgeBoardCatch(throwBoardPos);
                 if (verdict != BoardCatchVerdict.Miss)
@@ -671,6 +716,13 @@ public partial class HandController : MonoBehaviour
             }
 
             yield return null;
+        }
+
+        // M2-S2: 판정 해제된 던지기 — 던진 자리 지면에 조용히 앉는다 (받기·최후 판정·실패 처리 전부 건너뜀)
+        if (throwDisarmed)
+        {
+            LandDisarmedThrow("descended");
+            yield break;
         }
 
         // 코루틴 타임아웃: CatchSystem이 이미 처리했을 수도 있음 (중복 방지)
@@ -833,6 +885,24 @@ public partial class HandController : MonoBehaviour
         ApplyBoardPerspective(transform.position);
         handModel?.SyncHitboxPosition(transform.position);
     }
+
+#if UNITY_EDITOR
+    /// <summary>M2 검증 전용 — 마우스 없이 던지기: 지정 돌을 던질 돌로 집고(Throw 페이즈) 바로 DoThrow를 시작한다.
+    /// 실제 클릭 경로(OnClick)와 같은 코루틴을 탄다.</summary>
+    public bool DebugThrowNow(Stone stone)
+    {
+        if (stone == null || throwCoroutine != null) return false;
+        throwStone = stone;
+        throwStone.SetState(Stone.State.InHand);
+        throwStone.transform.SetParent(transform);
+        throwStone.transform.localPosition = Vector3.zero;
+        GameManager.Instance.SetPhase(GameManager.GamePhase.Throw);
+        throwCoroutine = StartCoroutine(DoThrow());
+        return true;
+    }
+
+    public bool DebugIsThrowing => throwCoroutine != null;
+#endif
 
     /// <summary>에디터 검증 전용 — 줍기 판정 결과를 그대로 노출.</summary>
     public bool DebugIsStoneUnderHand(Stone stone) => IsStoneUnderHand(stone);
@@ -1259,6 +1329,7 @@ public partial class HandController : MonoBehaviour
         }
         // M1-S3: 히트스톱 대기·펼침 스쿼시 정리 + 피벗 오프셋/스쿼시 복원
         scatterHitStopWaiting = false;
+        throwDisarmed = false;   // M2-S2
         if (scatterSquashCoroutine != null)
         {
             StopCoroutine(scatterSquashCoroutine);

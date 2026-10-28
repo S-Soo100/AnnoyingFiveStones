@@ -333,6 +333,78 @@ public static class GameTestMenu
         GoLoop(1);
     }
 
+    // ── M2-S2 완료 확인: 플레이 중 낙 연출 + 실패 대기 ─────────────────────────────
+    private static readonly System.Collections.Generic.List<string> capturedLogs = new System.Collections.Generic.List<string>();
+    private static void CaptureLog(string msg, string st, LogType t)
+    {
+        if (msg.StartsWith("[NakFall]") || msg.StartsWith("[GameManager] NakWait") || msg.StartsWith("[GameManager] Phase changed to: Failed")
+            || msg.StartsWith("[Hand] Disarm") || msg.StartsWith("[CatchSystem]") || msg.Contains("ignored (nak pending)"))
+            capturedLogs.Add($"{Time.time:F3} {msg}");
+    }
+
+    [MenuItem("Tools/테스트 낙(플레이)/검증: S2 연출·대기")]
+    public static void VerifyInPlayGate() => StartEditorRoutine(VerifyInPlayGateRoutine(null));
+
+    // 촬영용 단일 사례 (Screenshots/intro에 프레임 저장)
+    [MenuItem("Tools/테스트 낙(플레이)/촬영: 10 앞")]   public static void ShotInPlayFront() => StartEditorRoutine(VerifyInPlayGateRoutine("10 front"));
+    [MenuItem("Tools/테스트 낙(플레이)/촬영: 10 좌")]   public static void ShotInPlayLeft()  => StartEditorRoutine(VerifyInPlayGateRoutine("10 left"));
+    [MenuItem("Tools/테스트 낙(플레이)/촬영: 10 뒤")]   public static void ShotInPlayBack()  => StartEditorRoutine(VerifyInPlayGateRoutine("10 back"));
+    [MenuItem("Tools/테스트 낙(플레이)/촬영: 40 우 Flat")] public static void ShotInPlayFlat() => StartEditorRoutine(VerifyInPlayGateRoutine("40 right"));
+
+    private static System.Collections.IEnumerator VerifyInPlayGateRoutine(string onlyTag)
+    {
+        var gm = GameManager.Instance;
+        var F = FiveStones.Core.BoardEdge.Front; var B = FiveStones.Core.BoardEdge.Back;
+        var Lf = FiveStones.Core.BoardEdge.Left; var R = FiveStones.Core.BoardEdge.Right;
+        // (tag, loop, action)
+        var cases = new System.Collections.Generic.List<(string tag, int loop, System.Action act)>
+        {
+            ("10 front +0.05", 1, () => gm.DebugForceInPlayNak(F, 0.05f)),
+            ("10 left +0.05",  1, () => gm.DebugForceInPlayNak(Lf, 0.05f)),
+            ("10 back +0.05 (D9-b)", 1, () => gm.DebugForceInPlayNak(B, 0.05f)),
+            ("25 corner front x right", 4, () => {
+                var fr = BoardSpace.ToScreen(new Vector2(BoardSpace.LogicalWidth * 0.5f, BoardSpace.LogicalDepth * 0.5f), 0f);
+                gm.DebugTeleport(gm.DebugNthOnBoard(0), fr + new Vector2(0.3f, -0.1f), "corner FR+(0.3,-0.1)"); }),
+            ("35 left +0.05 (no layer)", 6, () => gm.DebugForceInPlayNak(Lf, 0.05f)),
+            ("40 right +0.9 (Flat)", 7, () => gm.DebugForceInPlayNak(R, 0.9f)),
+            ("10 two at once (front+left)", 1, () => { gm.DebugForceInPlayNak(F, 0.05f, 0); gm.DebugForceInPlayNak(Lf, 0.05f, 1); }),
+            ("10 nak during throw", 1, null),
+        };
+        Application.logMessageReceived += CaptureLog;
+        try
+        {
+            foreach (var cs in cases)
+            {
+                if (onlyTag != null && !cs.tag.Contains(onlyTag)) continue;
+                var prep = PrepareInPlay(cs.loop); while (prep.MoveNext()) yield return prep.Current;
+                if (gm.CurrentPhase != GameManager.GamePhase.PickThrowStone)
+                { Debug.LogError($"[InPlayVerify2] {cs.tag}: 준비 실패 {gm.CurrentPhase}"); continue; }
+                capturedLogs.Clear();
+                if (onlyTag != null) IntroFrameCapture.Begin(16, 1);
+                float t0 = Time.time;
+                Stone thrown = null;
+                if (cs.act != null) cs.act();
+                else
+                {
+                    // 던지는 중 낙: 돌 하나를 던지고 0.3초 뒤(상승 중) 다른 돌을 앞변 너머로
+                    var hand = Object.FindFirstObjectByType<HandController>(FindObjectsInactive.Include);
+                    thrown = gm.DebugNthOnBoard(0);
+                    hand.DebugThrowNow(thrown);
+                    var w = WaitGame(0.3f); while (w.MoveNext()) yield return null;
+                    t0 = Time.time;
+                    gm.DebugForceInPlayNak(F, 0.05f, 0);
+                }
+                while (Time.time - t0 < 2.0f) yield return null;   // 실패 연출 대기(1.5초) 안에서 관찰
+                int fails = 0; foreach (var l in capturedLogs) if (l.Contains("Phase changed to: Failed")) fails++;
+                string extra = thrown != null ? $" thrownState={thrown.CurrentState} thrownKin={thrown.Rb.isKinematic} thrownPos={thrown.transform.position:F2}" : "";
+                Debug.Log($"[InPlayVerify2] === {cs.tag}: fails={fails}{extra}\n  " + string.Join("\n  ", capturedLogs.ConvertAll(l => $"+{float.Parse(l.Substring(0, l.IndexOf(' '))) - t0:F3} {l.Substring(l.IndexOf(' ') + 1)}")));
+            }
+        }
+        finally { Application.logMessageReceived -= CaptureLog; }
+        Debug.Log("[InPlayVerify2] DONE");
+        GoLoop(1);
+    }
+
     private static void ForceNak(params Vector2[] targets)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }

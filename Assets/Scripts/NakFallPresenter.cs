@@ -114,6 +114,54 @@ public class NakFallPresenter : MonoBehaviour
         gm?.NotifyNakStoneEnded();
     }
 
+    /// <summary>이미 이 컴포넌트가 연출 중이거나 연출한 돌인가 (같은 돌 이중 등록 방지).</summary>
+    public bool IsPresenting(Stone s) => s != null && touched.Contains(s);
+
+    /// <summary>M2 (D8 A) — 플레이 중 Flat 너머 낙: 그 자리에 세운다. 그림자는 그 면에 남는다.
+    /// 바로 끝낸다(장외음) — 실패까지의 +0.3초는 게이트가 붙인다.</summary>
+    public void HoldOnFlat(Stone s)
+    {
+        if (s == null) return;
+        if (!touched.Contains(s)) touched.Add(s);
+        var gm = GameManager.Instance;
+        gm?.AddNakBusy();
+        s.EnterScriptedFall();   // 키네마틱·속도 0·콜라이더 끔 — 더 미끄러지거나 다른 돌을 밀지 않게
+        Debug.Log($"[NakFall] start stone={s.StoneIndex} path=Flat pos={s.transform.position:F2}");
+        Debug.Log($"[NakFall] end stone={s.StoneIndex} cause=Flat t=0.000");
+        gm?.ReleaseNakBusy();
+        gm?.NotifyNakStoneEnded();
+    }
+
+    /// <summary>M2 — 손가락에 튕긴 돌(물리 낙하): 돌을 움직이지 않는다. 그림자를 끄고,
+    /// "화면 밖이거나 0.8초 경과"를 지켜보다가 렌더러를 끈다. (받기는 OnStoneFell에서 이미 끝났다)</summary>
+    public void WatchPhysicsFall(Stone s)
+    {
+        if (s == null) return;
+        if (!touched.Contains(s)) touched.Add(s);
+        var e = new Entry { Stone = s, Running = true };
+        running.Add(e);
+        GameManager.Instance?.AddNakBusy();
+        Debug.Log($"[NakFall] start stone={s.StoneIndex} path=Physics pos={s.transform.position:F2}");
+        e.Routine = StartCoroutine(WatchRoutine(e));
+    }
+
+    private IEnumerator WatchRoutine(Entry e)
+    {
+        var s = e.Stone;
+        s.SetShadowGroundCut(true);   // 화면상 지면보다 아래로 떨어지는 돌 — 허공이라 그림자 없음
+        var r = s.GetComponent<Renderer>();
+        float t = 0f;
+        string cause = "Cap";
+        while (true)
+        {
+            if (r != null && IsOffscreen(r.bounds)) { cause = "Offscreen"; break; }
+            if (t >= MaxFallSeconds) { cause = "Cap"; break; }
+            yield return null;
+            t += Time.deltaTime;
+        }
+        Finish(e, cause, t);
+    }
+
     /// <summary>실패 확정 순간 — 아직 떨어지는 중인 돌을 숨기고 끝낸다(busy·장외음 처리 포함).</summary>
     public void CompleteAll()
     {

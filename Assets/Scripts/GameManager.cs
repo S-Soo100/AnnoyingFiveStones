@@ -113,7 +113,8 @@ public class GameManager : MonoBehaviour
 
     public Transform BoardTransform => boardTransform;
     public int Stage5Step => stage5Step;
-    public bool IsTransitioning => isTransitioning;
+    /// <summary>M2-S2: 낙 대기 중에도 true — 입력(던지기·줍기·뿌리기)이 막힌다(D5 B). private 필드(OnFailed 가드)는 그대로.</summary>
+    public bool IsTransitioning => isTransitioning || isNakPending;
     public bool IsAllClear => isAllClear;
     public bool IsPaused => isPaused;     // [P4]
     public bool IsInTitleScreen => isInTitleScreen; // v13: DebugHUD 스킵버튼 게이팅 (타이틀/엔딩에서 숨김)
@@ -275,13 +276,14 @@ public class GameManager : MonoBehaviour
     private void Update()
     {
         // [P1] 경과 시간 갱신: 전환 중이 아닐 때만
-        if (session != null && !isTransitioning && !isAllClear && !isInTitleScreen)
+        if (session != null && !isTransitioning && !isNakPending && !isAllClear && !isInTitleScreen)   // M2: 낙 대기 중 정지
         {
             session.ElapsedTime += Time.deltaTime;
         }
 
         // 상시 장외 감시: PickThrowStone/PickStones 중 OnBoard 돌이 보드 밖이면 실패
-        if (!isTransitioning && !isAllClear && !isInTitleScreen && boardTransform != null)
+        // M2-S2: 낙 대기 중에는 건너뛴다(감지된 프레임에 동시에 나간 돌은 이미 전부 등록됐다).
+        if (!isTransitioning && !isNakPending && !isAllClear && !isInTitleScreen && boardTransform != null)
         {
             var phase = currentPhase;
             if (phase == GamePhase.PickThrowStone || phase == GamePhase.PickStones || phase == GamePhase.Throw)
@@ -303,6 +305,7 @@ public class GameManager : MonoBehaviour
     {
         // 게임이 정상 진행 중일 때만 검사
         if (isTransitioning || isAllClear || isInTitleScreen) return;
+        if (isNakPending) return;   // M2-S2
         if (currentPhase == GamePhase.Failed || currentPhase == GamePhase.StageComplete) return;
         if (currentPhase == GamePhase.Scatter) return; // ScatterSystem 자체 판정 사용
 
@@ -326,9 +329,7 @@ public class GameManager : MonoBehaviour
             if (BoardBounds.IsNakInPlay(p)) // M2-S1(D9): Ledge 변 = 보이는 가장자리, Flat 변 = 유예 0.8
             {
                 Debug.Log($"[GameManager] Stone {stone.name} out of mat at {p}. Triggering Fail.");
-                SetFailReason("낙!");
-                SetPhase(GamePhase.Failed);
-                return;
+                BeginNakFail(stone, "낙!");   // M2-S2: 낙하 연출 후 실패. 같은 프레임의 다른 낙 돌도 계속 등록
             }
         }
     }
@@ -414,9 +415,7 @@ public class GameManager : MonoBehaviour
             if (BoardBounds.IsNakInPlay(pos)) // M2-S1(D9): Ledge 변 = 보이는 가장자리, Flat 변 = 유예 0.8
             {
                 Debug.Log($"[GameManager] Stone {stone.StoneIndex} out of bounds during play at ({pos.x:F1},{pos.y:F1})");
-                SetFailReason("낙!");
-                SetPhase(GamePhase.Failed);
-                return;
+                BeginNakFail(stone, "낙!");   // M2-S2: 낙하 연출 후 실패. 같은 프레임의 다른 낙 돌도 계속 등록
             }
         }
     }
@@ -424,12 +423,10 @@ public class GameManager : MonoBehaviour
 #if UNITY_EDITOR
     /// <summary>M2 검증 전용 — OnBoard 돌 하나를 그 변(보드 좌표 변 중점) 바깥으로 **화면 단위** overshoot만큼
     /// 키네마틱 텔레포트한다(가장자리에 수직, 화면 바깥 법선 방향). 감지는 기존 감시에 맡긴다.</summary>
-    public Stone DebugForceInPlayNak(FiveStones.Core.BoardEdge edge, float overshoot)
+    public Stone DebugForceInPlayNak(FiveStones.Core.BoardEdge edge, float overshoot, int nth = 0)
     {
         if (stones == null) return null;
-        Stone target = null;
-        foreach (var st in stones)
-            if (st != null && st.gameObject.activeSelf && st.CurrentState == Stone.State.OnBoard) { target = st; break; }
+        Stone target = DebugNthOnBoard(nth);
         if (target == null) { Debug.LogError("[GameManager] DebugForceInPlayNak: OnBoard 돌 없음"); return null; }
 
         float hw = BoardSpace.LogicalWidth * 0.5f, hd = BoardSpace.LogicalDepth * 0.5f;
@@ -448,12 +445,29 @@ public class GameManager : MonoBehaviour
         Vector2 center = BoardSpace.ToScreen(Vector2.zero, 0f);
         if (Vector2.Dot(n, mid - center) < 0f) n = -n;
         Vector2 screen = mid + n * overshoot;
+        DebugTeleport(target, screen, $"edge={edge} overshoot={overshoot:F2}");
+        return target;
+    }
 
+    /// <summary>OnBoard 돌 중 nth번째(0부터). 없으면 null.</summary>
+    public Stone DebugNthOnBoard(int nth)
+    {
+        if (stones == null) return null;
+        int k = 0;
+        foreach (var st in stones)
+            if (st != null && st.gameObject.activeSelf && st.CurrentState == Stone.State.OnBoard)
+                if (k++ == nth) return st;
+        return null;
+    }
+
+    /// <summary>화면 좌표로 직접 텔레포트(모서리 등).</summary>
+    public void DebugTeleport(Stone target, Vector2 screen, string tag = "")
+    {
+        if (target == null) return;
         target.Rb.isKinematic = true;   // 텔레포트: 키네마틱 → 이동 (물리 사출 방지, donts #8)
         target.SetBoardMotion(BoardSpace.ToBoard(screen), 0f);
-        Debug.Log($"[GameManager] DebugForceInPlayNak stone={target.StoneIndex} edge={edge} overshoot={overshoot:F2} " +
-                  $"screen={screen:F2} nakInPlay={BoardBounds.IsNakInPlay(screen)} oldRule={BoardBounds.IsOutsideMat(screen, BoardSpace.GraceBandWidth)}");
-        return target;
+        Debug.Log($"[GameManager] DebugForceInPlayNak stone={target.StoneIndex} {tag} screen={screen:F2} " +
+                  $"nakInPlay={BoardBounds.IsNakInPlay(screen)} oldRule={BoardBounds.IsOutsideMat(screen, BoardSpace.GraceBandWidth)}");
     }
 #endif
 
@@ -476,6 +490,55 @@ public class GameManager : MonoBehaviour
         nakBeganAt = Time.time;
         Debug.Log($"[GameManager] NakWait begin reason={reason} cap={capAtTime - Time.time:F2}s");
         nakRoutine = StartCoroutine(NakWaitRoutine(++nakToken));
+    }
+
+    // ── M2-S2 플레이 중 낙 (계획서 §5-3 M2) ──────────────────────────────────
+    /// <summary>D1 A: 플레이 중 낙은 낙하 끝 + 0.3초, 상한 1.1초.</summary>
+    private const float InPlayNakCapSeconds = 1.1f;
+    /// <summary>표류 낙 넘겨받는 속도 상한(보드 단위/s).</summary>
+    private const float InPlayNakMaxSpeed = 3f;
+
+    /// <summary>플레이 중 낙 — 실패 대기를 걸고(첫 낙에서만 규칙 정지: 받기 중단·던진 돌 판정 해제, D5 B)
+    /// 경로별 연출을 등록한다. 이미 대기 중이면 연출만 추가한다(동시 낙 전부 연출).
+    /// physicsFall = 손가락에 튕긴 돌(물리 그대로 지켜보기만).</summary>
+    public void BeginNakFail(Stone s, string reason, bool physicsFall = false)
+    {
+        if (s == null) return;
+        if (!isNakPending)
+        {
+            BeginNakWait(reason, Time.time + InPlayNakCapSeconds);
+            catchSystem?.StopCatch();          // 받기 판정 중단
+            handController?.DisarmThrow();     // 던진 돌은 판정 없이 원래 궤적대로 바닥에 앉는다
+        }
+        if (nakPresenter == null || nakPresenter.IsPresenting(s)) return;
+
+        if (physicsFall)
+        {
+            nakPresenter.WatchPhysicsFall(s);
+            return;
+        }
+
+        Vector2 screen = new Vector2(s.transform.position.x, s.transform.position.y);
+        Vector2 board = BoardSpace.ToBoard(screen);
+        var kind = FiveStones.Core.BoardEdgeMath.ClassifyOutside(board, BoardSpace.LogicalWidth * 0.5f,
+            BoardSpace.LogicalDepth * 0.5f, BoardSpace.Edges, out var edge);
+        if (kind == FiveStones.Core.EdgeKind.Ledge)
+        {
+            // 넘겨받는 속도는 측정값(키네마틱이면 0), 3 보드/s로 제한. 높이 0·수직 속도 0에서 판 아래로.
+            Vector2 vB = Vector2.zero;
+            if (!s.Rb.isKinematic)
+            {
+                Vector2 vs = new Vector2(s.Rb.linearVelocity.x, s.Rb.linearVelocity.y);
+                const float dt = 0.02f;
+                vB = (BoardSpace.ToBoard(screen + vs * dt) - board) / dt;
+                vB = Vector2.ClampMagnitude(vB, InPlayNakMaxSpeed);
+            }
+            nakPresenter.FallFromBoard(s, board, vB, 0f, 0f, ScatterSystem.TossGravity, edge);
+        }
+        else
+        {
+            nakPresenter.HoldOnFlat(s);
+        }
     }
 
     /// <summary>진행 중인 낙하 연출·토스 수.</summary>
@@ -525,6 +588,7 @@ public class GameManager : MonoBehaviour
         Debug.Log($"[GameManager] NakWait finish after={Time.time - nakBeganAt:F3}s busy={nakBusy}");
         if (!nakCuePlayed) { nakCuePlayed = true; AudioManager.Instance?.PlayOutOfBounds(); } // 상한으로 끝난 경우 안전망
         scatterSystem?.ForceCompleteTosses();   // 미완료 토스를 최종 자세로 + 코루틴 정지(A8)
+        handController?.ForceLandDisarmedThrow(); // M2-S2: 판정 해제된 던진 돌이 아직 공중이면 던진 자리 지면으로(A8)
         nakPresenter?.CompleteAll();            // 낙하 중인 돌 숨김
         isNakPending = false;
         nakRoutine = null;
