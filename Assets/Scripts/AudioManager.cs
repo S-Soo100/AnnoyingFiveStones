@@ -85,6 +85,17 @@ public class AudioManager : MonoBehaviour
         bgmSourceA   = CreateChildSource("BGM_A_Source",  loop: true);
         bgmSourceB   = CreateChildSource("BGM_B_Source",  loop: true);
 
+        // M1-S2: 뿌리기 전용 보이스. 공용 sfxSource는 재생 직전에 pitch를 바꾸므로(PlaySFX) 겹친 착지음끼리
+        // 피치를 꺾는다(계획서 C5·F9). 음계 착지음은 보이스마다 자기 pitch를 갖게 따로 둔다.
+        scatterLandVoices = new AudioSource[ScatterLandVoiceCount];
+        scatterLandStart = new float[ScatterLandVoiceCount];
+        for (int i = 0; i < ScatterLandVoiceCount; i++)
+            scatterLandVoices[i] = CreateChildSource($"ScatterLand_{i}", loop: false);
+        scatterRattleVoices = new AudioSource[ScatterRattleVoiceCount];
+        scatterRattleStart = new float[ScatterRattleVoiceCount];
+        for (int i = 0; i < ScatterRattleVoiceCount; i++)
+            scatterRattleVoices[i] = CreateChildSource($"ScatterRattle_{i}", loop: false);
+
         bgmVolume = GetBGMVolume();
         sfxVolume = GetSFXVolume();
 
@@ -515,6 +526,90 @@ public class AudioManager : MonoBehaviour
         int idx = Mathf.Clamp(stoneIndex, 0, 4);
         float pitch = 0.9f + idx * 0.05f; // 약간씩 다른 피치
         PlaySFX($"scatter_hit_{idx}", 0.6f, pitch);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // M1-S2 뿌리기 착지음 (계획서 §5-6, T3)
+    //   착지 순서대로 음이 오른다. 상수 세트 하나 — A/B 청취 후 ActiveNoteSet 한 줄만 바꾼다.
+    //   (A) 5음 펜타토닉 0.80~1.35 / (B) 좁은 폭 4반음 0.92~1.16 — 기본 B.
+    //   B 이유: 클릭 샘플을 1.3 넘게 올리면 얇아지고, 상승 5음은 멜로디로 들려 장난감 톤이 된다.
+    // ──────────────────────────────────────────────────────────────────
+
+    public enum ScatterNoteSet { A_Pentatonic, B_Narrow }
+
+    /// <summary>T3 — 사용자 A/B 청취로 고른다. 기본 B. 값 자체는 이 한 줄이 SOT다.
+    /// (static인 이유: 체크포인트 청취 때 GameTestMenu로 재컴파일 없이 바꿔 들으려고)</summary>
+    public static ScatterNoteSet ActiveNoteSet = ScatterNoteSet.B_Narrow;
+
+    /// <summary>D6 — 모든 돌이 안전하게 멈춘 순간의 마무리음. 기본 꺼짐(체크포인트에서 결정).</summary>
+    public static bool FinishCueEnabled = false;
+
+    private const string ScatterLandClip = "scatter_hit_2";
+    private static readonly int[] ScatterSemisA = { 0, 2, 4, 7, 9 };
+    private static readonly int[] ScatterSemisB = { 0, 1, 2, 3, 4 };
+    private const float ScatterBaseA = 0.80f, ScatterBaseB = 0.92f;
+    private const int ScatterCueSemiA = 12, ScatterCueSemiB = 5;
+    private const float ScatterLandVolume = 0.60f, ScatterLandVolume2 = 0.25f;   // 첫 접촉 / 둘째 접촉
+    private const float ScatterThudPitch = 0.62f, ScatterThudVolume = 0.60f, ScatterThudVolume2 = 0.20f;
+    private const float ScatterCueVolume = 0.60f;
+
+    // 보이스 예산(검수 🔴7): 착지 12 — 최악 n=10 첫 접촉 10 + Flat 둔탁 ≤ 12. 달그락 2(게이지 중에만).
+    private const int ScatterLandVoiceCount = 12, ScatterRattleVoiceCount = 2;
+    private AudioSource[] scatterLandVoices, scatterRattleVoices;
+    private float[] scatterLandStart, scatterRattleStart;
+
+    private static int[] ActiveSemis => ActiveNoteSet == ScatterNoteSet.A_Pentatonic ? ScatterSemisA : ScatterSemisB;
+    private static float ActiveBase => ActiveNoteSet == ScatterNoteSet.A_Pentatonic ? ScatterBaseA : ScatterBaseB;
+
+    /// <summary>안착 돌 착지음. order = 첫 접촉 시각 순서(0부터, 낙 돌 제외), safeCount = 안착 돌 수.
+    /// 5개 넘으면 5음에 압축(n=10 → 0,0,1,1,2,2,3,3,4,4). 반환값 = 실제 피치(로그용).</summary>
+    public float PlayScatterLand(int order, int safeCount, bool secondContact)
+    {
+        int note = safeCount <= 5 ? order : Mathf.FloorToInt(order * 5f / safeCount);
+        note = Mathf.Clamp(note, 0, 4);
+        float pitch = ActiveBase * Mathf.Pow(2f, ActiveSemis[note] / 12f);
+        PlayVoice(scatterLandVoices, scatterLandStart, ScatterLandClip,
+                  secondContact ? ScatterLandVolume2 : ScatterLandVolume, pitch);
+        return pitch;
+    }
+
+    /// <summary>Flat 낙 돌의 둔탁음(같은 클립, 낮은 피치). 둘째 접촉은 n ≤ 5일 때만(보이스 예산).</summary>
+    public float PlayScatterThud(bool secondContact, int n)
+    {
+        if (secondContact && n > 5) return 0f;
+        PlayVoice(scatterLandVoices, scatterLandStart, ScatterLandClip,
+                  secondContact ? ScatterThudVolume2 : ScatterThudVolume, ScatterThudPitch);
+        return ScatterThudPitch;
+    }
+
+    /// <summary>마무리음 — FinishCueEnabled일 때만. 마지막 정지와 같은 프레임에 울린다(시간에 더하지 않음).</summary>
+    public void PlayScatterFinishCue()
+    {
+        if (!FinishCueEnabled) return;
+        int cue = ActiveNoteSet == ScatterNoteSet.A_Pentatonic ? ScatterCueSemiA : ScatterCueSemiB;
+        PlayVoice(scatterLandVoices, scatterLandStart, ScatterLandClip, ScatterCueVolume,
+                  ActiveBase * Mathf.Pow(2f, cue / 12f));
+    }
+
+    /// <summary>빈 보이스가 있으면 그걸, 없으면 가장 오래전에 시작한 보이스를 빼앗는다.</summary>
+    private void PlayVoice(AudioSource[] voices, float[] startTimes, string clipName, float volumeScale, float pitch)
+    {
+        if (voices == null) return;
+        var clip = GetClip(clipName);
+        if (clip == null) return;
+        int pick = -1; float oldest = float.MaxValue;
+        for (int i = 0; i < voices.Length; i++)
+        {
+            if (!voices[i].isPlaying) { pick = i; break; }
+            if (startTimes[i] < oldest) { oldest = startTimes[i]; pick = i; }
+        }
+        var v = voices[pick];
+        v.Stop();
+        v.clip = clip;
+        v.pitch = pitch;
+        v.volume = sfxVolume * volumeScale;
+        v.Play();
+        startTimes[pick] = Time.unscaledTime;
     }
 
     /// <summary>장외 발생</summary>

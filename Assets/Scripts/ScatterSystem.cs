@@ -84,6 +84,7 @@ public class ScatterSystem : MonoBehaviour
     private Stone[] tossStones;
     private bool[] tossDone;
     private int activeTosses;
+    private int tossSafeCount;
     private readonly List<Coroutine> tossRoutines = new List<Coroutine>();
     private readonly List<Stone> nakStones = new List<Stone>();
     private float scatterReleaseTime, tossStartTime;
@@ -109,6 +110,7 @@ public class ScatterSystem : MonoBehaviour
     private InputAction pressAction;
     private HandController handController;
     private ScatterRangeIndicator rangeIndicator;
+    private ScatterFx scatterFx;
 
     public float CurrentGaugeValue => currentGaugeValue;
     public bool IsGaugeActive => isGaugeActive;
@@ -143,6 +145,9 @@ public class ScatterSystem : MonoBehaviour
         var go = new GameObject("ScatterRangeIndicator");
         rangeIndicator = go.AddComponent<ScatterRangeIndicator>();
         rangeIndicator.Hide();
+
+        // M1-S2: 착지 먼지 풀
+        scatterFx = new GameObject("ScatterFx").AddComponent<ScatterFx>();
     }
 
     private void OnEnable()
@@ -561,6 +566,7 @@ public class ScatterSystem : MonoBehaviour
 #endif
             Debug.Log($"[Scatter] complete total={total:F3}s n={n}");
             scatterRoutine = null;
+            AudioManager.Instance?.PlayScatterFinishCue();   // D6 — 꺼져 있으면 no-op. 같은 프레임(시간 불변)
             GameManager.Instance.CurrentGimmick?.OnScatterComplete(stones);
             GameManager.Instance.SetPhase(GameManager.GamePhase.PickThrowStone);
         }
@@ -578,6 +584,7 @@ public class ScatterSystem : MonoBehaviour
         public float DPost;   // 첫 접촉 후 수평 이동 거리 (A→F)
         public float B1, T1, B2, T2, Slide;
         public float SpinDeg; // 전체 Z 회전량(부호 포함)
+        public int Order;     // 안착 돌의 첫 접촉 순서(착지음 음계). 낙 돌은 -1
         public float End => IsNak ? T : T + Mathf.Max(T1 + T2 + Slide, Squash1Dur);
     }
 
@@ -627,10 +634,23 @@ public class ScatterSystem : MonoBehaviour
 
             float spin = FxRange(SpinMinDeg, SpinMaxDeg);
             p.SpinDeg = fxRng.NextDouble() < 0.5 ? -spin : spin;
+            p.Order = -1;
             plans[i] = p;
+        }
 
+        // 착지음 순서 = 첫 접촉 시각(출발 지연 + 체공) 순. 낙 돌은 순서에서 빠진다(§5-6).
+        var safe = new List<int>();
+        for (int i = 0; i < n; i++) if (!plans[i].IsNak) safe.Add(i);
+        safe.Sort((a, b) => (plans[a].Delay + plans[a].T).CompareTo(plans[b].Delay + plans[b].T));
+        for (int k = 0; k < safe.Count; k++) plans[safe[k]].Order = k;
+        tossSafeCount = safe.Count;
+
+        for (int i = 0; i < n; i++)
+        {
+            var p = plans[i];
             Debug.Log($"[Scatter] plan i={i} nak={p.IsNak} S={p.S:F2} A={p.A:F2} F={p.F:F2} " +
-                      $"T={p.T:F3} H={p.H:F2} D={p.DPost:F3} B1={p.B1:F3} delay={p.Delay:F3} end={p.Delay + p.End:F3}");
+                      $"T={p.T:F3} H={p.H:F2} D={p.DPost:F3} B1={p.B1:F3} delay={p.Delay:F3} " +
+                      $"end={p.Delay + p.End:F3} order={p.Order}");
         }
 #if UNITY_EDITOR
         DebugLastStaggerSum = n > 0 ? plans[n - 1].Delay : 0f;
@@ -753,14 +773,30 @@ public class ScatterSystem : MonoBehaviour
     private bool[] tossContact;
     private bool TossContactPlayed(int i) => tossContact != null && tossContact[i];
 
-    /// <summary>접촉 순간 — 소리(S1은 현행 클립 유지; S2에서 음계·먼지로 교체).</summary>
+    /// <summary>접촉 순간 — 안착 돌: 첫 접촉 = 음계 착지음 + 먼지, 둘째 접촉 = 같은 음 작게(n ≤ 5일 때만).
+    /// 낙 돌(S1~S6 임시): 현행처럼 목표 도달 시 기존 클립 1회 — S7에서 교체.</summary>
     private void OnTossContact(int i, TossPlan p, bool second)
     {
-        if (second) return;   // S1: 둘째 접촉 소리는 S2에서
+        var audio = AudioManager.Instance;
+        if (second)
+        {
+            if (p.IsNak || tossPlans.Length > 5) return;   // 보이스 예산: n=10이면 둘째 접촉음 없음
+            float p2 = audio != null ? audio.PlayScatterLand(p.Order, tossSafeCount, true) : 0f;
+            Debug.Log($"[Scatter] land i={i} contact=2 order={p.Order} pitch={p2:F3}");
+            return;
+        }
         if (tossContact == null || tossContact.Length != tossPlans.Length) tossContact = new bool[tossPlans.Length];
         if (tossContact[i]) return;
         tossContact[i] = true;
-        AudioManager.Instance?.PlayScatterHit(i);
+
+        if (p.IsNak)
+        {
+            audio?.PlayScatterHit(i);
+            return;
+        }
+        float pitch = audio != null ? audio.PlayScatterLand(p.Order, tossSafeCount, false) : 0f;
+        scatterFx?.SpawnDust(p.A, fxRng);   // 먼지는 첫 접촉에만 (T1)
+        Debug.Log($"[Scatter] land i={i} contact=1 order={p.Order} pitch={pitch:F3} t={Time.time - tossStartTime:F3}");
     }
 
     private static float SquashCurve(float x)
@@ -794,6 +830,7 @@ public class ScatterSystem : MonoBehaviour
         }
         activeTosses = 0;
         RestoreNakWall();
+        scatterFx?.ClearAll();
         if (hadWork) Debug.Log("[Scatter] ForceCompleteTosses");
     }
 

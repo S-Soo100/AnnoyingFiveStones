@@ -145,6 +145,22 @@ public static class GameTestMenu
         Debug.Log($"[GameTestMenu] 뿌리기 기준값 캡처 완료 → {relPath} ({lines}줄, 결정성={deterministic})");
     }
 
+    // ── M1 체크포인트 청취용 (T3 음계 A/B, D6 마무리음) ─────────────────────────
+    [MenuItem("Tools/테스트: 착지음 음계 A↔B 전환")]
+    public static void ToggleScatterNoteSet()
+    {
+        AudioManager.ActiveNoteSet = AudioManager.ActiveNoteSet == AudioManager.ScatterNoteSet.B_Narrow
+            ? AudioManager.ScatterNoteSet.A_Pentatonic : AudioManager.ScatterNoteSet.B_Narrow;
+        Debug.Log($"[GameTestMenu] 착지음 음계 = {AudioManager.ActiveNoteSet}");
+    }
+
+    [MenuItem("Tools/테스트: 마무리음 켜기↔끄기")]
+    public static void ToggleScatterFinishCue()
+    {
+        AudioManager.FinishCueEnabled = !AudioManager.FinishCueEnabled;
+        Debug.Log($"[GameTestMenu] 마무리음 = {AudioManager.FinishCueEnabled}");
+    }
+
     // ── M1 뿌리기 검증 (계획서 §12 S1 완료 확인) ────────────────────────────────
     // 10나이 × 게이지(0.1/0.45/0.95) 실제 뿌리기를 연속으로 돌려 돌별 diff·총 시간·출발 간격 합을 요약한다.
     // 여러 프레임에 걸치므로 EditorApplication.update로 한 단계씩 진행한다(메뉴는 즉시 반환).
