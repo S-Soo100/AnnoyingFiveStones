@@ -323,7 +323,7 @@ public class GameManager : MonoBehaviour
                 || s == Stone.State.InAir || s == Stone.State.Bouncing) continue;
 
             Vector2 p = new Vector2(stone.transform.position.x, stone.transform.position.y);
-            if (BoardBounds.IsOutsideMat(p, marginAbsolute: BoardSpace.GraceBandWidth)) // v25: 유예 밴드 너머만 낙
+            if (BoardBounds.IsNakInPlay(p)) // M2-S1(D9): Ledge 변 = 보이는 가장자리, Flat 변 = 유예 0.8
             {
                 Debug.Log($"[GameManager] Stone {stone.name} out of mat at {p}. Triggering Fail.");
                 SetFailReason("낙!");
@@ -411,7 +411,7 @@ public class GameManager : MonoBehaviour
             // v14: SafeZone(±5.3 고정) → IsOutsideMat(보이는 보드 MatRect). 낙 경계를 보이는 테이블에 일치.
             // quad 스테이지는 CheckMatBoundaryGlobal이 이미 IsOutsideMat로 동일 판정 → 무변화.
             // 비-quad(age10 등)만 SafeZone(±5.3) → MatRect(±8)로 확장.
-            if (BoardBounds.IsOutsideMat(pos, BoardSpace.GraceBandWidth)) // v25: 유예 밴드 너머만 낙
+            if (BoardBounds.IsNakInPlay(pos)) // M2-S1(D9): Ledge 변 = 보이는 가장자리, Flat 변 = 유예 0.8
             {
                 Debug.Log($"[GameManager] Stone {stone.StoneIndex} out of bounds during play at ({pos.x:F1},{pos.y:F1})");
                 SetFailReason("낙!");
@@ -420,6 +420,42 @@ public class GameManager : MonoBehaviour
             }
         }
     }
+
+#if UNITY_EDITOR
+    /// <summary>M2 검증 전용 — OnBoard 돌 하나를 그 변(보드 좌표 변 중점) 바깥으로 **화면 단위** overshoot만큼
+    /// 키네마틱 텔레포트한다(가장자리에 수직, 화면 바깥 법선 방향). 감지는 기존 감시에 맡긴다.</summary>
+    public Stone DebugForceInPlayNak(FiveStones.Core.BoardEdge edge, float overshoot)
+    {
+        if (stones == null) return null;
+        Stone target = null;
+        foreach (var st in stones)
+            if (st != null && st.gameObject.activeSelf && st.CurrentState == Stone.State.OnBoard) { target = st; break; }
+        if (target == null) { Debug.LogError("[GameManager] DebugForceInPlayNak: OnBoard 돌 없음"); return null; }
+
+        float hw = BoardSpace.LogicalWidth * 0.5f, hd = BoardSpace.LogicalDepth * 0.5f;
+        Vector2 a, b;   // 그 변의 두 끝(보드 좌표)
+        switch (edge)
+        {
+            case FiveStones.Core.BoardEdge.Front: a = new Vector2(-hw, hd);  b = new Vector2(hw, hd);  break;
+            case FiveStones.Core.BoardEdge.Back:  a = new Vector2(-hw, -hd); b = new Vector2(hw, -hd); break;
+            case FiveStones.Core.BoardEdge.Left:  a = new Vector2(-hw, -hd); b = new Vector2(-hw, hd); break;
+            default:                              a = new Vector2(hw, -hd);  b = new Vector2(hw, hd);  break;
+        }
+        Vector2 sa = BoardSpace.ToScreen(a, 0f), sb = BoardSpace.ToScreen(b, 0f);
+        Vector2 mid = (sa + sb) * 0.5f;
+        Vector2 dir = (sb - sa).normalized;
+        Vector2 n = new Vector2(-dir.y, dir.x);
+        Vector2 center = BoardSpace.ToScreen(Vector2.zero, 0f);
+        if (Vector2.Dot(n, mid - center) < 0f) n = -n;
+        Vector2 screen = mid + n * overshoot;
+
+        target.Rb.isKinematic = true;   // 텔레포트: 키네마틱 → 이동 (물리 사출 방지, donts #8)
+        target.SetBoardMotion(BoardSpace.ToBoard(screen), 0f);
+        Debug.Log($"[GameManager] DebugForceInPlayNak stone={target.StoneIndex} edge={edge} overshoot={overshoot:F2} " +
+                  $"screen={screen:F2} nakInPlay={BoardBounds.IsNakInPlay(screen)} oldRule={BoardBounds.IsOutsideMat(screen, BoardSpace.GraceBandWidth)}");
+        return target;
+    }
+#endif
 
     // ── M1-S7 낙 실패 대기 게이트 ──────────────────────────────────────────────
 

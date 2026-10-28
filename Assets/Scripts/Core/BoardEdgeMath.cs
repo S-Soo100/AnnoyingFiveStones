@@ -66,6 +66,62 @@ namespace FiveStones.Core
             return EdgeKind.Flat;
         }
 
+        /// <summary>④ (M2) 플레이 중 화면 사다리꼴 낙 판정 (계획서 §5-2 D9 + D9-b).
+        /// quad = [BL, BR, FL, FR] 화면 좌표. 화면 y는 위가 뒤(하늘)다.
+        ///  1) 하늘 면제: pos.y &gt; max(뒷변 y + flatMargin, skyFloorY)이면 낙 아님 — skyExemptOnlyFlatBack이면 뒷변이 Flat일 때만(D9-b A)
+        ///  2) 사다리꼴 안이면 낙 아님
+        ///  3) Ledge 변의 바깥 부호거리 &gt; ledgeEps이면 낙 (D9: Ledge = 보이는 가장자리, eps는 투영 오차 흡수용)
+        ///  4) 나머지는 현행 Flat 규칙: 둘레까지 유클리드 거리 &gt; flatMargin이면 낙
+        /// 전 변 Flat이면 BoardBounds.IsOutsideMat(pos, flatMargin)과 같은 결과다(테스트로 잠금).</summary>
+        public static bool IsNakScreen(Vector2[] quad, Vector2 pos, BoardEdges kinds, float flatMargin, float ledgeEps,
+                                       bool skyExemptOnlyFlatBack, float skyFloorY)
+        {
+            Vector2 bl = quad[0], br = quad[1], fl = quad[2], fr = quad[3];
+            bool exemptAllowed = !skyExemptOnlyFlatBack || kinds.Back == EdgeKind.Flat;
+            if (exemptAllowed)
+            {
+                float sky = Mathf.Max(Mathf.Max(bl.y, br.y) + flatMargin, skyFloorY);
+                if (pos.y > sky) return false;
+            }
+
+            float c0 = Cross(bl, br, pos), c1 = Cross(br, fr, pos), c2 = Cross(fr, fl, pos), c3 = Cross(fl, bl, pos);
+            bool inside = (c0 >= 0f && c1 >= 0f && c2 >= 0f && c3 >= 0f) || (c0 <= 0f && c1 <= 0f && c2 <= 0f && c3 <= 0f);
+            if (inside) return false;
+
+            Vector2 centroid = (bl + br + fl + fr) * 0.25f;
+            if (kinds.Back == EdgeKind.Ledge && OutwardDistance(bl, br, centroid, pos) > ledgeEps) return true;
+            if (kinds.Right == EdgeKind.Ledge && OutwardDistance(br, fr, centroid, pos) > ledgeEps) return true;
+            if (kinds.Front == EdgeKind.Ledge && OutwardDistance(fr, fl, centroid, pos) > ledgeEps) return true;
+            if (kinds.Left == EdgeKind.Ledge && OutwardDistance(fl, bl, centroid, pos) > ledgeEps) return true;
+
+            if (flatMargin <= 0f) return true;
+            float d = SegmentDistance(pos, bl, br);
+            d = Mathf.Min(d, SegmentDistance(pos, br, fr));
+            d = Mathf.Min(d, SegmentDistance(pos, fr, fl));
+            d = Mathf.Min(d, SegmentDistance(pos, fl, bl));
+            return d > flatMargin;
+        }
+
+        private static float Cross(Vector2 a, Vector2 b, Vector2 p) => (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+
+        /// <summary>a→b 직선에서 pos까지의 부호 거리. 다각형 중심 반대쪽(바깥)이 양수.</summary>
+        private static float OutwardDistance(Vector2 a, Vector2 b, Vector2 centroid, Vector2 pos)
+        {
+            Vector2 d = b - a;
+            float len = d.magnitude;
+            if (len < 1e-6f) return 0f;
+            Vector2 n = new Vector2(-d.y, d.x) / len;
+            if (Vector2.Dot(n, centroid - a) > 0f) n = -n;   // 바깥을 향하게
+            return Vector2.Dot(pos - a, n);
+        }
+
+        private static float SegmentDistance(Vector2 p, Vector2 a, Vector2 b)
+        {
+            Vector2 ab = b - a;
+            float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-6f));
+            return Vector2.Distance(p, a + ab * t);
+        }
+
         // 순서 = 동률 우선순위: Left, Right, Front, Back (좌우 우선). 엄격히 클 때만 교체.
         private static BoardEdge PickLargest(float oF, float oB, float oL, float oR, BoardEdges kinds,
                                              EdgeKind? kind, bool onlyCrossed)

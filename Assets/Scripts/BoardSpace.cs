@@ -111,6 +111,10 @@ public static class BoardSpace
     /// <summary>(M2) 플레이 중 Ledge 판정의 투영 부동소수 허용치. 유예가 아니다.</summary>
     public const float LedgeScreenEpsilon = 0.02f;
 
+    /// <summary>(M2, D9-b A 사용자 확정) 플레이 중 "하늘 면제"(뒷변 위 생존)를 뒷변이 Flat일 때만 적용한다.
+    /// Ledge 뒷변(10·15·20·50·55살)은 뒷변 너머로 표류한 돌이 낙이 된다. false = 면제 전부 유지(D9-b B).</summary>
+    public const bool SkyExemptOnlyFlatBack = true;
+
     /// <summary>뿌리기 안전 판정 마진 (변별).</summary>
     public static EdgeMargins ScatterMargins => EdgeMargins.For(Edges, ScatterLedgeMargin, ScatterFlatMargin);
 

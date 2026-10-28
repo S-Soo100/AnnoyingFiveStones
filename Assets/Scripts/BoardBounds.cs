@@ -1,4 +1,5 @@
 using UnityEngine;
+using FiveStones.Core;
 
 /// <summary>
 /// 매트(보드) 영역의 단일 진실 공급원(SOT).
@@ -85,9 +86,24 @@ public static class BoardBounds
     /// <summary>v25 — 유예 밴드 질의: 보드 경계 밖이지만 낙은 아닌 "가장자리" 구간.
     /// 시각 연출·통계·후속 기믹의 정보 훅 (판정 자체는 IsOutsideMat가 담당).
     /// v30: 낙 판정(IsOutsideMat)과 같은 경계를 공유한다 — 모든 위치가 보드/밴드/낙 셋 중
-    /// 정확히 하나가 되도록. 하늘 면제 구간(뒷변 위 생존 돌)도 "보드 밖 생존"이므로 밴드로 분류.</summary>
+    /// 정확히 하나가 되도록. 하늘 면제 구간(뒷변 위 생존 돌)도 "보드 밖 생존"이므로 밴드로 분류.
+    /// M2-S1(D9): 낙 판정이 IsNakInPlay로 바뀌었으므로 같은 경계로 맞춘다(Ledge 변에는 밴드가 사실상 없다).</summary>
     public static bool IsInGraceBand(Vector2 pos)
-        => IsOutsideMatStrict(pos, 0f) && !IsOutsideMat(pos, BoardSpace.GraceBandWidth);
+        => IsOutsideMatStrict(pos, 0f) && !IsNakInPlay(pos);
+
+    /// <summary>M2-S1 — 플레이 중 낙 판정 (계획서 §5-2, D9 + D9-b A).
+    /// Ledge 변 = 보이는 가장자리(+수치 허용치 0.02), Flat 변 = 현행 유클리드 유예 0.8, 하늘 면제는 Flat 뒷변만.
+    /// 같은 사다리꼴 폴리곤 하나를 쓴다(donts #18·#19). quad가 없으면 현행 IsOutsideMat으로 폴백.
+    /// (IsOutsideMat 본문은 롤백 경로로 그대로 둔다.)</summary>
+    public static bool IsNakInPlay(Vector2 pos) => IsNakInPlay(pos, BoardSpace.Edges);
+
+    /// <summary>변 구성을 직접 넘기는 판(검증용 — 전 변 Flat이면 IsOutsideMat과 같아야 한다).</summary>
+    public static bool IsNakInPlay(Vector2 pos, BoardEdges kinds)
+    {
+        if (!HasQuad) return IsOutsideMat(pos, BoardSpace.GraceBandWidth);
+        return BoardEdgeMath.IsNakScreen(overrideQuad, pos, kinds, BoardSpace.GraceBandWidth,
+            BoardSpace.LedgeScreenEpsilon, BoardSpace.SkyExemptOnlyFlatBack, SkyFloorY);
+    }
 
     /// <summary>매트 밖 엄격 판정 — SkyFloor 면제 없음. quad 있으면 사다리꼴 엄격 판정, 없으면 AABB(Y 상한 포함).
     /// 보드 면 위 이동(예: Stage 3 FleeMovement)에서 +Y로 새는 것을 막기 위해 사용.

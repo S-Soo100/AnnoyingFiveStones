@@ -250,6 +250,89 @@ public static class GameTestMenu
         Debug.Log($"[NakVerify] stones {tag}: {sb}");
     }
 
+    // ── M2 플레이 중 낙 (계획서 §12 M2) ──────────────────────────────────────────
+
+    /// <summary>현재 나이에서 시드 뿌리기(낙 없음)로 PickThrowStone까지 간다.</summary>
+    private static System.Collections.IEnumerator PrepareInPlay(int loop)
+    {
+        var gm = GameManager.Instance;
+        GoLoop(loop);
+        float t0 = Time.time;
+        while ((gm.CurrentPhase != GameManager.GamePhase.Scatter || gm.IsTransitioning) && Time.time - t0 < 8f) yield return null;
+        var hand = Object.FindFirstObjectByType<HandController>(FindObjectsInactive.Include);
+        var c = BoardSpace.ToScreen(Vector2.zero, 0f);
+        hand.DebugPlaceHand(new Vector3(c.x, c.y, 0f));
+        Object.FindFirstObjectByType<ScatterSystem>().DebugScatterSeeded(0.45f, 7, new Vector2(0.5f, 0.5f));
+        t0 = Time.time;
+        while (gm.CurrentPhase == GameManager.GamePhase.Scatter && Time.time - t0 < 5f) yield return null;
+    }
+
+    private struct InPlayCase { public int Loop; public FiveStones.Core.BoardEdge Edge; public float Over; public bool ExpectNak; }
+
+    /// <summary>M2-S1 완료 확인: 판정 사례 + 스테이지별 "전 변 Flat이면 IsOutsideMat과 같다" 격자 비교(실제 BoardBounds).</summary>
+    [MenuItem("Tools/테스트 낙(플레이)/검증: S1 판정")]
+    public static void VerifyInPlayJudge() => StartEditorRoutine(VerifyInPlayJudgeRoutine());
+
+    private static System.Collections.IEnumerator VerifyInPlayJudgeRoutine()
+    {
+        var gm = GameManager.Instance;
+        // 1) 격자 비교 — 스테이지마다 quad가 다르다
+        var allFlat = new FiveStones.Core.BoardEdges(FiveStones.Core.EdgeKind.Flat, FiveStones.Core.EdgeKind.Flat,
+                                                     FiveStones.Core.EdgeKind.Flat, FiveStones.Core.EdgeKind.Flat);
+        for (int loop = 1; loop <= 10; loop++)
+        {
+            GoLoop(loop);
+            yield return null;
+            int n = 0, mismatch = 0, nakAllFlat = 0, nakReal = 0;
+            for (float x = -13f; x <= 13f; x += 0.1f)
+                for (float y = -9f; y <= 1f; y += 0.1f)
+                {
+                    var p = new Vector2(x, y);
+                    bool a = BoardBounds.IsNakInPlay(p, allFlat), b = BoardBounds.IsOutsideMat(p, BoardSpace.GraceBandWidth);
+                    if (a != b) mismatch++;
+                    if (a) nakAllFlat++;
+                    if (BoardBounds.IsNakInPlay(p)) nakReal++;
+                    n++;
+                }
+            Debug.Log($"[InPlayVerify] grid loop={loop} edges={BoardSpace.Edges} samples={n} allFlat-vs-IsOutsideMat mismatch={mismatch} " +
+                      $"nak(allFlat)={nakAllFlat} nak(real edges)={nakReal}");
+        }
+
+        // 2) 사례 (계획서 §12 M2-S1 완료 확인 + 경계)
+        var F = FiveStones.Core.BoardEdge.Front; var B = FiveStones.Core.BoardEdge.Back;
+        var Lf = FiveStones.Core.BoardEdge.Left; var R = FiveStones.Core.BoardEdge.Right;
+        var cases = new[]
+        {
+            new InPlayCase { Loop = 1, Edge = F,  Over = 0.05f, ExpectNak = true },
+            new InPlayCase { Loop = 1, Edge = F,  Over = 0.01f, ExpectNak = false },
+            new InPlayCase { Loop = 1, Edge = Lf, Over = 0.05f, ExpectNak = true },
+            new InPlayCase { Loop = 1, Edge = B,  Over = 0.05f, ExpectNak = true },   // D9-b A
+            new InPlayCase { Loop = 4, Edge = F,  Over = 0.05f, ExpectNak = true },
+            new InPlayCase { Loop = 4, Edge = R,  Over = 0.5f,  ExpectNak = false },
+            new InPlayCase { Loop = 7, Edge = R,  Over = 0.5f,  ExpectNak = false },
+            new InPlayCase { Loop = 7, Edge = R,  Over = 0.9f,  ExpectNak = true },
+            new InPlayCase { Loop = 7, Edge = B,  Over = 0.5f,  ExpectNak = false },  // Flat 뒷변 유예
+            new InPlayCase { Loop = 7, Edge = B,  Over = 2.0f,  ExpectNak = false },  // Flat 뒷변 하늘 면제 유지
+        };
+        int bad = 0;
+        foreach (var cs in cases)
+        {
+            var prep = PrepareInPlay(cs.Loop); while (prep.MoveNext()) yield return prep.Current;
+            if (gm.CurrentPhase != GameManager.GamePhase.PickThrowStone)
+            { Debug.LogError($"[InPlayVerify] loop={cs.Loop} 준비 실패 phase={gm.CurrentPhase}"); bad++; continue; }
+            float t0 = Time.time;
+            gm.DebugForceInPlayNak(cs.Edge, cs.Over);
+            while (Time.time - t0 < 1.6f && gm.CurrentPhase != GameManager.GamePhase.Failed) yield return null;
+            bool nak = gm.CurrentPhase == GameManager.GamePhase.Failed;
+            bool ok = nak == cs.ExpectNak;
+            if (!ok) bad++;
+            Debug.Log($"[InPlayVerify] case age={10 + (cs.Loop - 1) * 5} edge={cs.Edge} over={cs.Over:F2} expectNak={cs.ExpectNak} " +
+                      $"nak={nak} after={Time.time - t0:F3}s reason='{(nak ? gm.LastFailReason : "-")}' ok={ok}");
+        }
+        Debug.Log($"[InPlayVerify] SUMMARY cases={cases.Length} bad={bad}");
+        GoLoop(1);
+    }
+
     private static void ForceNak(params Vector2[] targets)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
