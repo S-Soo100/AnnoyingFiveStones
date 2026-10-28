@@ -115,14 +115,15 @@ public class HandCursorUI : MonoBehaviour
         }
     }
 
-    /// <summary>커서가 실제로 "가리키는" 지점 — 펼친 손은 손바닥, 가리키는 손은 손끝.</summary>
+    /// <summary>커서가 실제로 "가리키는" 지점 — 펼친 손·검지 포즈는 검지 끝, 중지 포즈는 중지 끝.
+    /// 펼친 손도 검지 끝이어야 버튼 위에서 검지 포즈로 바뀔 때 손끝이 제자리에 있고 그림이 튀지 않는다
+    /// (예전엔 펼친 손 = 손바닥이라 호버 순간 기준점이 손바닥→손끝으로 뛰었다).</summary>
     private Vector3 HotspotWorld()
     {
         switch (targetPose)
         {
-            case HandPose.PointIndex:  return cursorRig.FingerTip(HandRig.Index);
             case HandPose.PointMiddle: return cursorRig.FingerTip(HandRig.Middle);
-            default:                   return cursorRig.PalmCenter;
+            default:                   return cursorRig.FingerTip(HandRig.Index);
         }
     }
 
@@ -171,12 +172,10 @@ public class HandCursorUI : MonoBehaviour
     {
         switch (pose)
         {
-            case HandPose.PointIndex:
-                return new Vector2(8f, -41f);   // 검지 끝 = 마우스 위치
             case HandPose.PointMiddle:
                 return new Vector2(0f, -45f);   // 중지 끝 = 마우스 위치
             default:
-                return Vector2.zero;            // 손바닥 중심 = 마우스 위치
+                return new Vector2(8f, -41f);   // 검지 끝 = 마우스 위치 (펼친 손도 — HotspotWorld와 같은 규칙)
         }
     }
 
