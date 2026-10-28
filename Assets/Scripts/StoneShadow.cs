@@ -168,8 +168,10 @@ public class StoneShadow : MonoBehaviour
     private void UpdateFallingShadow()
     {
         float stoneX, shadowY, heightAbove;
+        float dia = stoneRenderer != null ? stoneRenderer.bounds.size.x : 0.5f;
+        bool legacy = !(stone != null && stone.HasBoardMotion);
 
-        if (stone != null && stone.HasBoardMotion)
+        if (!legacy)
         {
             // v17: 돌이 자기 보드 좌표와 높이를 안다 → 그림자는 그 좌표의 지면에 정확히 찍힌다.
             // 이것이 "그림자 = 조준선"의 근거다. 돌이 아무리 높아도 그림자는 착지 지점에 머문다.
@@ -185,13 +187,19 @@ public class StoneShadow : MonoBehaviour
             stoneX = transform.position.x;
             shadowY = ComputeShadowY(stoneX);
             heightAbove = transform.position.y - shadowY;
+            // M2: 중심선보다 앞(화면 아래)으로 내려온 돌 — 높이가 음수라 중심선에 가장 진하게 찍히던 것을
+            // 돌 발밑(접지 그림자 자리)으로 붙인다. 보드 앞변 아래로 나가면 아래에서 숨긴다.
+            if (heightAbove < 0f)
+            {
+                shadowY = transform.position.y + dia * ContactYOffMul;
+                heightAbove = 0f;
+            }
         }
 
         float normalizedH = Mathf.Clamp01(heightAbove / HeightNormMax);
 
         // 크기: 높이 낮을수록 작게. v30: 지면(h=0)에서 접지 그림자와 정확히 같은 크기·납작비로
         // 수렴시켜 OnBoard 전환 프레임에 그림자가 튀지 않는다.
-        float dia = stoneRenderer != null ? stoneRenderer.bounds.size.x : 0.5f;
         float scale = Mathf.Lerp(dia * ContactDiaMul, ScaleAtPeak, normalizedH);
         shadowObj.transform.localScale = new Vector3(scale, scale * ContactFlatten, 1f);
 
@@ -204,9 +212,9 @@ public class StoneShadow : MonoBehaviour
 
         // 투명도: 높이 낮을수록 진하게
         float alpha = Mathf.Lerp(AlphaAtGround, AlphaTtPeak, normalizedH) * cutMul;
-        // M2-S3: 구 경로(물리로 떨어지는 튕긴 돌)가 화면상 그림자 지점보다 아래로 내려가면 숨긴다.
-        // 높이가 음수면 normalizedH=0이라 가장 진하게 찍히던 문제(계획서 §5-4) — 그 아래는 허공이다.
-        if (!(stone != null && stone.HasBoardMotion) && heightAbove < 0f) alpha = 0f;
+        // M2-S3: 구 경로(물리로 떨어지는 튕긴 돌)가 보드 앞변 아래로 내려가면 숨긴다 — 그 아래는 허공이다
+        // (기획 v11 §6 "보드 아래로 내려가면 그림자가 없다". 판정선 = CatchSystem.CatchFailY와 같은 앞변).
+        if (legacy && transform.position.y < BoardSpace.FrontScreenY) alpha = 0f;
         shadowRenderer.GetPropertyBlock(mpb);
         mpb.SetColor("_BaseColor", new Color(0f, 0f, 0f, alpha));
         // Unlit 셰이더의 경우 _Color 사용

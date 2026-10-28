@@ -71,6 +71,8 @@ namespace FiveStones.Core
         ///  1) 하늘 면제: pos.y &gt; max(뒷변 y + flatMargin, skyFloorY)이면 낙 아님 — skyExemptOnlyFlatBack이면 뒷변이 Flat일 때만(D9-b A)
         ///  2) 사다리꼴 안이면 낙 아님
         ///  3) Ledge 변의 바깥 부호거리 &gt; ledgeEps이면 낙 (D9: Ledge = 보이는 가장자리, eps는 투영 오차 흡수용)
+        ///     변을 **무한 직선**으로 보는 건 의도다 — 투영이 깊이에 선형이라 옆변 연장선 = 보드 좌표 x=±hw 선이고,
+        ///     연장선 바깥 모서리는 ClassifyOutside의 모서리 통일 규칙(Ledge 선을 하나라도 넘으면 Ledge)과 같아진다.
         ///  4) 나머지는 현행 Flat 규칙: 둘레까지 유클리드 거리 &gt; flatMargin이면 낙
         /// 전 변 Flat이면 BoardBounds.IsOutsideMat(pos, flatMargin)과 같은 결과다(테스트로 잠금).</summary>
         public static bool IsNakScreen(Vector2[] quad, Vector2 pos, BoardEdges kinds, float flatMargin, float ledgeEps,

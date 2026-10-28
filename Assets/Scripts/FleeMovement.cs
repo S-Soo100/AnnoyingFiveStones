@@ -70,7 +70,8 @@ public class FleeMovement : MonoBehaviour
             float elapsed = 0f;
             while (elapsed < fleeDuration)
             {
-                if (stone.CurrentState != Stone.State.OnBoard)
+                // M2: 낙 연출(NakFallPresenter)이 맡은 돌은 더 몰지 않는다 — 떨어지는 중/그 자리 정지(D8)와 싸우지 않게
+                if (stone.CurrentState != Stone.State.OnBoard || stone.InScriptedFall)
                     yield break;
 
                 elapsed += Time.fixedDeltaTime;
@@ -126,7 +127,7 @@ public class FleeMovement : MonoBehaviour
             }
 
             // ─── Rest 상태 ───
-            if (stone.CurrentState != Stone.State.OnBoard)
+            if (stone.CurrentState != Stone.State.OnBoard || stone.InScriptedFall)
                 yield break;
 
             state = FleeState.Rest;

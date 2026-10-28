@@ -168,12 +168,14 @@ public partial class HandController : MonoBehaviour
             bool inSky = isCatchMode
                 ? transform.position.y > skyExit
                 : transform.position.y > skyEnter;
-            if (inSky && !isCatchMode)
+            // M2: 낙 대기 중에는 모드를 바꾸지 않는다 — DisarmThrow가 끈 받기 모드·손 콜라이더가 다시 켜지지 않게
+            bool canSwitch = !GameManager.Instance.IsNakPending;
+            if (canSwitch && inSky && !isCatchMode)
             {
                 SetCatchMode(true);
                 handModel?.SetCollidersEnabled(true);
             }
-            else if (!inSky && isCatchMode)
+            else if (canSwitch && !inSky && isCatchMode)
             {
                 SetCatchMode(false);
                 handModel?.SetCollidersEnabled(false);
@@ -188,8 +190,8 @@ public partial class HandController : MonoBehaviour
         // 그게 호출되지 않는 모드에서 그림자가 마지막 위치에 얼어붙는다.
         UpdateHandShadow();
 
-        // 보드 모드에서만 줍기 판정 (M2-S2: 낙 대기 중에는 이미 누르고 있던 손도 더 줍지 못한다 — D5 B 입력 차단)
-        if (!isCatchMode && isHolding && !(GameManager.Instance != null && GameManager.Instance.IsNakPending))
+        // 보드 모드에서만 줍기 판정 (낙 대기 중에는 TryHoldPick*가 IsInputBlocked로 막는다 — D5 B)
+        if (!isCatchMode && isHolding)
         {
             if (phase == GameManager.GamePhase.PickThrowStone)
             {
@@ -321,7 +323,7 @@ public partial class HandController : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
         if (GameManager.Instance.IsPaused) return;
-        if (GameManager.Instance.IsTransitioning) return;
+        if (GameManager.Instance.IsInputBlocked) return;
 
         var phase = GameManager.Instance.CurrentPhase;
         if (phase == GameManager.GamePhase.PickThrowStone || phase == GameManager.GamePhase.PickStones)
@@ -361,7 +363,7 @@ public partial class HandController : MonoBehaviour
     private void TryHoldPickThrowStone()
     {
         if (throwStone != null) return;
-        if (GameManager.Instance.IsTransitioning) return;
+        if (GameManager.Instance.IsInputBlocked) return;
         if (handModel == null) return;
 
         var allStones = GameManager.Instance.Stones;
@@ -422,7 +424,7 @@ public partial class HandController : MonoBehaviour
     /// <summary>바닥 돌 줍기: Hold 중 손바닥이 돌을 100% 덮으면 줍기</summary>
     private void TryHoldPickStones()
     {
-        if (GameManager.Instance.IsTransitioning) return;
+        if (GameManager.Instance.IsInputBlocked) return;
         if (handModel == null) return;
 
         var allStones = GameManager.Instance.Stones;
@@ -506,7 +508,7 @@ public partial class HandController : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
         if (GameManager.Instance.IsPaused) return; // [P4]
-        if (GameManager.Instance.IsTransitioning) return;
+        if (GameManager.Instance.IsInputBlocked) return;
         var phase = GameManager.Instance.CurrentPhase;
 
         if (phase == GameManager.GamePhase.Throw && throwStone != null)
@@ -519,9 +521,6 @@ public partial class HandController : MonoBehaviour
         }
     }
 
-    /// <summary>M2-S2 (D5 B) — 낙 대기에 들어가면 진행 중인 던지기의 판정을 해제한다.
-    /// 던진 돌은 받기 판정·실패 처리 없이 원래 궤적대로 내려와 던진 자리(h=0)에 조용히 앉는다.
-    /// 집은 돌은 손에 그대로 둔다. 던지기가 진행 중이 아니면 no-op.</summary>
     /// <summary>M2-S2 — 실패 확정 순간 아직 공중인 판정 해제 던지기를 최종 자세(던진 자리 지면)로 맞춘다.
     /// 실패 화면 동안 돌이 공중에 떠 있지 않게(A8과 같은 이유). 판정 해제 던지기가 없으면 no-op.</summary>
     public void ForceLandDisarmedThrow()
@@ -549,6 +548,9 @@ public partial class HandController : MonoBehaviour
         throwCoroutine = null;
     }
 
+    /// <summary>M2-S2 (D5 B) — 낙 대기에 들어가면 진행 중인 던지기의 판정을 해제한다.
+    /// 던진 돌은 받기 판정·실패 처리 없이 원래 궤적대로 내려와 던진 자리(h=0)에 조용히 앉는다.
+    /// 집은 돌은 손에 그대로 둔다. 던지기가 진행 중이 아니면 no-op.</summary>
     public void DisarmThrow()
     {
         if (throwCoroutine == null) return;

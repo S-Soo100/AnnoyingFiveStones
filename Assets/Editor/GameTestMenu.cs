@@ -369,6 +369,7 @@ public static class GameTestMenu
             ("40 right +0.9 (Flat)", 7, () => gm.DebugForceInPlayNak(R, 0.9f)),
             ("10 two at once (front+left)", 1, () => { gm.DebugForceInPlayNak(F, 0.05f, 0); gm.DebugForceInPlayNak(Lf, 0.05f, 1); }),
             ("10 nak during throw", 1, null),
+            ("10 late second (+0.2s)", 1, null),   // 리뷰 반영: 대기 중에 늦게 나간 돌도 연출을 받는다
         };
         Application.logMessageReceived += CaptureLog;
         try
@@ -384,6 +385,12 @@ public static class GameTestMenu
                 float t0 = Time.time;
                 Stone thrown = null;
                 if (cs.act != null) cs.act();
+                else if (cs.tag.StartsWith("10 late"))
+                {
+                    gm.DebugForceInPlayNak(F, 0.05f, 0);
+                    var w = WaitGame(0.2f); while (w.MoveNext()) yield return null;
+                    gm.DebugForceInPlayNak(Lf, 0.05f, 1);   // 첫 돌은 연출 중에도 OnBoard라 nth=1이 다른 돌
+                }
                 else
                 {
                     // 던지는 중 낙: 돌 하나를 던지고 0.3초 뒤(상승 중) 다른 돌을 앞변 너머로
@@ -397,6 +404,8 @@ public static class GameTestMenu
                 while (Time.time - t0 < 2.0f) yield return null;   // 실패 연출 대기(1.5초) 안에서 관찰
                 int fails = 0; foreach (var l in capturedLogs) if (l.Contains("Phase changed to: Failed")) fails++;
                 string extra = thrown != null ? $" thrownState={thrown.CurrentState} thrownKin={thrown.Rb.isKinematic} thrownPos={thrown.transform.position:F2}" : "";
+                int starts = 0; foreach (var l in capturedLogs) if (l.Contains("[NakFall] start")) starts++;
+                extra += $" nakStarts={starts}";
                 Debug.Log($"[InPlayVerify2] === {cs.tag}: fails={fails}{extra}\n  " + string.Join("\n  ", capturedLogs.ConvertAll(l => $"+{float.Parse(l.Substring(0, l.IndexOf(' '))) - t0:F3} {l.Substring(l.IndexOf(' ') + 1)}")));
             }
         }

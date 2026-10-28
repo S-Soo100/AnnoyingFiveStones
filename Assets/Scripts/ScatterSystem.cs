@@ -329,7 +329,7 @@ public class ScatterSystem : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
         if (GameManager.Instance.IsPaused) return;
-        if (GameManager.Instance.IsTransitioning) return;
+        if (GameManager.Instance.IsInputBlocked) return;
         if (GameManager.Instance.CurrentPhase != GameManager.GamePhase.Scatter) return;
 
         if (waitingForPress)
@@ -352,7 +352,7 @@ public class ScatterSystem : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
         if (GameManager.Instance.IsPaused) return;
-        if (GameManager.Instance.IsTransitioning) return;
+        if (GameManager.Instance.IsInputBlocked) return;
         if (GameManager.Instance.CurrentPhase != GameManager.GamePhase.Scatter) return;
         if (!isGaugeActive) return;
 

@@ -113,8 +113,9 @@ public class GameManager : MonoBehaviour
 
     public Transform BoardTransform => boardTransform;
     public int Stage5Step => stage5Step;
-    /// <summary>M2-S2: 낙 대기 중에도 true — 입력(던지기·줍기·뿌리기)이 막힌다(D5 B). private 필드(OnFailed 가드)는 그대로.</summary>
-    public bool IsTransitioning => isTransitioning || isNakPending;
+    public bool IsTransitioning => isTransitioning;
+    /// <summary>M2-S2: 플레이어 입력(던지기·줍기·뿌리기)과 세션을 바꾸는 디버그 조작을 막을지 — 전환 중이거나 낙 대기 중(D5 B).</summary>
+    public bool IsInputBlocked => isTransitioning || isNakPending;
     public bool IsAllClear => isAllClear;
     public bool IsPaused => isPaused;     // [P4]
     public bool IsInTitleScreen => isInTitleScreen; // v13: DebugHUD 스킵버튼 게이팅 (타이틀/엔딩에서 숨김)
@@ -282,8 +283,8 @@ public class GameManager : MonoBehaviour
         }
 
         // 상시 장외 감시: PickThrowStone/PickStones 중 OnBoard 돌이 보드 밖이면 실패
-        // M2-S2: 낙 대기 중에는 건너뛴다(감지된 프레임에 동시에 나간 돌은 이미 전부 등록됐다).
-        if (!isTransitioning && !isNakPending && !isAllClear && !isInTitleScreen && boardTransform != null)
+        // M2: 낙 대기 중에도 계속 본다 — 대기 중에 늦게 나간 돌도 낙 연출을 받는다(BeginNakFail이 연출만 추가).
+        if (!isTransitioning && !isAllClear && !isInTitleScreen && boardTransform != null)
         {
             var phase = currentPhase;
             if (phase == GamePhase.PickThrowStone || phase == GamePhase.PickStones || phase == GamePhase.Throw)
@@ -305,7 +306,6 @@ public class GameManager : MonoBehaviour
     {
         // 게임이 정상 진행 중일 때만 검사
         if (isTransitioning || isAllClear || isInTitleScreen) return;
-        if (isNakPending) return;   // M2-S2
         if (currentPhase == GamePhase.Failed || currentPhase == GamePhase.StageComplete) return;
         if (currentPhase == GamePhase.Scatter) return; // ScatterSystem 자체 판정 사용
 
@@ -324,12 +324,13 @@ public class GameManager : MonoBehaviour
             //   실패 판정은 CatchSystem(catch miss / bounce-grounded)에서 처리.
             if (s == Stone.State.InHand || s == Stone.State.Caught
                 || s == Stone.State.InAir || s == Stone.State.Bouncing) continue;
+            if (nakPresenter != null && nakPresenter.IsPresenting(stone)) continue;   // 이미 낙 연출 중(대기 중 재감지 방지)
 
             Vector2 p = new Vector2(stone.transform.position.x, stone.transform.position.y);
             if (BoardBounds.IsNakInPlay(p)) // M2-S1(D9): Ledge 변 = 보이는 가장자리, Flat 변 = 유예 0.8
             {
                 Debug.Log($"[GameManager] Stone {stone.name} out of mat at {p}. Triggering Fail.");
-                BeginNakFail(stone, "낙!");   // M2-S2: 낙하 연출 후 실패. 같은 프레임의 다른 낙 돌도 계속 등록
+                BeginNakFail(stone, "낙!");   // M2-S2: 낙하 연출 후 실패. 다른 낙 돌도 계속 등록(대기 중 포함)
             }
         }
     }
@@ -407,6 +408,7 @@ public class GameManager : MonoBehaviour
         {
             if (stone.CurrentState != Stone.State.OnBoard) continue;
             if (!stone.gameObject.activeSelf) continue;
+            if (nakPresenter != null && nakPresenter.IsPresenting(stone)) continue;   // 이미 낙 연출 중(대기 중 재감지 방지)
 
             Vector2 pos = new Vector2(stone.transform.position.x, stone.transform.position.y);
             // v14: SafeZone(±5.3 고정) → IsOutsideMat(보이는 보드 MatRect). 낙 경계를 보이는 테이블에 일치.
@@ -415,7 +417,7 @@ public class GameManager : MonoBehaviour
             if (BoardBounds.IsNakInPlay(pos)) // M2-S1(D9): Ledge 변 = 보이는 가장자리, Flat 변 = 유예 0.8
             {
                 Debug.Log($"[GameManager] Stone {stone.StoneIndex} out of bounds during play at ({pos.x:F1},{pos.y:F1})");
-                BeginNakFail(stone, "낙!");   // M2-S2: 낙하 연출 후 실패. 같은 프레임의 다른 낙 돌도 계속 등록
+                BeginNakFail(stone, "낙!");   // M2-S2: 낙하 연출 후 실패. 다른 낙 돌도 계속 등록(대기 중 포함)
             }
         }
     }
@@ -965,7 +967,7 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void DebugCompleteCurrentLoop()
     {
-        if (isTransitioning || transitionCoroutine != null || isAllClear)
+        if (isTransitioning || isNakPending || transitionCoroutine != null || isAllClear)   // M2: 낙 대기 중 포함
         {
             Debug.Log("[GameManager] DebugCompleteCurrentLoop ignored — already transitioning or all-clear.");
             return;

@@ -20,7 +20,7 @@ public static class DebugPlayMenus
         var gm = GameManager.Instance;
         var session = GameSession.Instance;
         if (gm == null || session == null) { Debug.LogWarning("[DebugPlayMenus] GameManager/GameSession 없음"); return; }
-        if (gm.IsTransitioning) { Debug.LogWarning("[DebugPlayMenus] 전환 중 — 무시(세션 불변)"); return; }
+        if (gm.IsInputBlocked) { Debug.LogWarning("[DebugPlayMenus] 전환 중 — 무시(세션 불변)"); return; }
 
         for (int i = 1; i <= 4; i++) session.OnStageComplete(i); // 1~4단은 세션에만 반영 (TEST 패널과 동일)
         gm.DebugCompleteCurrentLoop();                           // 5단은 정상 클리어 흐름 (ShowClear 경유)

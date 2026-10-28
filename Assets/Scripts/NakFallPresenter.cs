@@ -12,7 +12,7 @@ using FiveStones.Core;
 ///
 /// 2.5D 좌표: X=좌우, Y=상하, Z=깊이(카메라 z=-10, 작을수록 앞). 판 레이어 z=30, 배경 z=40, 돌 z=0.
 /// 각 연출은 시작 시 GameManager.AddNakBusy, 끝날 때 ReleaseNakBusy + NotifyNakStoneEnded를 부른다.
-/// (M2: HoldOnFlat·WatchPhysicsFall은 아직 없다)
+/// M2: 플레이 중 Flat 너머 낙은 HoldOnFlat(그 자리 정지), 손가락에 튕긴 돌은 WatchPhysicsFall(물리 그대로 지켜보기).
 /// </summary>
 public class NakFallPresenter : MonoBehaviour
 {

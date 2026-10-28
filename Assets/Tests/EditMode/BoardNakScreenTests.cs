@@ -127,5 +127,19 @@ namespace FiveStones.Tests
             // 앞선 안쪽, 오른쪽만 0.3 바깥 → 유예
             Assert.IsFalse(Nak(new Vector2(10.24f - 0.05f + 0.3f, -7.10f), Age25));
         }
+
+        private static readonly BoardEdges Age35 = new BoardEdges(EdgeKind.Ledge, EdgeKind.Flat, EdgeKind.Ledge, EdgeKind.Ledge);
+
+        [Test]
+        public void 모서리_35살_뒤Flat_좌Ledge는_보드좌표_모서리_통일규칙과_같다()
+        {
+            // 화면에서 옆변 연장선 = 보드 좌표 x=±hw 선(투영이 깊이에 선형 — BoardGeometry.Project).
+            // 그래서 뒷변 바로 위, 연장선 바깥(BL 바로 위)은 보드 좌표로 "좌·뒤 모서리" 영역이고,
+            // ClassifyOutside의 모서리 통일 규칙(Ledge 선을 하나라도 넘으면 Ledge)과 같이 낙이다.
+            var aboveBL = new Vector2(Quad[0].x + 0.05f, Quad[0].y + 0.3f);
+            Assert.IsTrue(Nak(aboveBL, Age35), "좌 Ledge 연장선 바깥 = 모서리 → 낙");
+            // 같은 높이라도 연장선 안쪽(뒷변 띠 한가운데)은 Flat 뒷변 유예로 생존
+            Assert.IsFalse(Nak(new Vector2(0f, Quad[0].y + 0.3f), Age35), "뒷변 띠 안쪽 → 생존");
+        }
     }
 }

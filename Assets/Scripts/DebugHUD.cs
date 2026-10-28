@@ -195,7 +195,7 @@ public class DebugHUD : MonoBehaviour
             // 아래 DebugCompleteCurrentLoop가 전환 가드에 걸려 무시되면, 나이/단이 어긋난 채
             // 남았다(2026-10-17 직접 플레이에서 나이 20→24 꼬임 실측). 세션과 GameManager는
             // 항상 한 덩어리로 진행되거나 한 덩어리로 무시돼야 한다.
-            if (gm.IsTransitioning)
+            if (gm.IsInputBlocked)   // M2: 낙 대기 중에도 무시 — 곧 실패 확정이 와서 세션만 앞서 나간다
             {
                 Debug.Log("[DebugHUD] 다음 스테이지로 — 전환 중이라 무시(세션 불변)");
             }
