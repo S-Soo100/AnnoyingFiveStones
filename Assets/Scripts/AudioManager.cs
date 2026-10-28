@@ -591,6 +591,14 @@ public class AudioManager : MonoBehaviour
                   ActiveBase * Mathf.Pow(2f, cue / 12f));
     }
 
+    /// <summary>M1-S3 (D4-A): 게이지 중 손 안의 돌 달그락. 게이지 틱음을 대체한다.
+    /// clipIndex(0~4)·pitch(1.30~1.50)는 호출부의 연출 난수가 정한다. 볼륨은 게이지에 비례.</summary>
+    public void PlayScatterRattle(float gauge, int clipIndex, float pitch)
+    {
+        float vol = Mathf.Lerp(0.04f, 0.16f, Mathf.Clamp01(gauge));
+        PlayVoice(scatterRattleVoices, scatterRattleStart, $"scatter_hit_{Mathf.Clamp(clipIndex, 0, 4)}", vol, pitch);
+    }
+
     /// <summary>빈 보이스가 있으면 그걸, 없으면 가장 오래전에 시작한 보이스를 빼앗는다.</summary>
     private void PlayVoice(AudioSource[] voices, float[] startTimes, string clipName, float volumeScale, float pitch)
     {

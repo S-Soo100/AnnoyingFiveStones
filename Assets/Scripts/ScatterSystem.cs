@@ -74,6 +74,22 @@ public class ScatterSystem : MonoBehaviour
     private const float Squash2Y = 0.97f, Squash2XZ = 1.015f, Squash2Dur = 0.05f;
     private const float SquashRise = 0.30f;
 
+    // 쥐기·달그락 (M1-S3, 계획서 §5-5 "쥐기")
+    private const float GatherDuration = 0.12f, GatherXScale = 0.5f, GatherY = 0.04f; // 돌을 손 안으로 모은다
+    private const float RattleIntervalSlow = 0.16f, RattleIntervalFast = 0.07f;      // g=0 → g=1
+    private const float HandShakeMin = 0.004f, HandShakeMax = 0.030f;                // × g² — 손 모델 피벗만
+    private const float StoneShakeMin = 0.003f, StoneShakeMax = 0.020f;              // × g
+    private const float ShakeDecay = 30f;                                            // × exp(−30·dt)
+    private const float RattlePitchMin = 1.30f, RattlePitchMax = 1.50f;
+    /// <summary>놓는 순간 손·돌만 멈추는 시간. Time.timeScale은 건드리지 않는다(F10).</summary>
+    private const float HitStopSeconds = 0.05f;
+
+    private Stone[] gripStones;
+    private Vector3[] gripBaseLocal;
+    private Vector2[] stoneShake;
+    private Vector2 handShake;
+    private float gatherT, rattleTimer;
+
     /// <summary>연출 전용 난수(T6). 목표 계산(UnityEngine.Random)과 분리 — 연출을 바꿔도 목표가 그대로다.</summary>
     private System.Random fxRng = new System.Random();
 
@@ -124,6 +140,63 @@ public class ScatterSystem : MonoBehaviour
         GaugeBarUI.Instance?.Hide();
         rangeIndicator?.Hide();
         ForceCompleteTosses();   // M1-S1: 지난 뿌리기의 토스·완료 처리가 새 스테이지로 새지 않게
+        CancelGrip(restoreStones: false);   // M1-S3: 돌은 이어서 ResetAllStones가 정리한다
+#if UNITY_EDITOR
+        debugGaugeFrozen = false;
+#endif
+    }
+
+    /// <summary>쥐기 연출 취소 — 손가락 펼침·오프셋 0. restoreStones면 돌을 손바닥 원래 자리로.</summary>
+    private void CancelGrip(bool restoreStones)
+    {
+        handShake = Vector2.zero;
+        if (stoneShake != null) System.Array.Clear(stoneShake, 0, stoneShake.Length);
+        handController?.CancelScatterGrip();
+        if (!restoreStones || gripStones == null || gripBaseLocal == null || handController == null) return;
+        for (int i = 0; i < gripStones.Length; i++)
+            if (gripStones[i] != null && gripStones[i].transform.parent == handController.transform)
+                gripStones[i].transform.localPosition = gripBaseLocal[i];
+    }
+
+    /// <summary>게이지 중 매 프레임 — 돌 모으기(0.12초) + 달그락(손 피벗·돌 개별 흔들림·소리).</summary>
+    private void UpdateGrip(float dt, float g)
+    {
+        gatherT = Mathf.Min(1f, gatherT + dt / GatherDuration);
+        float ge = 1f - (1f - gatherT) * (1f - gatherT);
+
+        float decay = Mathf.Exp(-ShakeDecay * dt);
+        handShake *= decay;
+        if (stoneShake != null) for (int i = 0; i < stoneShake.Length; i++) stoneShake[i] *= decay;
+
+        rattleTimer -= dt;
+        if (rattleTimer <= 0f)
+        {
+            rattleTimer = Mathf.Lerp(RattleIntervalSlow, RattleIntervalFast, g) * FxRange(0.85f, 1.15f);
+            handShake = FxDir() * Mathf.Lerp(HandShakeMin, HandShakeMax, g * g);
+            if (stoneShake != null)
+                for (int i = 0; i < stoneShake.Length; i++)
+                    stoneShake[i] = FxDir() * Mathf.Lerp(StoneShakeMin, StoneShakeMax, g);
+            AudioManager.Instance?.PlayScatterRattle(g, fxRng.Next(0, 5), FxRange(RattlePitchMin, RattlePitchMax));
+        }
+
+        handController?.SetScatterRattle(handShake);
+        if (gripStones == null || gripBaseLocal == null || handController == null) return;
+        for (int i = 0; i < gripStones.Length; i++)
+        {
+            var st = gripStones[i];
+            if (st == null || st.transform.parent != handController.transform) continue;
+            Vector3 b = gripBaseLocal[i];
+            Vector3 gathered = new Vector3(b.x * GatherXScale, GatherY, b.z);
+            Vector3 lp = Vector3.Lerp(b, gathered, ge);
+            Vector2 sh = stoneShake != null && i < stoneShake.Length ? stoneShake[i] : Vector2.zero;
+            st.transform.localPosition = lp + new Vector3(sh.x, sh.y, 0f);
+        }
+    }
+
+    private Vector2 FxDir()
+    {
+        float a = (float)fxRng.NextDouble() * Mathf.PI * 2f;
+        return new Vector2(Mathf.Cos(a), Mathf.Sin(a));
     }
 
     /// <summary>뿌리기 코루틴 시작 — 진행 중인 뿌리기가 있으면 먼저 끝낸다.</summary>
@@ -181,11 +254,15 @@ public class ScatterSystem : MonoBehaviour
             if (currentGaugeValue <= 0f) { currentGaugeValue = 0f; gaugeGoingUp = true; }
         }
 
+#if UNITY_EDITOR
+        if (debugGaugeFrozen) currentGaugeValue = debugFrozenGauge;   // 검증용 게이지 고정
+#endif
         GaugeBarUI.Instance?.SetValue(currentGaugeValue);
         // 링 중심도 커서(손) 위치 — DoScatter의 centerUV와 동일 계산/clamp로 프리뷰 정합.
         rangeIndicator?.UpdateRing(RadiusBoard(currentGaugeValue),
                                    BoardSpace.Current.UvToBoard(ScatterCenterUV()));
-        AudioManager.Instance?.PlayGaugeTick();
+        // M1-S3 (D4-A): 게이지 틱음(PlayGaugeTick)은 손 안 돌의 달그락으로 대체한다.
+        UpdateGrip(Time.deltaTime, currentGaugeValue);
     }
 
     private bool waitingForPress;
@@ -216,6 +293,13 @@ public class ScatterSystem : MonoBehaviour
             idx++;
         }
 
+        // M1-S3: 쥐기 연출의 기준 — 손바닥 위 원래 자리(짧게 뗌 취소 시 여기로 되돌린다)
+        gripStones = stones;
+        gripBaseLocal = new Vector3[stones.Length];
+        stoneShake = new Vector2[stones.Length];
+        for (int i = 0; i < stones.Length; i++) gripBaseLocal[i] = stones[i].transform.localPosition;
+        handShake = Vector2.zero;
+
         waitingForPress = true;
         isGaugeActive = false;
         currentGaugeValue = 0f;
@@ -240,6 +324,10 @@ public class ScatterSystem : MonoBehaviour
             gaugeGoingUp = true;
             gaugeActiveTime = 0f;
             rangeIndicator?.Show();
+            // M1-S3: 쥐기 — 손가락 0.55 + 돌을 손 안으로 모으기 시작
+            gatherT = 0f;
+            rattleTimer = RattleIntervalSlow;
+            handController?.BeginScatterGrip();
             Debug.Log("[ScatterSystem] Gauge started!");
         }
     }
@@ -261,6 +349,7 @@ public class ScatterSystem : MonoBehaviour
             waitingForPress = true;
             GaugeBarUI.Instance?.SetValue(0f); // 바는 유지(재대기), 값만 0으로 — Hide하면 다음 Press에 안 켜져 사라짐
             rangeIndicator?.Hide();
+            CancelGrip(restoreStones: true);   // M1-S3: 손가락 펼침, 오프셋 0, 돌 원위치
             return;
         }
 
@@ -289,6 +378,25 @@ public class ScatterSystem : MonoBehaviour
         GaugeBarUI.Instance?.Hide();
         rangeIndicator?.Hide();
         StartScatterRoutine(gauge);
+    }
+
+    // ── M1-S3 검증용 게이지 고정 (에디터 전용) — 마우스 없이 실제 누름/놓음 경로를 태운다 ──
+    private bool debugGaugeFrozen;
+    private float debugFrozenGauge;
+
+    /// <summary>누름과 같은 경로로 게이지를 시작하고 값을 g에 고정한다(쥐기·달그락 확인용).</summary>
+    public void DebugGaugeHold(float g)
+    {
+        OnPressStarted(default);
+        debugGaugeFrozen = isGaugeActive;
+        debugFrozenGauge = g;
+    }
+
+    /// <summary>놓음과 같은 경로(짧게 뗌 판정·히트스톱·손 캐스트 포함).</summary>
+    public void DebugGaugeRelease()
+    {
+        debugGaugeFrozen = false;
+        OnPressReleased(default);
     }
 
     // ── M1-S0 기준값 캡처 (에디터 전용) ──────────────────────────────────────
@@ -498,6 +606,26 @@ public class ScatterSystem : MonoBehaviour
         //   재캡처 + 토스 시작 → 유저 릴리스와 돌 발사 타이밍 일치(체감 딜레이 제거).
         //   손 캐스트 연출(DoScatterThrow)은 돌과 무관하게 병렬 진행.
 
+        // ── 히트스톱 (M1-S3): 놓은 뒤 0.05초 손·돌만 멈춘다. Time.timeScale은 건드리지 않는다(F10 —
+        //    30살 방해물 공 등 다른 것은 계속 움직인다). 손은 DoScatterThrow가 신호를 기다리며 정지해 있다.
+#if UNITY_EDITOR
+        var hsObstacles = FindObjectsByType<Obstacle>(FindObjectsSortMode.None);
+        var hsObsPos = new Vector3[hsObstacles.Length];
+        for (int k = 0; k < hsObstacles.Length; k++) hsObsPos[k] = hsObstacles[k].transform.position;
+        float hsStart = Time.time;
+#endif
+        for (float hs = 0f; hs < HitStopSeconds; )
+        {
+            yield return null;
+            hs += Time.deltaTime;
+        }
+#if UNITY_EDITOR
+        float hsMove = 0f;
+        for (int k = 0; k < hsObstacles.Length; k++)
+            if (hsObstacles[k] != null) hsMove = Mathf.Max(hsMove, (hsObstacles[k].transform.position - hsObsPos[k]).magnitude);
+        Debug.Log($"[Scatter] hitstop {Time.time - hsStart:F3}s timeScale={Time.timeScale:F2} obstacles={hsObstacles.Length} obstacleMove={hsMove:F4}");
+#endif
+
         // ── 3) 준비: 모든 돌 InHand(kinematic) + 콜라이더 반경 ──
         // M1-S1(T6): 여기서부터의 무작위(간격·체공 지터·회전)는 fxRng만 쓴다.
         //   UnityEngine.Random은 위 1)~2.3) 목표 계산 전용 — 연출을 바꿔도 목표가 안 바뀌게.
@@ -509,6 +637,10 @@ public class ScatterSystem : MonoBehaviour
             var col = stones[i].GetComponent<SphereCollider>();
             if (col != null) col.radius = 0.9f;
         }
+
+        // 히트스톱 해제 신호 — 돌을 손에서 떼어 낸 **뒤에** 보낸다(같은 프레임). 손 캐스트가 먼저 움직이면
+        // 아직 손 자식인 돌의 출발점이 같이 끌려간다.
+        handController?.ReleaseScatterHitStop();
 
         // 출발점도 보드 좌표로 — 토스 전체를 보드 공간에서 계산해야 원근 스케일이 따라온다.
         var startBoard = new Vector2[n];

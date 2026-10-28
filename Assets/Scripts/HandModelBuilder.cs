@@ -387,7 +387,31 @@ public class HandModelBuilder : MonoBehaviour
     public void SetPerspectiveScale(float k)
     {
         if (modelPivot == null) return;
-        modelPivot.localScale = Vector3.one * Mathf.Max(0.01f, k);
+        pivotPerspK = Mathf.Max(0.01f, k);
+        ApplyPivot();
+    }
+
+    // ── M1-S3 뿌리기 손 연출 — 원근 배율·스쿼시·오프셋을 **피벗 하나에 합성**한다 ──
+    // 피벗만 움직이므로 손 루트(링 중심·히트박스 기준)는 그대로다(계획서 F11).
+    // 프리미티브 폴백(modelPivot 없음)에서는 전부 no-op.
+    private float pivotPerspK = 1f;
+    private Vector2 pivotSquash = Vector2.one;
+    private Vector3 pivotOffset = Vector3.zero;
+
+    /// <summary>게이지 중 달그락 흔들림 — 손 루트 로컬 오프셋.</summary>
+    public void SetVisualOffset(Vector3 offset) { pivotOffset = offset; ApplyPivot(); }
+
+    /// <summary>손 펼침 스쿼시 (x, y 배율, 1 = 없음). 원근 배율에 곱해진다.</summary>
+    public void SetVisualSquash(float sx, float sy) { pivotSquash = new Vector2(sx, sy); ApplyPivot(); }
+
+    /// <summary>오프셋 0, 스쿼시 1로 복원 (원근 배율은 유지).</summary>
+    public void ResetVisualFx() { pivotOffset = Vector3.zero; pivotSquash = Vector2.one; ApplyPivot(); }
+
+    private void ApplyPivot()
+    {
+        if (modelPivot == null) return;
+        modelPivot.localScale = new Vector3(pivotPerspK * pivotSquash.x, pivotPerspK * pivotSquash.y, pivotPerspK);
+        modelPivot.localPosition = pivotOffset;
     }
 
 #if UNITY_EDITOR

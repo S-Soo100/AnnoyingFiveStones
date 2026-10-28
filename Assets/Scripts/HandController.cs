@@ -63,6 +63,8 @@ public partial class HandController : MonoBehaviour
     private Coroutine stage5Coroutine;
     private Coroutine throwCoroutine;
     private Coroutine flickCoroutine;
+    private Coroutine scatterSquashCoroutine;   // M1-S3 손 펼침 스쿼시
+    private bool scatterHitStopWaiting;         // M1-S3 놓은 직후 히트스톱 신호 대기 중
 
     [Header("Stage 5 Height Settings")]
     [SerializeField] private float stage5HeightStep = 0.4f;   // 돌 간 높이 간격 (부드럽게 모임)
@@ -1024,20 +1026,73 @@ public partial class HandController : MonoBehaviour
         flickCoroutine = StartCoroutine(DoScatterThrow());
     }
 
+    // ── M1-S3 뿌리기 쥐기·달그락·히트스톱 (계획서 §5-5 "쥐기", 시간표) ──
+    private const float ScatterGripFold = 0.55f;          // 쥔 손 (U2: 사용자 눈 확인)
+    private const float ScatterHitStopTimeout = 0.2f;     // 신호가 안 오면 이 시간 뒤 스스로 푼다
+    private const float ScatterOpenSquashX = 1.06f, ScatterOpenSquashY = 0.94f, ScatterOpenSquashDur = 0.10f;
+
+    /// <summary>게이지 시작 — 손가락을 0.55로 접는다(0.1초). 돌 모으기·흔들림은 ScatterSystem이 한다.</summary>
+    public void BeginScatterGrip()
+    {
+        float v = ScatterGripFold;
+        StartFingerFold(new[] { v, v, v, v, v });
+        handModel?.ResetVisualFx();
+    }
+
+    /// <summary>게이지 중 달그락 — 손 **모델 피벗**만 흔든다. 손 루트(링 중심·히트박스)는 그대로(F11).</summary>
+    public void SetScatterRattle(Vector2 offset) => handModel?.SetVisualOffset(new Vector3(offset.x, offset.y, 0f));
+
+    /// <summary>짧게 눌렀다 뗌·스테이지 전환 — 손가락 펼침, 오프셋 0.</summary>
+    public void CancelScatterGrip()
+    {
+        AnimateFingerFold(false);
+        handModel?.ResetVisualFx();
+    }
+
+    /// <summary>DoScatter가 히트스톱(0.05초)을 다 센 순간 부른다. 대기 중인 손을 **같은 프레임에** 펼친다
+    /// (코루틴 폴링이면 한 프레임 늦을 수 있어 여기서 직접 캐스트를 시작한다). 대기 중이 아니면 오프셋만 정리.</summary>
+    public void ReleaseScatterHitStop()
+    {
+        handModel?.SetVisualOffset(Vector3.zero);
+        if (!scatterHitStopWaiting) return;
+        scatterHitStopWaiting = false;
+        if (flickCoroutine != null) StopCoroutine(flickCoroutine);
+        flickCoroutine = StartCoroutine(DoScatterCast());
+    }
+
     /// <summary>
-    /// 뿌리기 던지기 안무: 윈드업(뒤/위 젖힘) → 캐스트(앞/아래 스냅, 손가락 펼침) → 팔로스루(커서 복귀).
-    /// 캐스트 끝(≈0.22s)에 ScatterSystem.DoScatter가 돌을 detach+토스 시작 → 타이밍 정렬.
-    /// suppressCursorFollow로 토스 동안 손 position을 코루틴이 직접 제어.
+    /// 뿌리기 놓기: 히트스톱(손·돌 정지, Time.timeScale 불변) → 신호 → 캐스트.
+    /// suppressCursorFollow로 정지·캐스트 동안 손 position을 코루틴이 직접 제어.
     /// </summary>
     private IEnumerator DoScatterThrow()
+    {
+        suppressCursorFollow = true;          // 히트스톱 동안 손이 커서를 따라가지 않게(정지)
+        scatterHitStopWaiting = true;
+        float waited = 0f;
+        while (scatterHitStopWaiting && waited < ScatterHitStopTimeout)
+        {
+            waited += Time.deltaTime;
+            yield return null;
+        }
+        if (!scatterHitStopWaiting) yield break;  // ReleaseScatterHitStop이 이미 캐스트를 시작했다
+        scatterHitStopWaiting = false;            // 타임아웃 — 신호 없이 스스로 푼다
+        flickCoroutine = StartCoroutine(DoScatterCast());
+    }
+
+    /// <summary>
+    /// 캐스트(앞/아래 스냅, 손가락 펼침 + 피벗 스쿼시) → 팔로스루(커서 복귀).
+    /// </summary>
+    private IEnumerator DoScatterCast()
     {
         suppressCursorFollow = true;          // 토스 동안 커서추종 OFF (손 position 제어)
         Vector3 P0 = transform.position;      // 릴리스 시작점(=현재 커서 위치)
         float biasX = Mathf.Clamp((0f - P0.x) * 0.15f, -0.4f, 0.4f); // 보드중심 쪽 살짝
         Vector3 castPos = P0 + new Vector3(biasX, -0.35f, 0f); // 앞/아래로 살짝
 
-        AnimateFingerFold(false);
-        // v16: 윈드업 제거 — 돌은 이미 날아감(DoScatter 즉시 토스). 놓는 즉시 캐스트 스냅 → 팔로스루 복귀.
+        AnimateFingerFold(false);             // 펼침 0.1초
+        if (scatterSquashCoroutine != null) StopCoroutine(scatterSquashCoroutine);
+        scatterSquashCoroutine = StartCoroutine(DoScatterOpenSquash());
+        // v16: 윈드업 제거 — 놓는 즉시 캐스트 스냅 → 팔로스루 복귀.
         yield return LerpHand(P0, castPos, 0f, -22f, 0.10f, easeOut: false);
         Vector3 cursorNow = ReadCursorWorld();
         yield return LerpHand(castPos, cursorNow, -22f, 0f, 0.15f, easeOut: true);
@@ -1045,6 +1100,22 @@ public partial class HandController : MonoBehaviour
         transform.rotation = Quaternion.identity;
         suppressCursorFollow = false;         // 커서추종 재개
         flickCoroutine = null;
+    }
+
+    /// <summary>손 펼침 스쿼시 (1.06, 0.94) → 1, 0.10초 ease-out. 피벗에만 건다.</summary>
+    private IEnumerator DoScatterOpenSquash()
+    {
+        float e = 0f;
+        while (e < ScatterOpenSquashDur)
+        {
+            e += Time.deltaTime;
+            float u = Mathf.Clamp01(e / ScatterOpenSquashDur);
+            float k = (1f - u) * (1f - u);   // 1 → 0 (ease-out 복귀)
+            handModel?.SetVisualSquash(1f + (ScatterOpenSquashX - 1f) * k, 1f + (ScatterOpenSquashY - 1f) * k);
+            yield return null;
+        }
+        handModel?.SetVisualSquash(1f, 1f);
+        scatterSquashCoroutine = null;
     }
 
     /// <summary>손 position/손목회전(z)을 dur 동안 보간. z는 -0.5 유지. easeOut=1-(1-t)², else t².</summary>
@@ -1186,6 +1257,14 @@ public partial class HandController : MonoBehaviour
             StopCoroutine(flickCoroutine);
             flickCoroutine = null;
         }
+        // M1-S3: 히트스톱 대기·펼침 스쿼시 정리 + 피벗 오프셋/스쿼시 복원
+        scatterHitStopWaiting = false;
+        if (scatterSquashCoroutine != null)
+        {
+            StopCoroutine(scatterSquashCoroutine);
+            scatterSquashCoroutine = null;
+        }
+        handModel?.ResetVisualFx();
         transform.rotation = Quaternion.identity;
         suppressCursorFollow = false; // 커서추종 복원 (토스 중 리셋 안전망)
         // 손가락 펼침 상태로 즉시 복원
