@@ -1,4 +1,5 @@
 using UnityEngine;
+using FiveStones.Core;
 
 // BackgroundProp은 BackgroundProp.cs에 정의됨 (동일 어셈블리)
 
@@ -68,6 +69,10 @@ public class StageConfig
     // (backY, frontY, backHalf, frontHalf, centerX). 미지정 시 1단(age10) 값.
     public BoardProfile Board = new BoardProfile(-2.67f, -7.15f, 5.54f, 10.24f, 0.17f);
 
+    // M1-S5: 변 너머가 허공(Ledge)인가 같은 높이 바닥(Flat)인가 — 계획서 §5-1 표(아트 판독, 사용자 확정).
+    // 앞변은 전 스테이지 Ledge. 미지정 = 전 변 Ledge(10·15·50·55살).
+    public BoardEdges Edges = BoardEdges.AllLedge;
+
     // 정적 데이터: 10개 스테이지 정의
     private static readonly StageConfig[] stages = new StageConfig[]
     {
@@ -115,6 +120,7 @@ public class StageConfig
             BackgroundImage="StageBackgrounds/Life/v2/age20_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age20")
             BoardImage     ="StageBackgrounds/Life/v2/age20_board", // 포장마차 테이블 레이어
             Board = new BoardProfile(-2.95f, -7.52f, 5.28f, 10.05f, 0f), // v26 가이드 실측
+            Edges = new BoardEdges(EdgeKind.Ledge, EdgeKind.Ledge, EdgeKind.Flat, EdgeKind.Flat), // M1-S5 20살 포장마차: 좌우 옆 테이블
             // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
@@ -135,6 +141,7 @@ public class StageConfig
             BackgroundImage = "StageBackgrounds/Life/v2/age25_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age25")
             BoardImage      = "StageBackgrounds/Life/v2/age25_board", // 책상 패드 레이어
             Board = new BoardProfile(-2.95f, -7.43f, 5.54f, 10.25f, 0.02f), // v26 가이드 실측
+            Edges = new BoardEdges(EdgeKind.Ledge, EdgeKind.Flat, EdgeKind.Flat, EdgeKind.Flat), // M1-S5 25살 책상 패드: 뒤·좌우 책상 면
             // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
@@ -155,6 +162,7 @@ public class StageConfig
             BackgroundImage="StageBackgrounds/Life/v2/age30_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age30")
             BoardImage     ="StageBackgrounds/Life/v2/age30_board", // 책상 패드 레이어
             Board = new BoardProfile(-2.95f, -7.41f, 5.60f, 10.23f, 0.07f), // v26 가이드 실측
+            Edges = new BoardEdges(EdgeKind.Ledge, EdgeKind.Flat, EdgeKind.Flat, EdgeKind.Flat), // M1-S5 30살 책상 패드: 뒤·좌우 책상 면
             // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
@@ -175,6 +183,7 @@ public class StageConfig
             TableColor=new Color(0.35f,0.25f,0.2f), ClothColor=new Color(0.25f,0.4f,0.25f),
             BackgroundImage = "StageBackgrounds/Life/v2/age35_bg", // v22 정식 아트 — 판 레이어 없음(배경에 테이블 내장, 영역 가이드만 제공됨)
             Board = new BoardProfile(-2.98f, -7.60f, 5.64f, 10.03f, 0f), // v26: 가이드 앞변 -8.48 → -7.60 캡+에지 보간
+            Edges = new BoardEdges(EdgeKind.Ledge, EdgeKind.Flat, EdgeKind.Ledge, EdgeKind.Ledge), // M1-S5 35살 육교: 뒤 길, 좌우 난간 너머
             // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
@@ -193,6 +202,7 @@ public class StageConfig
             BackgroundImage = "StageBackgrounds/Life/v2/age40_bg", // v22 정식 아트 (노을 창 — 구: "StageBackgrounds/Life/age40")
             BoardImage      = "StageBackgrounds/Life/v2/age40_board", // 탁자 레이어
             Board = new BoardProfile(-2.70f, -7.60f, 6.20f, 10.50f, 0f), // v26: 아트 전폭(변 없음) → 제안 사다리꼴(합의 §3)
+            Edges = new BoardEdges(EdgeKind.Ledge, EdgeKind.Flat, EdgeKind.Flat, EdgeKind.Flat), // M1-S5 40살 나무 책상(전폭)
             // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {
@@ -211,6 +221,7 @@ public class StageConfig
             BackgroundImage = "StageBackgrounds/Life/v2/age45_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age45")
             BoardImage      = "StageBackgrounds/Life/v2/age45_board", // 탁자 레이어
             Board = new BoardProfile(-2.70f, -7.60f, 6.20f, 10.50f, 0f), // v26: 40단과 동일(아트 전폭)
+            Edges = new BoardEdges(EdgeKind.Ledge, EdgeKind.Flat, EdgeKind.Flat, EdgeKind.Flat), // M1-S5 45살 나무 책상(전폭)
             // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
             Props=new BackgroundProp[]
             {

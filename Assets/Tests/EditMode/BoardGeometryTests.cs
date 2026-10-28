@@ -231,6 +231,33 @@ namespace FiveStones.Tests
             Assert.LessOrEqual(highRatio, 1f, "그래도 뒤가 앞보다 커지면 안 된다");
         }
 
+        // ── M1-S5: 음수 높이(가장자리 너머로 떨어지는 돌, 계획서 §3 A1·A2) ──────────
+
+        [Test]
+        public void 음수_높이는_화면에서_아래로_내려가고_x는_그대로다()
+        {
+            // 낙하 연출은 h<0으로 "판 아래로" 그린다. Project가 h를 y에 선형으로 더하므로
+            // 같은 보드 좌표라면 x는 불변, y는 지면보다 아래여야 한다.
+            var b = MakeBoard();
+            foreach (var p in new[] { Vector2.zero, new Vector2(-8.2f, 1f), new Vector2(3f, 4.6f) })
+            {
+                var ground = b.Project(p, 0f);
+                var below  = b.Project(p, -1.5f);
+                Assert.AreEqual(ground.x, below.x, 1e-5f, $"x 불변 {p}");
+                Assert.Less(below.y, ground.y, $"아래로 {p}");
+                Assert.AreEqual(ground.y - 1.5f, below.y, 1e-4f, $"선형 {p}");
+            }
+        }
+
+        [Test]
+        public void 음수_높이의_원근_배율은_지면과_같다()
+        {
+            // PerspectiveScale은 높이를 0 이상으로 자른다 — 떨어지는 돌이 갑자기 작아지거나 커지지 않는다.
+            var b = MakeBoard();
+            foreach (var p in new[] { Vector2.zero, new Vector2(2f, -4f), new Vector2(-8.5f, 3f) })
+                Assert.AreEqual(b.PerspectiveScale(p, 0f), b.PerspectiveScale(p, -2f), 1e-6f, $"{p}");
+        }
+
         [Test]
         public void 논리_공간에서는_이동이_균일하다()
         {

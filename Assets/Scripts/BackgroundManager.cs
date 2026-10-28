@@ -24,6 +24,9 @@ public class BackgroundManager : MonoBehaviour
     // 배경과 동일 offset/scale로 포개야 원본 합성과 일치한다. 배경보다 앞, 돗자리·돌보다 뒤.
     private GameObject boardImageQuad;
 
+    /// <summary>M1-S5: 판(테이블) 레이어가 보이는가. 없으면(35살) 판 뒤로 숨는 낙하 대신 렌더러를 끈다(T4).</summary>
+    public bool HasBoardLayer => boardImageQuad != null && boardImageQuad.activeSelf;
+
     // v30(리뷰 반영): v8-2e 매트(책상) 레이어 기계(matImageQuad·ApplyMatImage 등)는 v17에서
     // 상시 비활성이 된 뒤 죽은 코드였다 — 전부 삭제. 테이블 레이어는 boardImageQuad가 정본.
 
@@ -86,6 +89,7 @@ public class BackgroundManager : MonoBehaviour
         // v26: 스테이지별 보드 프로필을 가장 먼저 적용 — 아래의 UnifiedQuad 등록,
         // SkyFloorY 자동 동기, CatchSystem 재계산, 돗자리 동기가 전부 이 값을 탄다.
         BoardSpace.ApplyProfile(config.Board);
+        BoardSpace.ApplyEdges(config.Edges);   // M1-S5: 변 프로필도 같은 시점에(보드 하나 유지)
 
         // v8-2f: 보드 영역 override (책상 wood = 플레이 영역). 미설정 stage는 Cloth.bounds 폴백.
         boardBaseCenter = config.BoardCenter;

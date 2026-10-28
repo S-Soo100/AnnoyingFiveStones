@@ -90,6 +90,30 @@ public static class BoardSpace
         geometry = BuildGeometry();
     }
 
+    // ── M1-S5: 변 프로필 (계획서 §5-1) — 런타임 SOT ─────────────────────────
+    // ApplyProfile과 **같은 시점에** 바뀌어야 "보드 하나"가 유지된다(donts #18) → BackgroundManager가
+    // ApplyProfile 바로 다음 줄에서 ApplyEdges를 부른다.
+
+    /// <summary>현재 스테이지의 네 변 종류. 기본 = 전 변 Ledge.</summary>
+    public static BoardEdges Edges { get; private set; } = BoardEdges.AllLedge;
+
+    public static void ApplyEdges(BoardEdges e)
+    {
+        Edges = e;
+        Debug.Log($"[BoardSpace] Edges {e}");
+    }
+
+    /// <summary>D9 판정 상수 — 이 한 곳에만 둔다.
+    /// 뿌리기: Ledge 변 = 보이는 가장자리(마진 0), Flat 변 = 0.2 보드단위(구 ScatterSystem.BoardMarginUnits).</summary>
+    public const float ScatterFlatMargin = 0.2f;
+    public const float ScatterLedgeMargin = 0f;
+
+    /// <summary>(M2) 플레이 중 Ledge 판정의 투영 부동소수 허용치. 유예가 아니다.</summary>
+    public const float LedgeScreenEpsilon = 0.02f;
+
+    /// <summary>뿌리기 안전 판정 마진 (변별).</summary>
+    public static EdgeMargins ScatterMargins => EdgeMargins.For(Edges, ScatterLedgeMargin, ScatterFlatMargin);
+
     /// <summary>기존 <see cref="BoardBounds"/>에 넘길 사다리꼴 4꼭짓점 [BL, BR, FL, FR].
     /// 낙 판정·Flee·뿌리기 등 기존 소비자들이 전부 이 하나의 보드를 쓰게 된다.</summary>
     public static Vector2[] UnifiedQuad => new[]
@@ -104,7 +128,8 @@ public static class BoardSpace
     /// 보드 경계 밖 이 폭까지는 "유예 밴드": 낙이 아니고 돌은 생존·줍기 가능한 가장자리 상태다.
     /// 밴드 너머가 낙. 폭 0 = v22, 0.5 = v24(구 FailMargin)와 낙 경계가 동일 — 되돌리기는 이 상수 하나.
     /// 0.8 근거: 판정보다 아트 테이블이 큰 스테이지(35·40·45) 격차(최대 ~1.0)의 대부분 흡수.
-    /// ⚠️ 뿌리기 낙(ScatterSystem, 조준 실력 영역)과 배치·Flee 이동 경계(Strict)에는 적용하지 않는다(합의 §4-1).</summary>
+    /// ⚠️ 뿌리기 낙(ScatterSystem, 조준 실력 영역)과 배치·Flee 이동 경계(Strict)에는 적용하지 않는다(합의 §4-1).
+    /// M1-S5(D9): M2 이후 Flat 변 전용으로 의미가 좁아진다(값 유지). Ledge 변은 LedgeScreenEpsilon.</summary>
     public const float GraceBandWidth = 0.8f;
 
     /// <summary>보드가 고정이라 무효화할 캐시가 없다. 기존 호출부 호환용 no-op.</summary>
