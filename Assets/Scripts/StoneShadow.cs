@@ -204,6 +204,9 @@ public class StoneShadow : MonoBehaviour
 
         // 투명도: 높이 낮을수록 진하게
         float alpha = Mathf.Lerp(AlphaAtGround, AlphaTtPeak, normalizedH) * cutMul;
+        // M2-S3: 구 경로(물리로 떨어지는 튕긴 돌)가 화면상 그림자 지점보다 아래로 내려가면 숨긴다.
+        // 높이가 음수면 normalizedH=0이라 가장 진하게 찍히던 문제(계획서 §5-4) — 그 아래는 허공이다.
+        if (!(stone != null && stone.HasBoardMotion) && heightAbove < 0f) alpha = 0f;
         shadowRenderer.GetPropertyBlock(mpb);
         mpb.SetColor("_BaseColor", new Color(0f, 0f, 0f, alpha));
         // Unlit 셰이더의 경우 _Color 사용

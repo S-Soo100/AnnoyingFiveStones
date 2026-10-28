@@ -405,6 +405,53 @@ public static class GameTestMenu
         GoLoop(1);
     }
 
+    // ── M2-S3 튕김 낙 ─────────────────────────────────────────────────────────────
+    [MenuItem("Tools/테스트 낙(플레이)/검증: S3 튕김")]
+    public static void VerifyFlick() => StartEditorRoutine(VerifyFlickRoutine(false));
+
+    [MenuItem("Tools/테스트 낙(플레이)/촬영: 튕김")]
+    public static void ShotFlick() => StartEditorRoutine(VerifyFlickRoutine(true));
+
+    private static System.Collections.IEnumerator VerifyFlickRoutine(bool shoot)
+    {
+        var gm = GameManager.Instance;
+        var hand = Object.FindFirstObjectByType<HandController>(FindObjectsInactive.Include);
+        var cs = Object.FindFirstObjectByType<CatchSystem>();
+        var prep = PrepareInPlay(1); while (prep.MoveNext()) yield return prep.Current;
+        if (gm.CurrentPhase != GameManager.GamePhase.PickThrowStone) { Debug.LogError("[FlickVerify] 준비 실패"); yield break; }
+        var stone = gm.DebugNthOnBoard(0);
+        hand.DebugThrowNow(stone);
+        float t0 = Time.time;
+        while (!cs.IsCatchPhase && Time.time - t0 < 3f) yield return null;   // 최고점(받기 시작)까지
+        var w = WaitGame(0.25f); while (w.MoveNext()) yield return null;      // 조금 내려온 뒤
+        Application.logMessageReceived += CaptureLog;
+        capturedLogs.Clear();
+        if (shoot) IntroFrameCapture.Begin(40, 1);   // 튕긴 돌은 높은 곳에서 떨어져 ~2초 걸린다
+        t0 = Time.time;
+        bool ok = hand.DebugFingerBounceNow(new Vector3(1f, 1f, 0f));
+        var sh = stone.GetComponent<StoneShadow>();
+        var shObjField = typeof(StoneShadow).GetField("shadowObj", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var shObj = shObjField.GetValue(sh) as GameObject;
+        var shR = shObj != null ? shObj.GetComponent<Renderer>() : null;
+        var mpb = new MaterialPropertyBlock();
+        float maxShadowAlphaBelow = 0f;   // 돌이 지면선(앞변)보다 아래에 있을 때 그림자 알파 최대값
+        while (Time.time - t0 < 5.0f)
+        {
+            if (shR != null && shObj.activeInHierarchy && stone.transform.position.y < BoardSpace.FrontScreenY
+                && gm.CurrentPhase != GameManager.GamePhase.Failed)   // 실패 후 리셋된 접지 그림자는 제외
+            {
+                shR.GetPropertyBlock(mpb);
+                maxShadowAlphaBelow = Mathf.Max(maxShadowAlphaBelow, mpb.GetColor("_BaseColor").a);
+            }
+            yield return null;
+        }
+        Application.logMessageReceived -= CaptureLog;
+        int fails = 0; foreach (var l in capturedLogs) if (l.Contains("Phase changed to: Failed")) fails++;
+        Debug.Log($"[FlickVerify] bounceStarted={ok} fails={fails} maxShadowAlphaBelowFront={maxShadowAlphaBelow:F3}\n  " +
+                  string.Join("\n  ", capturedLogs.ConvertAll(l => $"+{float.Parse(l.Substring(0, l.IndexOf(' '))) - t0:F3} {l.Substring(l.IndexOf(' ') + 1)}")));
+        GoLoop(1);
+    }
+
     private static void ForceNak(params Vector2[] targets)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }

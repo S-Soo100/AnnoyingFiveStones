@@ -160,8 +160,8 @@ public class CatchSystem : MonoBehaviour
         StopCatch();
         AudioManager.Instance?.PlayCatchFail();
         TestLogger.Instance?.LogFailure($"stone_fell_{stone.StoneIndex}");
-        GameManager.Instance.SetFailReason("공기가 바닥에 떨어졌다!");
-        GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+        // M2-S3: 즉시 실패 대신 — 물리 그대로 화면 밖까지 떨어지는 걸 지켜본 뒤(그림자 없음) +0.3초에 실패(상한 1.1초)
+        GameManager.Instance.BeginNakFail(stone, "공기가 바닥에 떨어졌다!", physicsFall: true);
     }
 
     private void OnCatchSuccess()

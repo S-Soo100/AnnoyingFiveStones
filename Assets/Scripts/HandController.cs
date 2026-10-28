@@ -902,6 +902,18 @@ public partial class HandController : MonoBehaviour
     }
 
     public bool DebugIsThrowing => throwCoroutine != null;
+
+    /// <summary>M2-S3 검증 전용 — 내려오는 중인 던진 돌을 손가락에 튕긴다. DoThrow의 Finger 분기와 같은 순서
+    /// (던지기 코루틴 종료 → CatchSystem.OnFingerBounce). 받기 페이즈가 아니면 false.</summary>
+    public bool DebugFingerBounceNow(Vector3 dir)
+    {
+        var cs = FindFirstObjectByType<CatchSystem>();
+        if (cs == null || !cs.IsCatchPhase || throwingStone == null || throwCoroutine == null) return false;
+        StopCoroutine(throwCoroutine);
+        throwCoroutine = null;
+        cs.OnFingerBounce(throwingStone, dir.normalized);
+        return true;
+    }
 #endif
 
     /// <summary>에디터 검증 전용 — 줍기 판정 결과를 그대로 노출.</summary>
