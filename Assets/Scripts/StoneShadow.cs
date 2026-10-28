@@ -103,9 +103,13 @@ public class StoneShadow : MonoBehaviour
             shadowObj.SetActive(false);
     }
 
-    /// <summary>Stone.SetState에서 호출: OnBoard(접지)/InAir/Bouncing(낙하)이면 활성화, 나머지 비활성화</summary>
+    /// <summary>Stone.SetState에서 호출: OnBoard(접지)/InAir/Bouncing(낙하)이면 활성화, 나머지 비활성화.
+    /// M1-S6: 상태가 바뀌면 강제 표시(비행 그림자)·지면 차단도 초기화한다.</summary>
     public void UpdateVisibility(Stone.State newState)
     {
+        forced = false;
+        groundCut = false;
+        cutMul = 1f;
         bool active = (newState == Stone.State.OnBoard
                     || newState == Stone.State.InAir
                     || newState == Stone.State.Bouncing);
@@ -113,9 +117,46 @@ public class StoneShadow : MonoBehaviour
             shadowObj.SetActive(active);
     }
 
+    // ── M1-S6 (계획서 §5-4 "그림자 규칙", D2) ────────────────────────────────
+    // 비행 그림자: 뿌리기 비행 중 돌은 InHand 상태라 원래 그림자가 꺼져 있다(C1) → 강제로 켠다.
+    // 지면 차단: 낙 돌이 Ledge 선(허공)을 넘는 순간 0.08초에 걸쳐 0이 되고 다시 켜지지 않는다.
+    //            Flat 너머(바닥이 이어짐)에서는 차단하지 않는다 — 그림자가 그 면에 깔린다.
+    private const float GroundCutSeconds = 0.08f;
+    private bool forced;
+    private bool groundCut;
+    private float cutMul = 1f;
+
+    /// <summary>상태와 무관하게 낙하 그림자를 그린다(보드 좌표가 있는 돌만 의미가 있다).</summary>
+    public void SetForced(bool on)
+    {
+        forced = on;
+        if (shadowObj == null) return;
+        if (on) shadowObj.SetActive(true);
+        else if (stone != null) shadowObj.SetActive(stone.CurrentState == Stone.State.OnBoard
+                                                  || stone.CurrentState == Stone.State.InAir
+                                                  || stone.CurrentState == Stone.State.Bouncing);
+    }
+
+    /// <summary>true = 0.08초에 걸쳐 그림자 알파를 0으로(되돌아오지 않음). false = 즉시 원래대로.</summary>
+    public void SetGroundCut(bool cut)
+    {
+        groundCut = cut;
+        if (!cut) cutMul = 1f;
+    }
+
     private void LateUpdate()
     {
         if (shadowObj == null || !shadowObj.activeSelf) return;
+
+        if (groundCut && cutMul > 0f)
+            cutMul = Mathf.Max(0f, cutMul - Time.deltaTime / GroundCutSeconds);
+
+        // M1-S6: 강제 표시(뿌리기 비행) = 상태와 무관하게 보드 좌표 지면에 낙하 그림자
+        if (forced)
+        {
+            UpdateFallingShadow();
+            return;
+        }
 
         // v13-1: 보드에 놓인 돌은 접지 그림자, 공중 돌은 기존 낙하 그림자로 분기.
         if (stone != null && stone.CurrentState == Stone.State.OnBoard)
@@ -135,8 +176,8 @@ public class StoneShadow : MonoBehaviour
         shadowObj.transform.position = new Vector3(p.x, p.y + dia * ContactYOffMul, ShadowZ);
 
         shadowRenderer.GetPropertyBlock(mpb);
-        mpb.SetColor("_BaseColor", new Color(0f, 0f, 0f, ContactAlpha));
-        mpb.SetColor("_Color", new Color(0f, 0f, 0f, ContactAlpha));
+        mpb.SetColor("_BaseColor", new Color(0f, 0f, 0f, ContactAlpha * cutMul));
+        mpb.SetColor("_Color", new Color(0f, 0f, 0f, ContactAlpha * cutMul));
         shadowRenderer.SetPropertyBlock(mpb);
     }
 
@@ -179,7 +220,7 @@ public class StoneShadow : MonoBehaviour
         );
 
         // 투명도: 높이 낮을수록 진하게
-        float alpha = Mathf.Lerp(AlphaAtGround, AlphaTtPeak, normalizedH);
+        float alpha = Mathf.Lerp(AlphaAtGround, AlphaTtPeak, normalizedH) * cutMul;
         shadowRenderer.GetPropertyBlock(mpb);
         mpb.SetColor("_BaseColor", new Color(0f, 0f, 0f, alpha));
         // Unlit 셰이더의 경우 _Color 사용

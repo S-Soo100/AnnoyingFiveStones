@@ -797,7 +797,7 @@ public class ScatterSystem : MonoBehaviour
         var p = tossPlans[i];
         var s = tossStones[i];
         float tau = -p.Delay;
-        bool contact1 = false, contact2 = false;
+        bool contact1 = false, contact2 = false, departed = false;
 
         while (true)
         {
@@ -856,6 +856,7 @@ public class ScatterSystem : MonoBehaviour
             }
 
             s.SetBoardMotion(bp, h);   // 위치·원근 크기 파생
+            if (!departed) { departed = true; s.SetFlightShadow(true); }   // M1-S6 (D2): 비행 그림자 — 보드 좌표가 생긴 뒤 켠다
             s.transform.localScale = Vector3.Scale(s.transform.localScale, mul); // 매 프레임 원근 크기에서 다시 곱함 → 누적 없음
             s.transform.rotation = Quaternion.Euler(0f, 0f, rot);
             yield return null;
@@ -889,6 +890,7 @@ public class ScatterSystem : MonoBehaviour
                 s.SetBoardMotion(p.F, 0f);   // 정지: 직접 대입 → boardTargets와 diff 0
                 s.transform.rotation = Quaternion.Euler(0f, 0f, p.SpinDeg);
                 s.SetState(Stone.State.OnBoard);
+                s.SetFlightShadow(false);   // (SetState가 이미 초기화 — 명시)
                 s.Rb.linearVelocity = Vector3.zero;
                 s.Rb.angularVelocity = Vector3.zero;
                 s.Rb.isKinematic = true;   // 드리프트 방지 최종 고정 (줍힐 때 InHand로 전환됨)
@@ -956,7 +958,7 @@ public class ScatterSystem : MonoBehaviour
                 if (tossDone[i]) continue;
                 var s = tossStones[i];
                 if (s == null) { tossDone[i] = true; continue; }
-                if (tossPlans[i].IsNak) { tossDone[i] = true; s.SetBoardMotion(tossPlans[i].F, 0f); }
+                if (tossPlans[i].IsNak) { tossDone[i] = true; s.SetBoardMotion(tossPlans[i].F, 0f); s.SetFlightShadow(false); }
                 else FinishToss(i, natural: false);
             }
         }

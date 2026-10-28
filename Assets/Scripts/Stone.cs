@@ -222,8 +222,9 @@ public class Stone : MonoBehaviour
         trail.colorGradient = g;
     }
 
-    /// <summary>보드 좌표 + 높이를 지정하고 화면 위치·크기를 투영으로 갱신한다.</summary>
-    public void SetBoardMotion(Vector2 boardPos, float height)
+    /// <summary>보드 좌표 + 높이를 지정하고 화면 위치·크기를 투영으로 갱신한다.
+    /// M1-S6: z = 렌더 깊이(기본 0). 판 뒤로 떨어지는 낙 연출만 35를 쓴다(판 30과 배경 40 사이).</summary>
+    public void SetBoardMotion(Vector2 boardPos, float height, float z = 0f)
     {
         if (!baseScaleCaptured) CaptureBaseScale(transform.localScale);
 
@@ -232,7 +233,7 @@ public class Stone : MonoBehaviour
         HasBoardMotion = true;
 
         var p = BoardSpace.ToScreen(boardPos, height);
-        transform.position = new Vector3(p.x, p.y, 0f);
+        transform.position = new Vector3(p.x, p.y, z);
 
         // 원근: 뒤에 있을수록 작게, 위로 뜰수록 크게.
         // 내려다보는 시점이라 뜨면 카메라에 가까워진다 — 높이를 빼면 던진 돌이
@@ -245,6 +246,63 @@ public class Stone : MonoBehaviour
 
     /// <summary>보드 좌표 관리 해제 — 옛 화면 좌표 경로(뿌리기·5단 등)로 돌아갈 때.</summary>
     public void ClearBoardMotion() => HasBoardMotion = false;
+
+    // ── M1-S6: 뿌리기 비행·낙하 연출 API (계획서 §7 Stone.cs) ─────────────────
+    // 상태(State)는 바꾸지 않는다 — SetState는 팝·그림자 모드·물리 플래그를 같이 바꾸는 부작용이 있다.
+
+    /// <summary>뿌리기 비행 중 그림자(D2). 비행 중 돌은 InHand라 원래 그림자가 꺼져 있다.</summary>
+    public void SetFlightShadow(bool on) => shadow?.SetForced(on);
+
+    /// <summary>true = 그림자를 0.08초에 걸쳐 끈다(Ledge 선 = 허공을 넘은 낙 돌). 다시 켜지 않는다.</summary>
+    public void SetShadowGroundCut(bool cut) => shadow?.SetGroundCut(cut);
+
+    /// <summary>돌 메시를 보이거나 숨긴다(낙하 끝, 판 레이어 없는 스테이지의 가림 폴백).</summary>
+    public void SetRendererVisible(bool visible)
+    {
+        var r = GetComponent<Renderer>();
+        if (r != null) r.enabled = visible;
+    }
+
+    public bool IsRendererVisible
+    {
+        get { var r = GetComponent<Renderer>(); return r != null && r.enabled; }
+    }
+
+    private bool scriptedFall;
+    private bool savedKinematic, savedGravity, savedColliderEnabled;
+
+    /// <summary>코루틴 낙하 시작 — 이전 isKinematic·useGravity·collider.enabled를 저장하고
+    /// 키네마틱·중력 끔·콜라이더 끔(다른 돌을 밀지 않게). 두 번 불러도 처음 값만 저장한다.</summary>
+    public void EnterScriptedFall()
+    {
+        if (!scriptedFall)
+        {
+            savedKinematic = rb.isKinematic;
+            savedGravity = rb.useGravity;
+            savedColliderEnabled = col != null && col.enabled;
+            scriptedFall = true;
+        }
+        if (!rb.isKinematic)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+        rb.isKinematic = true;
+        rb.useGravity = false;
+        if (col != null) col.enabled = false;
+    }
+
+    /// <summary>EnterScriptedFall이 저장한 물리 플래그 복원. 들어간 적 없으면 no-op.</summary>
+    public void ExitScriptedFall()
+    {
+        if (!scriptedFall) return;
+        scriptedFall = false;
+        rb.isKinematic = savedKinematic;
+        rb.useGravity = savedGravity;
+        if (col != null) col.enabled = savedColliderEnabled;
+    }
+
+    public bool InScriptedFall => scriptedFall;
 
     // 레이어 상수: InAir/Bouncing 돌과 손은 layer 8, OnBoard 돌은 Default(0)
     // Layer 8 ↔ Default(0) 충돌 비활성 → 공중 돌이 보드 돌을 밀지 않음
