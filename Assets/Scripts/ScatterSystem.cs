@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using FiveStones.Core;
 
 /// <summary>
 /// 뿌리기 시스템 (v14 코루틴 토스 재설계).
@@ -45,9 +46,10 @@ public class ScatterSystem : MonoBehaviour
     //   3.00이면 g=0.5에서 반경 2.60 — 중심이 앞쪽이어도 앞변(4.5) 안에 들어온다.
     private const float RBoardBase = 1.10f;  // g=0 (뭉침)
     private const float RBoardSpan = 3.00f;  // g=1 → 4.10 (반깊이 4.5에 근접 = 고게이지 낙)
-    /// <summary>낙 판정 마진(보드 단위). 경계에 아슬아슬하게 걸친 돌을 살려준다.
-    /// 구 화면 단위 0.2와 대응. ⚠️ 재튜닝 대상.</summary>
-    private const float BoardMarginUnits = 0.2f;
+    // M1-S7(D9): 뿌리기 낙 마진은 BoardSpace.ScatterMargins(변별: Ledge 0 / Flat 0.2)로 옮겼다 — 상수는 BoardSpace 한 곳.
+
+    /// <summary>뿌리기 낙의 실패 상한(놓은 순간부터, T5).</summary>
+    private const float NakFailCapSeconds = 1.6f;
 
     /// <summary>게이지 → 뿌림 반경(보드 단위). 게이지바도 이 값으로 위험 색을 정한다
     /// (GaugeBarUI) — 링과 바가 서로 다른 식을 쓰면 두 개가 다른 말을 하게 된다.</summary>
@@ -102,10 +104,7 @@ public class ScatterSystem : MonoBehaviour
     private int activeTosses;
     private int tossSafeCount;
     private readonly List<Coroutine> tossRoutines = new List<Coroutine>();
-    private readonly List<Stone> nakStones = new List<Stone>();
     private float scatterReleaseTime, tossStartTime;
-    private GameObject nakWall;
-    private bool nakWallWasActive;
 #if UNITY_EDITOR
     public float DebugLastTotal { get; private set; }
     public float DebugLastMaxDiff { get; private set; }
@@ -380,6 +379,16 @@ public class ScatterSystem : MonoBehaviour
         StartScatterRoutine(gauge);
     }
 
+    // ── M1-S7 검증용 강제 낙 (에디터 전용) ──
+    private Vector2[] debugForcedTargets;
+
+    /// <summary>돌 0..k-1의 목표를 보드 좌표로 덮어쓴 시드 뿌리기(간격 보장 뒤 덮어씀 — 2.4·2.5 판정은 그대로 거친다).</summary>
+    public void DebugScatterForcedNak(float gauge, int seed, Vector2 centerUV, Vector2[] forcedBoardTargets)
+    {
+        debugForcedTargets = forcedBoardTargets;
+        DebugScatterSeeded(gauge, seed, centerUV);
+    }
+
     // ── M1-S3 검증용 게이지 고정 (에디터 전용) — 마우스 없이 실제 누름/놓음 경로를 태운다 ──
     private bool debugGaugeFrozen;
     private float debugFrozenGauge;
@@ -568,15 +577,33 @@ public class ScatterSystem : MonoBehaviour
             if (!adjusted) break;
         }
 
+#if UNITY_EDITOR
+        // 검증용 강제 목표(DebugScatterForcedNak): 간격 보장 뒤에 덮어쓴다. 잠정 isNak는 원래 코드와 같은 식(마진 0),
+        // 이후 2.4·2.5 판정은 그대로 거친다(계획서 §7 "판정 식은 그대로 거친다").
+        if (debugForcedTargets != null)
+        {
+            for (int k = 0; k < debugForcedTargets.Length && k < n; k++)
+            {
+                boardTargets[k] = debugForcedTargets[k];
+                isNak[k] = !BoardSpace.Current.Contains(boardTargets[k]);
+            }
+            debugForcedTargets = null;
+        }
+#endif
+
         // ── 2.4) 우발낙 방어 (donts/game.md #19 SOT): 간격 확대가 비-낙 돌을 경계 밖으로 밀 수 있음.
         //   원래 uv 내부(provisional isNak==false)였는데 밀려난 돌만 보드 중심 C 쪽으로 회수.
         //   의도된 낙(provisional true)은 건드리지 않음.
+        //   M1-S7(D9): 판정과 같은 변별 마진 식(Ledge 0 / Flat 0.2)으로 회수한다. 안 바꾸면 Ledge 0~0.2 띠에 남은
+        //   안전 돌이 2.5에서 우발 낙이 된다.
         Vector2 C = centerBoard;
+        float hw = BoardSpace.LogicalWidth * 0.5f, hd = BoardSpace.LogicalDepth * 0.5f;
+        EdgeMargins margins = BoardSpace.ScatterMargins;
         for (int i = 0; i < n; i++)
         {
             if (isNak[i]) continue; // 의도된 낙은 그대로
             int guard = 0;
-            while (!BoardSpace.Current.ContainsWithMargin(boardTargets[i], BoardMarginUnits) && guard++ < 10)
+            while (!BoardEdgeMath.ContainsEdgeAware(boardTargets[i], hw, hd, margins) && guard++ < 10)
                 boardTargets[i] = Vector2.Lerp(boardTargets[i], C, 0.18f);
         }
 
@@ -589,9 +616,10 @@ public class ScatterSystem : MonoBehaviour
         //   "판정 영역이 보이는 것보다 훨씬 커 보이는" 증상이 났다.
         //   Strict는 SkyFloor 면제 없이 사다리꼴 내부만 본다 — 마진(0.2)은 그대로라 경계 애매낙 흡수도 동일.
         //   (v12에서 Flee 돌이 같은 이유로 +Y로 새어 IsOutsideMatStrict를 만든 것과 동일 패턴.)
+        // M1-S7(D9): Ledge 변 = 보이는 가장자리(마진 0), Flat 변 = 0.2. 의도된 판정 변경 — Ledge 0~0.2 띠는 이제 낙.
         for (int i = 0; i < n; i++)
         {
-            isNak[i] = !BoardSpace.Current.ContainsWithMargin(boardTargets[i], BoardMarginUnits);
+            isNak[i] = !BoardEdgeMath.ContainsEdgeAware(boardTargets[i], hw, hd, margins);
             targets[i] = BoardSpace.ToScreen(boardTargets[i], 0f); // 애니메이션용 화면 좌표(파생)
         }
 
@@ -653,9 +681,20 @@ public class ScatterSystem : MonoBehaviour
         tossStones = stones;
         tossDone = new bool[n];
         tossContact = new bool[n];
-        nakStones.Clear();
         tossStartTime = Time.time;
         activeTosses = n;
+
+        // ── 낙 (M1-S7, 계획서 §5-5 "완료·실패"): 놓는 순간 판정이 끝났으므로 실패 대기를 바로 건다.
+        //   실패 시각 = max(낙 돌 종료, 모든 토스 종료) + 0.3초, 상한 1.6초(놓은 순간 기준). 게이트는 GameManager 하나.
+        bool anyNak = false;
+        for (int i = 0; i < n; i++) anyNak |= isNak[i];
+        if (anyNak)
+        {
+            TestLogger.Instance?.LogFailure("scatter_out_of_bounds");
+            GameManager.Instance.BeginNakWait("낙!", scatterReleaseTime + NakFailCapSeconds);
+            GameManager.Instance.AddNakBusy();   // 토스 전체분 1회
+        }
+
         tossRoutines.Clear();
         for (int i = 0; i < n; i++)
             tossRoutines.Add(StartCoroutine(TossStone(i, gen)));
@@ -664,30 +703,12 @@ public class ScatterSystem : MonoBehaviour
         tossRoutines.Clear();
         if (gen != scatterGen) yield break; // ForceCompleteTosses가 이 뿌리기를 끝냈다
 
-        // ── 5) 낙 처리 (보드 밖 목표에 도달한 돌을 가장자리 너머로 떨어뜨림) ──
-        // ⚠️ M1-S1: 낙 돌은 임시로 현행 흐름 그대로다(계획서 §12 S1). S7에서 교체한다.
-        if (nakStones.Count > 0)
+        if (anyNak)
         {
-            AudioManager.Instance?.PlayOutOfBounds();
-            TestLogger.Instance?.LogFailure("scatter_out_of_bounds");
-
-            nakWall = GameObject.Find("BoardBottomWall");
-            nakWallWasActive = nakWall != null && nakWall.activeSelf;
-            if (nakWall != null) nakWall.SetActive(false);
-
-            foreach (var s in nakStones)
-            {
-                s.SetState(Stone.State.InAir);       // 중력 ON
-                s.Rb.linearVelocity = new Vector3(0f, -4f, 0f); // 아래로 떨어짐
-            }
-
-            yield return new WaitForSeconds(1.0f);
-
-            RestoreNakWall();
+            // 실패는 게이트가 건다(낙하 연출이 끝나고 0.3초 뒤). 완료 신호(OnScatterComplete)는 보내지 않는다.
+            Debug.Log($"[Scatter] tosses done (nak) t={Time.time - scatterReleaseTime:F3}s");
             scatterRoutine = null;
-
-            GameManager.Instance.SetFailReason("낙!");
-            GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
+            GameManager.Instance.ReleaseNakBusy();
         }
         else
         {
@@ -717,7 +738,11 @@ public class ScatterSystem : MonoBehaviour
         public float B1, T1, B2, T2, Slide;
         public float SpinDeg; // 전체 Z 회전량(부호 포함)
         public int Order;     // 안착 돌의 첫 접촉 순서(착지음 음계). 낙 돌은 -1
-        public float End => IsNak ? T : T + Mathf.Max(T1 + T2 + Slide, Squash1Dur);
+        public EdgeKind Kind; // 낙 돌: Ledge(허공으로 떨어짐) / Flat(바깥 면에 앉음). ClassifyOutside(F)
+        public BoardEdge Edge;// 낙 돌: Ledge = 처음 넘는 Ledge 선, Flat = 대표 변
+        public float TCross;  // Ledge 낙: Ledge 선을 넘는 시각(출발 기준, 초) → 낙하 연출로 넘긴다
+        public bool IsLedgeNak => IsNak && Kind == EdgeKind.Ledge;
+        public float End => IsLedgeNak ? T : T + Mathf.Max(T1 + T2 + Slide, Squash1Dur);
     }
 
     private TossPlan[] BuildTossPlans(Vector2[] startBoard, Vector2[] boardTargets, bool[] isNak)
@@ -731,6 +756,10 @@ public class ScatterSystem : MonoBehaviour
         for (int i = 1; i < n; i++) { gaps[i] = FxRange(StaggerMin, StaggerMax); gapSum += gaps[i]; }
         float gapScale = gapSum > StaggerSumMax ? StaggerSumMax / gapSum : 1f;
         float delay = 0f;
+        float hw = BoardSpace.LogicalWidth * 0.5f, hd = BoardSpace.LogicalDepth * 0.5f;
+        BoardEdges kinds = BoardSpace.Edges;
+        EdgeMargins judge = BoardSpace.ScatterMargins;            // D9 판정 마진 (Flat 0.2 / Ledge 0)
+        EdgeMargins lines = EdgeMargins.For(kinds, 0f, 0f);      // 보이는 가장자리
 
         for (int i = 0; i < n; i++)
         {
@@ -746,7 +775,23 @@ public class ScatterSystem : MonoBehaviour
             float v0 = L / tNominal;
             // 0.30·L 상한이 우선: 아주 가까운 목표에서 A가 S 뒤로 넘어가지 않게.
             float dNom = Mathf.Min(Mathf.Max(LandLeadK * v0, LandLeadMin), LandLeadMaxFrac * L);
-            p.DPost = p.IsNak ? 0f : dNom;   // S1: 낙 돌은 F까지 그대로 날아간다(현행 5) 흐름)
+            if (p.IsNak)
+            {
+                // 모서리 통일 규칙: Ledge 선을 하나라도 넘었으면 Ledge (계획서 §5-1 ③)
+                p.Kind = BoardEdgeMath.ClassifyOutside(p.F, hw, hd, kinds, out BoardEdge rep);
+                p.Edge = rep;
+                if (p.Kind == EdgeKind.Ledge)
+                    p.DPost = 0f;   // 착지하지 않는다 — 포물선 그대로 F까지(그 전에 Ledge 선에서 넘겨진다)
+                else
+                {
+                    // Flat 낙: 첫 접촉점 A가 항상 낙 영역 안(판정 경계 교차점 이상)에 있도록 (§5-5, F12)
+                    Vector2 xc = p.F;
+                    if (BoardEdgeMath.TryFirstCrossing(p.S, p.F, hw, hd, judge, kinds, null, out float tx, out _))
+                        xc = p.S + (p.F - p.S) * tx;
+                    p.DPost = Mathf.Min(dNom, (p.F - xc).magnitude);
+                }
+            }
+            else p.DPost = dNom;
             p.A = p.F - p.Dir * p.DPost;
 
             float flightDist = (p.A - p.S).magnitude;
@@ -754,7 +799,16 @@ public class ScatterSystem : MonoBehaviour
                 + FxRange(-TossTJitter, TossTJitter);
             p.H = TossGravity * p.T * p.T / 8f;
 
-            if (!p.IsNak && p.DPost > 0f)
+            if (p.IsLedgeNak)
+            {
+                // Flat 바깥을 지나다 Ledge 선을 넘는 경우도 이 교차가 잡는다 (Ledge 필터, 마진 0 = 보이는 가장자리)
+                float tc = 1f;
+                if (BoardEdgeMath.TryFirstCrossing(p.S, p.F, hw, hd, lines, kinds, EdgeKind.Ledge, out float t0, out BoardEdge ce))
+                { tc = t0; p.Edge = ce; }
+                p.TCross = tc * p.T;
+            }
+
+            if (!p.IsLedgeNak && p.DPost > 0f)
             {
                 float ratio = dNom > 0f ? p.DPost / dNom : 0f;
                 p.B1 = Bounce1Base * Mathf.Clamp(p.H / 1.2f, 0.8f, 1.2f) * ratio;
@@ -780,9 +834,10 @@ public class ScatterSystem : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             var p = plans[i];
-            Debug.Log($"[Scatter] plan i={i} nak={p.IsNak} S={p.S:F2} A={p.A:F2} F={p.F:F2} " +
-                      $"T={p.T:F3} H={p.H:F2} D={p.DPost:F3} B1={p.B1:F3} delay={p.Delay:F3} " +
-                      $"end={p.Delay + p.End:F3} order={p.Order}");
+            Debug.Log($"[Scatter] plan i={i} nak={p.IsNak} kind={(p.IsNak ? p.Kind.ToString() : "-")} " +
+                      $"edge={(p.IsNak ? p.Edge.ToString() : "-")} S={p.S:F2} A={p.A:F2} F={p.F:F2} " +
+                      $"T={p.T:F3} H={p.H:F2} D={p.DPost:F3} B1={p.B1:F3} tc={(p.IsLedgeNak ? p.TCross : -1f):F3} " +
+                      $"delay={p.Delay:F3} end={p.Delay + p.End:F3} order={p.Order}");
         }
 #if UNITY_EDITOR
         DebugLastStaggerSum = n > 0 ? plans[n - 1].Delay : 0f;
@@ -791,7 +846,7 @@ public class ScatterSystem : MonoBehaviour
     }
 
     /// <summary>돌 하나의 토스. 비행(단일 중력 포물선) → 첫 접촉 → 작게 두 번 튐 → 미끄러져 정확히 F에 정지.
-    /// 낙 돌(S1)은 F에 h=0으로 도달하면 끝 — 이후는 DoScatter 5)가 처리한다.</summary>
+    /// Flat 낙 돌도 같은 착지 패키지(바깥 면). Ledge 낙 돌은 Ledge 선을 넘는 프레임에 NakFallPresenter로 넘긴다.</summary>
     private IEnumerator TossStone(int i, int gen)
     {
         var p = tossPlans[i];
@@ -804,6 +859,20 @@ public class ScatterSystem : MonoBehaviour
             if (gen != scatterGen) yield break;
             tau += Time.deltaTime;
             if (tau < 0f) { yield return null; continue; }   // 아직 출발 전 — 손에서 떨어진 자리에 대기
+
+            if (p.IsLedgeNak && tau >= p.TCross)
+            {
+                // Ledge 선을 넘는 프레임 — 포물선을 그대로 이어 판 아래로 (착지음 없음, 그림자 0.08초 소멸)
+                // 넘기는 자세는 **정확히 교차 시각 τc**의 것(선 위), 이 프레임에 이미 지난 시간은 연출이 이어서 센다.
+                // (프레임이 크면 선을 한참 지나서 넘기게 되어 그림자 소멸 위치가 밀린다)
+                float tc = p.TCross;
+                Vector2 b = Vector2.LerpUnclamped(p.S, p.A, tc / p.T);
+                float hh = TossGravity * tc * (p.T - tc) * 0.5f;
+                Vector2 vB = (p.F - p.S) / p.T;
+                float vH = TossGravity * (p.T * 0.5f - tc);
+                HandOffLedge(i, s, b, vB, hh, vH, p.Edge, tau - tc);
+                yield break;
+            }
 
             if (tau >= p.End) break;
 
@@ -866,6 +935,17 @@ public class ScatterSystem : MonoBehaviour
         FinishToss(i, natural: true);
     }
 
+    /// <summary>Ledge 낙 돌을 낙하 연출로 넘긴다. 토스는 여기서 끝난다.</summary>
+    private void HandOffLedge(int i, Stone s, Vector2 b, Vector2 vB, float h, float vH, BoardEdge edge, float startTau)
+    {
+        if (tossDone == null || tossDone[i]) return;
+        tossDone[i] = true;
+        Debug.Log($"[Scatter] handoff i={i} edge={edge} b={b:F2} h={h:F2} t={Time.time - tossStartTime:F3}");
+        var presenter = GameManager.Instance != null ? GameManager.Instance.NakPresenter : null;
+        if (presenter != null) presenter.FallFromBoard(s, b, vB, h, vH, TossGravity, edge, startTau);
+        activeTosses = Mathf.Max(0, activeTosses - 1);
+    }
+
     /// <summary>토스 종료 처리 — 정상 종료와 ForceCompleteTosses가 같은 경로를 쓴다(최종 위치 = F 직접 대입).
     /// natural=true(정상 종료)일 때만 소리를 보충한다 — 큰 프레임 튐으로 접촉 구간을 건너뛰어도 첫 접촉음은 난다.
     /// 강제 종료(스테이지 전환·실패 확정)에서는 소리를 내지 않는다.</summary>
@@ -877,12 +957,20 @@ public class ScatterSystem : MonoBehaviour
         var s = tossStones[i];
         if (s != null)
         {
-            if (p.IsNak)
+            if (p.IsNak && p.Kind == EdgeKind.Flat)
             {
-                // S1: 현행과 같이 보드 밖 목표에 h=0으로 도달 → 5)에서 떨어뜨린다.
+                // Flat 낙: 바깥 면에 앉는다 — InHand·키네마틱 유지, 그림자 유지(그 면에 깔림)
                 if (natural && !TossContactPlayed(i)) OnTossContact(i, p, false);
                 s.SetBoardMotion(p.F, 0f);
-                nakStones.Add(s);
+                s.transform.rotation = Quaternion.Euler(0f, 0f, p.SpinDeg);
+                Debug.Log($"[Scatter] final i={i} kind=Flat diff={(s.BoardPos - p.F).magnitude:F4} t={Time.time - tossStartTime:F3}");
+                if (natural) GameManager.Instance?.NotifyNakStoneEnded();
+            }
+            else if (p.IsNak)
+            {
+                // Ledge 낙인데 넘기기 전에 강제 종료된 경우만 여기 온다(실패 확정·스테이지 전환)
+                s.SetBoardMotion(p.F, 0f);
+                s.SetFlightShadow(false);
             }
             else
             {
@@ -908,13 +996,18 @@ public class ScatterSystem : MonoBehaviour
     private bool TossContactPlayed(int i) => tossContact != null && tossContact[i];
 
     /// <summary>접촉 순간 — 안착 돌: 첫 접촉 = 음계 착지음 + 먼지, 둘째 접촉 = 같은 음 작게(n ≤ 5일 때만).
-    /// 낙 돌(S1~S6 임시): 현행처럼 목표 도달 시 기존 클립 1회 — S7에서 교체.</summary>
+    /// Flat 낙 돌: 둔탁음(첫 접촉 + 둘째는 n ≤ 5만) + 먼지. Ledge 낙 돌은 접촉하지 않는다(착지음 없음).</summary>
     private void OnTossContact(int i, TossPlan p, bool second)
     {
         var audio = AudioManager.Instance;
         if (second)
         {
-            if (p.IsNak || tossPlans.Length > 5) return;   // 보이스 예산: n=10이면 둘째 접촉음 없음
+            if (p.IsNak)
+            {
+                if (audio != null) audio.PlayScatterThud(true, tossPlans.Length);   // n>5면 내부에서 무음
+                return;
+            }
+            if (tossPlans.Length > 5) return;   // 보이스 예산: n=10이면 둘째 접촉음 없음
             float p2 = audio != null ? audio.PlayScatterLand(p.Order, tossSafeCount, true) : 0f;
             Debug.Log($"[Scatter] land i={i} contact=2 order={p.Order} pitch={p2:F3}");
             return;
@@ -925,7 +1018,10 @@ public class ScatterSystem : MonoBehaviour
 
         if (p.IsNak)
         {
-            audio?.PlayScatterHit(i);
+            // Flat 낙만 접촉한다(Ledge는 선에서 넘겨짐). 둔탁음 + 먼지
+            float tp = audio != null ? audio.PlayScatterThud(false, tossPlans.Length) : 0f;
+            scatterFx?.SpawnDust(p.A, fxRng);
+            Debug.Log($"[Scatter] land i={i} contact=1 kind=Flat pitch={tp:F3} t={Time.time - tossStartTime:F3}");
             return;
         }
         float pitch = audio != null ? audio.PlayScatterLand(p.Order, tossSafeCount, false) : 0f;
@@ -958,20 +1054,12 @@ public class ScatterSystem : MonoBehaviour
                 if (tossDone[i]) continue;
                 var s = tossStones[i];
                 if (s == null) { tossDone[i] = true; continue; }
-                if (tossPlans[i].IsNak) { tossDone[i] = true; s.SetBoardMotion(tossPlans[i].F, 0f); s.SetFlightShadow(false); }
-                else FinishToss(i, natural: false);
+                FinishToss(i, natural: false);
             }
         }
         activeTosses = 0;
-        RestoreNakWall();
         scatterFx?.ClearAll();
         if (hadWork) Debug.Log("[Scatter] ForceCompleteTosses");
-    }
-
-    private void RestoreNakWall()
-    {
-        if (nakWall != null) nakWall.SetActive(nakWallWasActive);
-        nakWall = null;
     }
 
     /// <summary>

@@ -71,6 +71,22 @@ public class GameManager : MonoBehaviour
     private Coroutine transitionCoroutine;
     private InputAction escAction;        // [P4]
 
+    // ── M1-S7 낙 실패 대기 게이트 (계획서 §5-3 M1 최소 형태 — M2는 여기에 덧붙인다) ──
+    // 낙이 나면 실패를 바로 걸지 않고, 낙하 연출·토스가 모두 끝난 뒤 0.3초 후(상한 cap)에 한 번만 건다.
+    // Time.time(scaled)이라 일시정지 중에는 대기와 상한이 함께 멈춘다.
+    private const float NakQuietSeconds = 0.30f;
+    private bool isNakPending;
+    private string pendingNakReason;
+    private int nakBusy;
+    private int nakToken;
+    private float nakCapAt;
+    private float nakBeganAt;
+    private float nakQuietSince = -1f;   // busy가 0이 된 시각 (-1 = 아직 바쁨)
+    private bool nakCuePlayed;
+    private bool nakFinishing;
+    private Coroutine nakRoutine;
+    private NakFallPresenter nakPresenter;
+
     public int CurrentStage => currentStage;
     public GamePhase CurrentPhase => currentPhase;
     public Stone[] Stones => stones;
@@ -102,6 +118,8 @@ public class GameManager : MonoBehaviour
     public bool IsPaused => isPaused;     // [P4]
     public bool IsInTitleScreen => isInTitleScreen; // v13: DebugHUD 스킵버튼 게이팅 (타이틀/엔딩에서 숨김)
     public string LastFailReason => lastFailReason;
+    public bool IsNakPending => isNakPending;
+    public NakFallPresenter NakPresenter => nakPresenter;
 
     /// <summary>v13: 스테이지 스킵(디버그 버튼/키보드 점프) 사용 표시. 사용한 판은 랭킹 기록을 업로드하지 않는다.</summary>
     public void MarkStageSkipUsed() => usedStageSkip = true;
@@ -165,6 +183,9 @@ public class GameManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        // M1-S7: 공용 낙하 연출 (ScatterSystem과 같은 오브젝트)
+        nakPresenter = gameObject.AddComponent<NakFallPresenter>();
 
         // v8-2: BackgroundManager 자동 생성
         backgroundManager = FindFirstObjectByType<BackgroundManager>();
@@ -400,6 +421,95 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // ── M1-S7 낙 실패 대기 게이트 ──────────────────────────────────────────────
+
+    /// <summary>낙 실패 대기 시작. 이미 대기 중이면 상한만 앞당기고 첫 사유를 유지한다(멱등).</summary>
+    public void BeginNakWait(string reason, float capAtTime)
+    {
+        if (isNakPending)
+        {
+            nakCapAt = Mathf.Min(nakCapAt, capAtTime);
+            return;
+        }
+        isNakPending = true;
+        pendingNakReason = reason;
+        nakBusy = 0;
+        nakQuietSince = Time.time;
+        nakCuePlayed = false;
+        nakCapAt = capAtTime;
+        nakBeganAt = Time.time;
+        Debug.Log($"[GameManager] NakWait begin reason={reason} cap={capAtTime - Time.time:F2}s");
+        nakRoutine = StartCoroutine(NakWaitRoutine(++nakToken));
+    }
+
+    /// <summary>진행 중인 낙하 연출·토스 수.</summary>
+    public void AddNakBusy()
+    {
+        if (!isNakPending) return;
+        nakBusy++;
+        nakQuietSince = -1f;
+        Debug.Log($"[GameManager] NakWait busy={nakBusy} t={Time.time - nakBeganAt:F3}");
+    }
+
+    public void ReleaseNakBusy()
+    {
+        if (!isNakPending) return;
+        nakBusy = Mathf.Max(0, nakBusy - 1);
+        if (nakBusy == 0) nakQuietSince = Time.time;   // 조용해진 시각을 그 자리에서 기록(코루틴 폴링 지연 제거)
+        Debug.Log($"[GameManager] NakWait busy={nakBusy} t={Time.time - nakBeganAt:F3}");
+    }
+
+    /// <summary>낙 돌 하나가 끝났다(화면 밖·판 뒤·Flat 정지). 첫 호출에만 장외음 — 교차 순간이 아니라 "끝났을 때".</summary>
+    public void NotifyNakStoneEnded()
+    {
+        if (!isNakPending || nakCuePlayed) return;
+        nakCuePlayed = true;
+        AudioManager.Instance?.PlayOutOfBounds();
+        Debug.Log($"[GameManager] NakWait outOfBounds cue t={Time.time - nakBeganAt:F3}");
+    }
+
+    private IEnumerator NakWaitRoutine(int token)
+    {
+        while (true)
+        {
+            if (token != nakToken) yield break;
+            if (Time.time >= nakCapAt) break;
+            // 0.3초 중에 busy가 다시 생기면 AddNakBusy가 nakQuietSince를 지워 다시 센다
+            if (nakBusy == 0 && nakQuietSince >= 0f && Time.time - nakQuietSince >= NakQuietSeconds) break;
+            yield return null;
+        }
+        FinishNakWait(token);
+    }
+
+    /// <summary>실패 확정 — 멱등 + 토큰 가드(F8·검수 🔴9).</summary>
+    private void FinishNakWait(int token)
+    {
+        if (!isNakPending || token != nakToken) return;
+        nakFinishing = true;
+        Debug.Log($"[GameManager] NakWait finish after={Time.time - nakBeganAt:F3}s busy={nakBusy}");
+        if (!nakCuePlayed) { nakCuePlayed = true; AudioManager.Instance?.PlayOutOfBounds(); } // 상한으로 끝난 경우 안전망
+        scatterSystem?.ForceCompleteTosses();   // 미완료 토스를 최종 자세로 + 코루틴 정지(A8)
+        nakPresenter?.CompleteAll();            // 낙하 중인 돌 숨김
+        isNakPending = false;
+        nakRoutine = null;
+        SetFailReason(pendingNakReason);
+        SetPhase(GamePhase.Failed);
+        nakFinishing = false;
+    }
+
+    /// <summary>StartStage 첫 줄 — 예약된 실패를 무효화하고 연출을 멈춘다.</summary>
+    public void CancelNakWait()
+    {
+        bool was = isNakPending;
+        nakToken++;
+        if (nakRoutine != null) { StopCoroutine(nakRoutine); nakRoutine = null; }
+        isNakPending = false;
+        nakFinishing = false;
+        nakBusy = 0;
+        nakPresenter?.CancelAll();
+        if (was) Debug.Log("[GameManager] NakWait cancel");
+    }
+
     public void SetFailReason(string reason)
     {
         lastFailReason = reason;
@@ -461,6 +571,8 @@ public class GameManager : MonoBehaviour
 
     public void StartStage(int stage)
     {
+        CancelNakWait(); // M1-S7: 예약된 낙 실패가 새 스테이지에서 터지지 않게 (F8)
+
         // v18: 엔딩 연출이 감춰둔 HUD를 여기서 되살린다(다시 플레이 시 사라진 채 남는 걸 방지).
         GameUI.Instance?.SetHudVisible(true);
         isInTitleScreen = false; // 어떤 경로로든 스테이지 시작 시 타이틀 아님
@@ -561,6 +673,12 @@ public class GameManager : MonoBehaviour
 
     public void SetPhase(GamePhase phase)
     {
+        // M1-S7: 낙 대기 중에는 다른 페이즈 전환을 막는다(첫 사유 유지, F6). 실패 확정은 FinishNakWait만 건다.
+        if (isNakPending && !nakFinishing)
+        {
+            Debug.Log($"[GameManager] SetPhase {phase} ignored (nak pending)");
+            return;
+        }
         var prevPhase = currentPhase;
         currentPhase = phase;
         TestLogger.Instance?.LogPhaseChange(prevPhase.ToString(), phase.ToString());
@@ -652,6 +770,7 @@ public class GameManager : MonoBehaviour
         session?.OnFail();
         SidePanelUI.Instance?.Refresh();
 
+        nakPresenter?.RestoreAll(); // M1-S7: 낙하 연출이 숨기거나 판 뒤로 보낸 돌 복구(렌더러·z·물리 플래그)
         ResetAllStones();
 
         // v12b: 실패도 스테이지 종료 — 기믹 UI/오브젝트(공기구성 헤더·번호 라벨 등)를 즉시 정리한다.

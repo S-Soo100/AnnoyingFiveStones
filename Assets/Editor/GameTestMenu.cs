@@ -161,6 +161,110 @@ public static class GameTestMenu
         Debug.Log($"[GameTestMenu] 마무리음 = {AudioManager.FinishCueEnabled}");
     }
 
+    // ── M1-S7 뿌리기 낙 강제 (계획서 §7 GameTestMenu, §13 M1 매트릭스) ─────────────
+    // 현재 나이에서 손을 보드 중앙에 두고, 돌 0..k-1의 목표를 보드 좌표로 덮어써 뿌린다.
+    // 보드 좌표: +y = 앞, -x = 왼쪽. 반폭 8 / 반깊이 4.5 (BoardSpace.LogicalWidth/Depth의 절반).
+    private static float HW => BoardSpace.LogicalWidth * 0.5f;
+    private static float HD => BoardSpace.LogicalDepth * 0.5f;
+
+    [MenuItem("Tools/테스트 낙/앞 1.0")]   public static void NakFront10() => ForceNak(new Vector2(0f, HD + 1.0f));
+    [MenuItem("Tools/테스트 낙/뒤 1.0")]   public static void NakBack10()  => ForceNak(new Vector2(0f, -HD - 1.0f));
+    [MenuItem("Tools/테스트 낙/좌 1.0")]   public static void NakLeft10()  => ForceNak(new Vector2(-HW - 1.0f, 0f));
+    [MenuItem("Tools/테스트 낙/우 1.0")]   public static void NakRight10() => ForceNak(new Vector2(HW + 1.0f, 0f));
+    [MenuItem("Tools/테스트 낙/앞 0.05")]  public static void NakFront005() => ForceNak(new Vector2(0f, HD + 0.05f));
+    [MenuItem("Tools/테스트 낙/뒤 0.05")]  public static void NakBack005()  => ForceNak(new Vector2(0f, -HD - 0.05f));
+    [MenuItem("Tools/테스트 낙/좌 0.05")]  public static void NakLeft005()  => ForceNak(new Vector2(-HW - 0.05f, 0f));
+    [MenuItem("Tools/테스트 낙/우 0.05")]  public static void NakRight005() => ForceNak(new Vector2(HW + 0.05f, 0f));
+
+    [MenuItem("Tools/테스트 낙/동시 3개 (앞·좌·우 1.0)")]
+    public static void NakTriple() => ForceNak(new Vector2(0f, HD + 1.0f), new Vector2(-HW - 1.0f, 0f), new Vector2(HW + 1.0f, 0f));
+
+    [MenuItem("Tools/테스트 낙/모서리 우1.0×앞0.1 (25살용)")]
+    public static void NakCornerRightFront() => ForceNak(new Vector2(HW + 1.0f, HD + 0.1f));
+
+    [MenuItem("Tools/테스트 낙/우 +0.25 (Flat 경계 바로 너머)")]
+    public static void NakRight025() => ForceNak(new Vector2(HW + 0.25f, 0f));
+
+    [MenuItem("Tools/테스트 낙/앞 -0.01 (Ledge 경계 바로 안쪽, 안전)")]
+    public static void NakFrontInside() => ForceNak(new Vector2(0f, HD - 0.01f));
+
+    /// <summary>낙 대기 중 일시정지(F7): 대기 0.4초 시점에 일시정지 → 실시간 2초 → 재개. 실패는 게임 시간 기준으로
+    /// 남은 만큼만 기다렸다 1회. 이어서 실패 직후 돌 복구 상태(렌더러·콜라이더·z)를 로그로 남긴다.</summary>
+    [MenuItem("Tools/테스트 낙/검증: 대기 중 일시정지")]
+    public static void VerifyNakPause() => StartEditorRoutine(NakPauseRoutine());
+
+    /// <summary>낙 대기 중 스테이지 점프(F8): 대기 0.4초 시점에 20살로 점프 → 이전 실패가 발생하지 않아야 한다.</summary>
+    [MenuItem("Tools/테스트 낙/검증: 대기 중 스테이지 점프")]
+    public static void VerifyNakJump() => StartEditorRoutine(NakJumpRoutine());
+
+    private static System.Collections.IEnumerator WaitGame(float sec)
+    {
+        float t0 = Time.time;
+        while (Time.time - t0 < sec) yield return null;
+    }
+
+    private static System.Collections.IEnumerator NakPauseRoutine()
+    {
+        var gm = GameManager.Instance;
+        GoLoop(1);
+        float t0 = Time.time;
+        while ((gm.CurrentPhase != GameManager.GamePhase.Scatter || gm.IsTransitioning) && Time.time - t0 < 8f) yield return null;
+        NakTriple();
+        float real0 = Time.realtimeSinceStartup, game0 = Time.time;
+        var w = WaitGame(0.4f); while (w.MoveNext()) yield return null;
+        PauseMenuUI.Instance.Toggle();
+        float pr = Time.realtimeSinceStartup;
+        while (Time.realtimeSinceStartup - pr < 2f) yield return null;
+        Debug.Log($"[NakVerify] paused 2s real: pending={gm.IsNakPending} phase={gm.CurrentPhase} timeScale={Time.timeScale}");
+        PauseMenuUI.Instance.Toggle();
+        t0 = Time.realtimeSinceStartup;
+        while (gm.CurrentPhase == GameManager.GamePhase.Scatter && Time.realtimeSinceStartup - t0 < 6f) yield return null;
+        Debug.Log($"[NakVerify] after resume: phase={gm.CurrentPhase} game={Time.time - game0:F3}s real={Time.realtimeSinceStartup - real0:F3}s");
+        yield return null;
+        LogStoneRestore("after Failed");
+    }
+
+    private static System.Collections.IEnumerator NakJumpRoutine()
+    {
+        var gm = GameManager.Instance;
+        GoLoop(1);
+        float t0 = Time.time;
+        while ((gm.CurrentPhase != GameManager.GamePhase.Scatter || gm.IsTransitioning) && Time.time - t0 < 8f) yield return null;
+        NakTriple();
+        var w = WaitGame(0.4f); while (w.MoveNext()) yield return null;
+        GoLoop(3);
+        Debug.Log($"[NakVerify] jumped: pending={gm.IsNakPending} phase={gm.CurrentPhase}");
+        LogStoneRestore("after jump");
+        w = WaitGame(2.5f); while (w.MoveNext()) yield return null;
+        Debug.Log($"[NakVerify] 2.5s after jump: phase={gm.CurrentPhase} reason='{gm.LastFailReason}'");
+    }
+
+    private static void LogStoneRestore(string tag)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var s in GameManager.Instance.Stones)
+        {
+            var c = s.GetComponent<Collider>();
+            sb.Append($"{s.StoneIndex}:{s.CurrentState} rend={s.IsRendererVisible} col={(c != null && c.enabled)} z={s.transform.position.z:F2} | ");
+        }
+        Debug.Log($"[NakVerify] stones {tag}: {sb}");
+    }
+
+    private static void ForceNak(params Vector2[] targets)
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        var gm = GameManager.Instance;
+        var scatter = Object.FindFirstObjectByType<ScatterSystem>();
+        var hand = Object.FindFirstObjectByType<HandController>(FindObjectsInactive.Include);
+        if (gm == null || scatter == null || hand == null) { Debug.LogError("[GameTestMenu] 준비 안 됨"); return; }
+        if (gm.IsNakPending) { Debug.LogError("[GameTestMenu] 낙 대기 중"); return; }
+        if (gm.CurrentPhase != GameManager.GamePhase.Scatter) gm.SetPhase(GameManager.GamePhase.Scatter);
+        var c = BoardSpace.ToScreen(Vector2.zero, 0f);
+        hand.DebugPlaceHand(new Vector3(c.x, c.y, 0f));
+        Debug.Log($"[GameTestMenu] 낙 강제 {targets.Length}개: {string.Join(" ", System.Array.ConvertAll(targets, t => t.ToString("F2")))} edges={BoardSpace.Edges}");
+        scatter.DebugScatterForcedNak(0.45f, 31, new Vector2(0.5f, 0.5f), targets);
+    }
+
     // ── M1 뿌리기 검증 (계획서 §12 S1 완료 확인) ────────────────────────────────
     // 10나이 × 게이지(0.1/0.45/0.95) 실제 뿌리기를 연속으로 돌려 돌별 diff·총 시간·출발 간격 합을 요약한다.
     // 여러 프레임에 걸치므로 EditorApplication.update로 한 단계씩 진행한다(메뉴는 즉시 반환).
