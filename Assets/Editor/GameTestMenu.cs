@@ -326,12 +326,9 @@ public static class GameTestMenu
             ring.Show();
             ring.UpdateRing(ScatterSystem.RadiusBoard(v), Vector2.zero);
         }
-        var lr = ring != null ? ring.GetComponent<LineRenderer>() : null;
+        // M1-S4: 링이 LineRenderer → 메시(원판+점선)로 바뀌었다
         Debug.Log($"[GameTestMenu] 게이지+링 표시 ({v:0.00}, 반경 {ScatterSystem.RadiusBoard(v):0.00}) / " +
-                  $"링 enabled={(lr != null ? lr.enabled.ToString() : "없음")} " +
-                  $"색={(lr != null ? lr.startColor.ToString() : "-")} " +
-                  $"폭={(lr != null ? lr.widthMultiplier.ToString("0.000") : "-")} " +
-                  $"p0={(lr != null && lr.positionCount > 0 ? lr.GetPosition(0).ToString("0.00") : "-")}");
+                  $"링 {(ring != null ? ring.DebugSummary : "없음")}");
     }
 
     /// <summary>영문에서 글자가 상자를 넘치는지 보려면 언어를 바꿔가며 같은 화면을 찍어야 한다.</summary>

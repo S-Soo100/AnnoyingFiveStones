@@ -7,7 +7,6 @@ using UnityEngine;
 ///   원을 사다리꼴 보드에 매핑 → 링이 테이블 밖으로 넘치면 낙 경고색으로 전환.
 /// ★z: 링은 돌(z=0) 바로 뒤·매트 앞 → RingZ=0.03 (안 보이면 실행 확인 후 조정).
 /// </summary>
-[RequireComponent(typeof(LineRenderer))]
 public class ScatterRangeIndicator : MonoBehaviour
 {
     private const int SEG = 48;
@@ -41,69 +40,108 @@ public class ScatterRangeIndicator : MonoBehaviour
         return coral; // 낙
     }
 
-    private LineRenderer lr;
-    private LineRenderer guideInner;
-    private LineRenderer guideOuter;
+    // ── M1-S4 링 재스타일 (계획서 §5-7) ────────────────────────────────────────
+    // "디버그 선처럼 보인다"(분석서 §2) → 보드에 눌러 붙은 **반투명 원판 + 점선 테두리**.
+    //   원판: 정점색 = 밴드색, 알파 0.14±0.04가 1.2Hz로 숨쉰다(반경은 숨쉬지 않는다 — T1).
+    //   점선: 28개, 듀티 0.6, 화면 폭 0.05, 알파 0.90.
+    //   스윗 가이드: 선 2개 → 2.5~4.0 사이 옅은 흰 고리 면 1개(알파 0.07).
+    // 메시 1개를 Awake에서 MarkDynamic으로 만들고 정점·색 배열을 미리 할당한다. 삼각형은 한 번만 설정
+    // (토폴로지 고정) → UpdateRing은 정점·색만 덮어쓴다. 프레임당 할당 0.
+    // 그리는 순서 = 삼각형 순서(한 메시·한 머티리얼): 원판 → 가이드 고리 → 점선.
+    private const float DiscAlpha = 0.14f, DiscAlphaBreath = 0.04f, DiscBreathHz = 1.2f;
+    private const int DashCount = 28;
+    private const float DashDuty = 0.6f, DashWidth = 0.05f, DashAlpha = 0.90f;
+    private const int DashSubdiv = 4;                 // 점선 하나를 몇 조각으로 휘게 그릴지
+    private const float GuideAlpha = 0.07f;
+
+    // 정점 배치: [원판 중심 1][원판 테두리 SEG][가이드 안 SEG][가이드 밖 SEG][점선 DashCount×(DashSubdiv+1)×2]
+    private const int DiscCenterV = 0;
+    private const int DiscRimV = 1;
+    private const int GuideInV = DiscRimV + SEG;
+    private const int GuideOutV = GuideInV + SEG;
+    private const int DashV = GuideOutV + SEG;
+    private const int DashPts = DashSubdiv + 1;
+    private const int VertCount = DashV + DashCount * DashPts * 2;
+
+    private Mesh mesh;
+    private MeshRenderer mr;
+    private Vector3[] verts;
+    private Color32[] colors;
+    private readonly Vector2[] dashScreen = new Vector2[DashPts]; // 점선 한 개의 화면 좌표 (재사용 버퍼)
 
     private void Awake()
     {
-        lr = GetComponent<LineRenderer>();
-        lr.useWorldSpace = true;
-        lr.loop = true;
-        lr.positionCount = SEG;
-        lr.widthMultiplier = 0.06f;
-        lr.numCornerVertices = 4;
-        lr.numCapVertices = 0;
-        lr.alignment = LineAlignment.View;
-        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        lr.receiveShadows = false;
-        // LineRenderer는 vertex-color·투명이 Sprites/Default에서 가장 안정적.
-        lr.material = new Material(Shader.Find("Sprites/Default"));
-        lr.enabled = false; // 시작은 숨김
+        // 정점은 월드 좌표로 쓴다 → 트랜스폼은 원점·무회전·단위 스케일이어야 한다.
+        transform.position = Vector3.zero;
+        transform.rotation = Quaternion.identity;
+        transform.localScale = Vector3.one;
 
-        // 스윗 밴드 정적 도넛 2개 (라이브 링과 동일 세팅, 더 얇고 흐린 회백색).
-        guideInner = CreateGuide("ScatterGuideInner");
-        guideOuter = CreateGuide("ScatterGuideOuter");
+        verts = new Vector3[VertCount];
+        colors = new Color32[VertCount];
+        mesh = new Mesh { name = "ScatterRangeMesh" };
+        mesh.MarkDynamic();
+        mesh.vertices = verts;
+        mesh.colors32 = colors;
+        mesh.triangles = BuildTriangles();
+        // 첫 UpdateRing 전 컬링 방지용 넉넉한 경계 (이후 정점 대입이 실제 경계로 다시 계산한다)
+        mesh.bounds = new Bounds(Vector3.zero, new Vector3(200f, 200f, 10f));
+
+        gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+        mr = gameObject.AddComponent<MeshRenderer>();
+        // 정점색·알파 블렌드가 가장 안정적인 셰이더(구 LineRenderer와 같은 것)
+        mr.sharedMaterial = new Material(Shader.Find("Sprites/Default"));
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
+        mr.enabled = false; // 시작은 숨김
     }
 
-    /// <summary>정적 가이드용 자식 LineRenderer 생성 (라이브 링과 동일 세팅, 얇고 흐림).</summary>
-    private LineRenderer CreateGuide(string name)
+    private static int[] BuildTriangles()
     {
-        var go = new GameObject(name);
-        go.transform.SetParent(transform, false);
-        var g = go.AddComponent<LineRenderer>();
-        g.useWorldSpace = true;
-        g.loop = true;
-        g.positionCount = SEG;
-        g.widthMultiplier = 0.03f; // 라이브 링보다 얇게
-        g.numCornerVertices = 4;
-        g.numCapVertices = 0;
-        g.alignment = LineAlignment.View;
-        g.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        g.receiveShadows = false;
-        g.material = new Material(Shader.Find("Sprites/Default"));
-        var faint = new Color(1f, 1f, 1f, 0.25f);
-        g.startColor = faint;
-        g.endColor = faint;
-        g.enabled = false; // 시작은 숨김
-        return g;
+        int tri = SEG * 3 + SEG * 6 + DashCount * DashSubdiv * 6;
+        var t = new int[tri];
+        int k = 0;
+        // 원판 (부채꼴)
+        for (int i = 0; i < SEG; i++)
+        {
+            t[k++] = DiscCenterV; t[k++] = DiscRimV + (i + 1) % SEG; t[k++] = DiscRimV + i;
+        }
+        // 가이드 고리 면
+        for (int i = 0; i < SEG; i++)
+        {
+            int i1 = (i + 1) % SEG;
+            int a = GuideInV + i, b = GuideInV + i1, c = GuideOutV + i, d = GuideOutV + i1;
+            t[k++] = a; t[k++] = c; t[k++] = b;
+            t[k++] = b; t[k++] = c; t[k++] = d;
+        }
+        // 점선 (조각마다 사각형 하나)
+        for (int dsh = 0; dsh < DashCount; dsh++)
+        {
+            int baseV = DashV + dsh * DashPts * 2;
+            for (int j = 0; j < DashSubdiv; j++)
+            {
+                int a = baseV + j * 2, b = a + 1, c = a + 2, d = a + 3; // a,b = j번 점의 안/밖, c,d = j+1번
+                t[k++] = a; t[k++] = c; t[k++] = b;
+                t[k++] = b; t[k++] = c; t[k++] = d;
+            }
+        }
+        return t;
     }
 
     /// <summary>게이지 시작 시 표시. 여러 번 호출돼도 무해.</summary>
     public void Show()
     {
-        lr.enabled = true;
-        if (guideInner != null) guideInner.enabled = true;
-        if (guideOuter != null) guideOuter.enabled = true;
+        if (mr != null) mr.enabled = true;
     }
 
     /// <summary>게이지 종료/리셋 시 숨김. 여러 번 호출돼도 무해.</summary>
     public void Hide()
     {
-        if (lr != null) lr.enabled = false;
-        if (guideInner != null) guideInner.enabled = false;
-        if (guideOuter != null) guideOuter.enabled = false;
+        if (mr != null) mr.enabled = false;
     }
+
+    /// <summary>검증 로그용 — 현재 표시 상태 요약.</summary>
+    public string DebugSummary =>
+        mr == null ? "없음" : $"enabled={mr.enabled} disc={colors[DiscCenterV]} dash={colors[DashV]} v0={verts[DiscRimV]:F2}";
 
     /// <summary>게이지 값에 대응하는 산개 반경(**보드 단위**)으로 링을 갱신.
     /// centerBoard = 산개 중심(커서/손 위치의 보드 좌표).
@@ -111,43 +149,75 @@ public class ScatterRangeIndicator : MonoBehaviour
     /// 그게 "돗자리 위에 그린 원"의 올바른 모습이고 실제 산개와 정확히 일치한다.</summary>
     public void UpdateRing(float radiusBoard, Vector2 centerBoard)
     {
-        // 1) 스윗 밴드 도넛 (중심도 커서 따라 이동 — 라이브 링과 동일 원점).
-        BuildGuide(guideInner, GuideInnerBoard, centerBoard);
-        BuildGuide(guideOuter, GuideOuterBoard, centerBoard);
-
-        // 2) SEG개 점 배치 + 낙 위험(보드 밖) 카운트.
+        // 1) 원판 테두리 SEG개 점 배치 + 낙 위험(보드 밖) 카운트. (구 링과 같은 48점·같은 판정)
         int outside = 0;
         for (int i = 0; i < SEG; i++)
         {
             float theta = 2f * Mathf.PI * i / SEG;
             Vector2 bp = centerBoard + new Vector2(Mathf.Cos(theta), Mathf.Sin(theta)) * radiusBoard;
             Vector2 world = BoardSpace.ToScreen(bp, 0f);
-            lr.SetPosition(i, new Vector3(world.x, world.y, RingZ));
+            verts[DiscRimV + i] = new Vector3(world.x, world.y, RingZ);
 
             if (!BoardSpace.Current.Contains(bp)) outside++;
         }
+        Vector2 cw = BoardSpace.ToScreen(centerBoard, 0f);
+        verts[DiscCenterV] = new Vector3(cw.x, cw.y, RingZ);
 
         float dangerFrac = (float)outside / SEG;
 
-        // 3) 3밴드 색. 실제 넘침은 coral 강조.
+        // 2) 3밴드 색. 실제 넘침은 coral 강조. (색 규칙 불변)
         Color c = BandColor(radiusBoard);
         if (dangerFrac > 0f) c = Color.Lerp(c, coral, Mathf.Clamp01(dangerFrac * 3f)); // 실제 넘침 강조
-        c.a = 0.85f;
-        lr.startColor = c;
-        lr.endColor = c;
-    }
 
-    /// <summary>정적 가이드 도넛을 반경 rUV로 보드 폴리곤에 배치. centerUV = 산개 중심(커서).</summary>
-    private void BuildGuide(LineRenderer g, float rBoard, Vector2 centerBoard)
-    {
-        if (g == null) return;
+        // 3) 스윗 밴드 고리 면 (중심도 커서 따라 이동 — 원판과 동일 원점).
         for (int i = 0; i < SEG; i++)
         {
             float theta = 2f * Mathf.PI * i / SEG;
-            Vector2 bp = centerBoard + new Vector2(Mathf.Cos(theta), Mathf.Sin(theta)) * rBoard;
-            Vector2 world = BoardSpace.ToScreen(bp, 0f);
-            g.SetPosition(i, new Vector3(world.x, world.y, RingZ));
+            Vector2 dir = new Vector2(Mathf.Cos(theta), Mathf.Sin(theta));
+            Vector2 wi = BoardSpace.ToScreen(centerBoard + dir * GuideInnerBoard, 0f);
+            Vector2 wo = BoardSpace.ToScreen(centerBoard + dir * GuideOuterBoard, 0f);
+            verts[GuideInV + i] = new Vector3(wi.x, wi.y, RingZ);
+            verts[GuideOutV + i] = new Vector3(wo.x, wo.y, RingZ);
         }
+
+        // 4) 점선 — 보드 원 위의 호를 화면으로 투영한 뒤 **화면에서** 폭을 준다(원근에 눌려 얇아지지 않게).
+        float step = 2f * Mathf.PI / DashCount;
+        for (int dsh = 0; dsh < DashCount; dsh++)
+        {
+            float a0 = step * dsh;
+            for (int j = 0; j < DashPts; j++)
+            {
+                float a = a0 + step * DashDuty * j / DashSubdiv;
+                dashScreen[j] = BoardSpace.ToScreen(centerBoard + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radiusBoard, 0f);
+            }
+            int baseV = DashV + dsh * DashPts * 2;
+            for (int j = 0; j < DashPts; j++)
+            {
+                Vector2 tan = dashScreen[Mathf.Min(j + 1, DashPts - 1)] - dashScreen[Mathf.Max(j - 1, 0)];
+                Vector2 nrm = tan.sqrMagnitude > 1e-10f ? new Vector2(-tan.y, tan.x).normalized : Vector2.up;
+                Vector2 o = nrm * (DashWidth * 0.5f);
+                verts[baseV + j * 2]     = new Vector3(dashScreen[j].x - o.x, dashScreen[j].y - o.y, RingZ);
+                verts[baseV + j * 2 + 1] = new Vector3(dashScreen[j].x + o.x, dashScreen[j].y + o.y, RingZ);
+            }
+        }
+
+        // 5) 색 — 원판은 알파만 숨쉰다. 반경은 그대로.
+        float breath = DiscAlpha + DiscAlphaBreath * Mathf.Sin(2f * Mathf.PI * DiscBreathHz * Time.time);
+        Color32 disc = WithAlpha(c, breath);
+        Color32 dash = WithAlpha(c, DashAlpha);
+        Color32 guide = WithAlpha(Color.white, GuideAlpha);
+        for (int i = DiscCenterV; i < GuideInV; i++) colors[i] = disc;
+        for (int i = GuideInV; i < DashV; i++) colors[i] = guide;
+        for (int i = DashV; i < VertCount; i++) colors[i] = dash;
+
+        mesh.vertices = verts;     // 같은 크기 배열 덮어쓰기 — 관리 힙 할당 없음
+        mesh.colors32 = colors;
+    }
+
+    private static Color32 WithAlpha(Color c, float a)
+    {
+        c.a = Mathf.Clamp01(a);
+        return c;
     }
 
     /// <summary>보드 폴리곤 bilinear 매핑 (ScatterSystem.TrapPoint와 동일).
