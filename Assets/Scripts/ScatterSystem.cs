@@ -53,10 +53,47 @@ public class ScatterSystem : MonoBehaviour
     /// (GaugeBarUI) — 링과 바가 서로 다른 식을 쓰면 두 개가 다른 말을 하게 된다.</summary>
     public static float RadiusBoard(float g) => RBoardBase + RBoardSpan * Mathf.Clamp01(g);
 
-    private const float TossDuration = 0.50f; // 돌 하나 비행 시간(초) — v15 여유있는 아치
-    private const float TossStagger  = 0.05f; // 돌 간 출발 지연(캐스케이드 느낌)
-    private const float LiftHeight   = 0.55f; // (v15 미사용 — per-stone liftH로 대체)
     private const float NakMargin    = 0.25f; // 이만큼 사다리꼴 밖으로 나가야 낙(경계 애매낙 방지)
+
+    // ── M1 뿌리기 손맛 (계획서 §5-5). 씬 오버라이드 함정 회피 위해 전부 코드 상수 ──
+    // 원칙: 단단한 돌 — 무게감은 변형이 아니라 소리·먼지·짧은 정지로 낸다(T1). 효과는 적게, 정확하게.
+    /// <summary>단일 중력(보드 높이 단위/s²). 모든 돌이 같은 G → 무게의 일관성.</summary>
+    public const float TossGravity = 45f;
+    private const float TossTMin = 0.40f, TossTMax = 0.54f; // 체공: 가까우면 0.40, 4.4 이상이면 0.54
+    private const float TossTRefDist = 4.4f;
+    private const float TossTJitter = 0.025f;               // 돌마다 ±0.025 (fxRng)
+    private const float StaggerMin = 0.02f, StaggerMax = 0.07f, StaggerSumMax = 0.18f;
+    private const float SpinMinDeg = 120f, SpinMaxDeg = 260f; // Z축(화면 평면) 회전 — Y축은 정면 카메라에서 안 보였다
+    private const float SpinAtContact = 0.70f;              // 첫 접촉까지 70%, 나머지는 감속하며 정지
+    private const float StretchY = 0.04f, StretchX = 0.02f; // 비행 중 늘어남(높이 속도 비례)
+    private const float LandLeadK = 0.11f, LandLeadMin = 0.08f, LandLeadMaxFrac = 0.30f; // 첫 접촉 선행 거리
+    private const float Bounce1Base = 0.16f, Bounce2Ratio = 0.35f; // 튐 높이(T1 축소안)
+    private const float Bounce1Frac = 0.67f, Bounce2Frac = 0.25f, SlideFrac = 0.08f; // 접촉 후 수평 이동 배분(합 1)
+    private const float SlideDuration = 0.07f;
+    private const float Squash1Y = 0.94f, Squash1XZ = 1.03f, Squash1Dur = 0.07f;   // 스쿼시 ≤6% (T1)
+    private const float Squash2Y = 0.97f, Squash2XZ = 1.015f, Squash2Dur = 0.05f;
+    private const float SquashRise = 0.30f;
+
+    /// <summary>연출 전용 난수(T6). 목표 계산(UnityEngine.Random)과 분리 — 연출을 바꿔도 목표가 그대로다.</summary>
+    private System.Random fxRng = new System.Random();
+
+    // 진행 중인 뿌리기 상태 (ForceCompleteTosses가 스냅·정지에 쓴다)
+    private Coroutine scatterRoutine;
+    private int scatterGen;
+    private TossPlan[] tossPlans;
+    private Stone[] tossStones;
+    private bool[] tossDone;
+    private int activeTosses;
+    private readonly List<Coroutine> tossRoutines = new List<Coroutine>();
+    private readonly List<Stone> nakStones = new List<Stone>();
+    private float scatterReleaseTime, tossStartTime;
+    private GameObject nakWall;
+    private bool nakWallWasActive;
+#if UNITY_EDITOR
+    public float DebugLastTotal { get; private set; }
+    public float DebugLastMaxDiff { get; private set; }
+    public float DebugLastStaggerSum { get; private set; }
+#endif
 
     // 저게이지=간격 좁음(손바닥폭~1.0 아래=뭉침 픽업실패), 스윗=간격 확보
     private static float TargetSepForGauge(float g)
@@ -84,6 +121,14 @@ public class ScatterSystem : MonoBehaviour
         currentGaugeValue = 0f;
         GaugeBarUI.Instance?.Hide();
         rangeIndicator?.Hide();
+        ForceCompleteTosses();   // M1-S1: 지난 뿌리기의 토스·완료 처리가 새 스테이지로 새지 않게
+    }
+
+    /// <summary>뿌리기 코루틴 시작 — 진행 중인 뿌리기가 있으면 먼저 끝낸다.</summary>
+    private void StartScatterRoutine(float gauge)
+    {
+        if (scatterRoutine != null || activeTosses > 0) ForceCompleteTosses();
+        scatterRoutine = StartCoroutine(DoScatter(gauge));
     }
 
     private void Awake()
@@ -224,7 +269,7 @@ public class ScatterSystem : MonoBehaviour
         Debug.Log($"[ScatterSystem] Scatter gauge: {gauge:F2}");
 
         handController?.PlayScatterFlick();
-        StartCoroutine(DoScatter(gauge));
+        StartScatterRoutine(gauge);
     }
 
     /// <summary>v14: 코루틴 토스 산개. 손 중앙 → 보드 좌표 목표까지 아치 애니메이션.
@@ -238,7 +283,7 @@ public class ScatterSystem : MonoBehaviour
         isGaugeActive = false;
         GaugeBarUI.Instance?.Hide();
         rangeIndicator?.Hide();
-        StartCoroutine(DoScatter(gauge));
+        StartScatterRoutine(gauge);
     }
 
     // ── M1-S0 기준값 캡처 (에디터 전용) ──────────────────────────────────────
@@ -272,9 +317,17 @@ public class ScatterSystem : MonoBehaviour
             GaugeBarUI.Instance?.Hide();
             rangeIndicator?.Hide();
         }
-        Random.InitState(seed);
-        StartCoroutine(DoScatter(gauge));   // planOnly면 첫 yield 전에 끝나므로 여기서 동기 완료
-        if (planOnly) DebugClearSeeded();
+        if (planOnly)
+        {
+            Random.InitState(seed);
+            StartCoroutine(DoScatter(gauge));   // 첫 yield 전에 끝나므로 여기서 동기 완료(돌·상태 무변경)
+            DebugClearSeeded();
+            return;
+        }
+        fxRng = new System.Random(seed);        // 검증 재현용: 연출 난수도 시드 고정
+        if (scatterRoutine != null || activeTosses > 0) ForceCompleteTosses();
+        Random.InitState(seed);                 // ForceComplete 뒤에 — 목표 계산 직전에 고정
+        scatterRoutine = StartCoroutine(DoScatter(gauge));
     }
 
     private void DebugClearSeeded()
@@ -301,6 +354,11 @@ public class ScatterSystem : MonoBehaviour
 
     private IEnumerator DoScatter(float gauge)
     {
+        scatterReleaseTime = Time.time;
+#if UNITY_EDITOR
+        DebugLastMaxDiff = 0f;
+        DebugLastTotal = -1f;
+#endif
         var stones = GameManager.Instance.Stones;
         int n = stones != null ? stones.Length : 0;
         if (n == 0)
@@ -435,9 +493,9 @@ public class ScatterSystem : MonoBehaviour
         //   재캡처 + 토스 시작 → 유저 릴리스와 돌 발사 타이밍 일치(체감 딜레이 제거).
         //   손 캐스트 연출(DoScatterThrow)은 돌과 무관하게 병렬 진행.
 
-        // ── 3) 준비: 모든 돌 InHand(kinematic) + 콜라이더 반경 + 랜덤 스핀 ──
-        var spin = new float[n];
-        var liftH = new float[n]; // per-stone 아치 최고 높이(화면 Y)
+        // ── 3) 준비: 모든 돌 InHand(kinematic) + 콜라이더 반경 ──
+        // M1-S1(T6): 여기서부터의 무작위(간격·체공 지터·회전)는 fxRng만 쓴다.
+        //   UnityEngine.Random은 위 1)~2.3) 목표 계산 전용 — 연출을 바꿔도 목표가 안 바뀌게.
         for (int i = 0; i < n; i++)
         {
             stones[i].SetState(Stone.State.InHand); // kinematic, 콜라이더 off
@@ -445,76 +503,40 @@ public class ScatterSystem : MonoBehaviour
             startPos[i] = new Vector2(stones[i].transform.position.x, stones[i].transform.position.y); // 캐스트 끝 손위치
             var col = stones[i].GetComponent<SphereCollider>();
             if (col != null) col.radius = 0.9f;
-            spin[i] = Random.Range(180f, 540f) * (Random.value < 0.5f ? -1f : 1f);
-            liftH[i] = Random.Range(1.2f, 1.8f);
         }
 
-        // ── 4) 코루틴 토스 애니메이션 (캐스케이드 stagger) ──
         // 출발점도 보드 좌표로 — 토스 전체를 보드 공간에서 계산해야 원근 스케일이 따라온다.
         var startBoard = new Vector2[n];
         for (int i = 0; i < n; i++)
             startBoard[i] = BoardSpace.ClampToBoard(BoardSpace.ToBoard(startPos[i]));
 
-        var landed = new bool[n];
-        var nakStones = new List<Stone>();
-        float total = TossDuration + TossStagger * (n - 1);
-        float elapsed = 0f;
+        // ── 4) 토스 계획 + 돌별 코루틴 (M1-S1, 계획서 §5-5) ──
+        int gen = ++scatterGen;
+        tossPlans = BuildTossPlans(startBoard, boardTargets, isNak);
+        tossStones = stones;
+        tossDone = new bool[n];
+        tossContact = new bool[n];
+        nakStones.Clear();
+        tossStartTime = Time.time;
+        activeTosses = n;
+        tossRoutines.Clear();
+        for (int i = 0; i < n; i++)
+            tossRoutines.Add(StartCoroutine(TossStone(i, gen)));
 
-        while (elapsed < total + 0.02f)
-        {
-            elapsed += Time.deltaTime;
-            for (int i = 0; i < n; i++)
-            {
-                if (landed[i]) continue;
-                float st = elapsed - i * TossStagger;
-                if (st <= 0f) continue;
-
-                float t = Mathf.Clamp01(st / TossDuration);
-
-                // v17: 투사체 운동 — 수평 등속 + 높이 포물선.
-                //   구 코드는 수평에 ease-out(감속)을 걸고 높이를 sin 아치로 줬다.
-                //   실제로 던진 물체는 수평 속도가 일정하고 낙하는 가속한다. 감속시키면
-                //   "떠 있다 살포시 놓이는" 느낌이 나서 부자연스러웠다.
-                //   4·H·t·(1-t) = 포물선(피크 t=0.5, 최고 H) — 중력 궤적과 같은 모양.
-                Vector2 bp = Vector2.Lerp(startBoard[i], boardTargets[i], t);
-                float h = 4f * liftH[i] * t * (1f - t);
-
-                stones[i].SetBoardMotion(bp, h); // 화면 위치·원근 크기 모두 여기서 파생
-                stones[i].transform.rotation = Quaternion.Euler(0f, spin[i] * t, 0f);
-
-                if (t >= 1f)
-                {
-                    landed[i] = true;
-                    stones[i].SetBoardMotion(boardTargets[i], 0f);
-                    AudioManager.Instance?.PlayScatterHit(i);
-
-                    if (isNak[i])
-                    {
-                        nakStones.Add(stones[i]); // 보드 밖 도달 → 아래 낙 처리
-                    }
-                    else
-                    {
-                        stones[i].SetState(Stone.State.OnBoard); // 상태만 OnBoard
-                        stones[i].Rb.linearVelocity = Vector3.zero;
-                        stones[i].Rb.angularVelocity = Vector3.zero;
-                        // v15: 착지 여운(hop+squash) 후 kinematic 고정. SettleStone이 최종 isKinematic=true.
-                        // (드리프트로 SafeZone 밖으로 밀려 플레이 중 낙나던 버그 해결. 줍힐 때 InHand로 전환됨.)
-                        StartCoroutine(SettleStone(stones[i], boardTargets[i]));
-                    }
-                }
-            }
-            yield return null;
-        }
+        while (activeTosses > 0) yield return null;
+        tossRoutines.Clear();
+        if (gen != scatterGen) yield break; // ForceCompleteTosses가 이 뿌리기를 끝냈다
 
         // ── 5) 낙 처리 (보드 밖 목표에 도달한 돌을 가장자리 너머로 떨어뜨림) ──
+        // ⚠️ M1-S1: 낙 돌은 임시로 현행 흐름 그대로다(계획서 §12 S1). S7에서 교체한다.
         if (nakStones.Count > 0)
         {
             AudioManager.Instance?.PlayOutOfBounds();
             TestLogger.Instance?.LogFailure("scatter_out_of_bounds");
 
-            var wall = GameObject.Find("BoardBottomWall");
-            bool wallWasActive = wall != null && wall.activeSelf;
-            if (wall != null) wall.SetActive(false);
+            nakWall = GameObject.Find("BoardBottomWall");
+            nakWallWasActive = nakWall != null && nakWall.activeSelf;
+            if (nakWall != null) nakWall.SetActive(false);
 
             foreach (var s in nakStones)
             {
@@ -524,50 +546,261 @@ public class ScatterSystem : MonoBehaviour
 
             yield return new WaitForSeconds(1.0f);
 
-            if (wall != null) wall.SetActive(wallWasActive);
+            RestoreNakWall();
+            scatterRoutine = null;
 
             GameManager.Instance.SetFailReason("낙!");
             GameManager.Instance.SetPhase(GameManager.GamePhase.Failed);
         }
         else
         {
-            // v15: 착지 여운(SettleStone 0.16s)이 끝나 모든 돌이 안착된 뒤 픽업 페이즈로.
-            yield return new WaitForSeconds(0.16f);
-            Debug.Log("[ScatterSystem] Scatter complete. All stones on board.");
+            // M1-S1: 고정 0.16초 대기 삭제 — 완료 카운터가 0이면 모든 돌이 이미 정지·고정됐다.
+            float total = Time.time - scatterReleaseTime;
+#if UNITY_EDITOR
+            DebugLastTotal = total;
+#endif
+            Debug.Log($"[Scatter] complete total={total:F3}s n={n}");
+            scatterRoutine = null;
             GameManager.Instance.CurrentGimmick?.OnScatterComplete(stones);
             GameManager.Instance.SetPhase(GameManager.GamePhase.PickThrowStone);
         }
     }
 
-    /// <summary>v15 착지 여운: 안착 지점에서 1회 hop + squash·stretch 후 kinematic 고정.
-    /// 경계 근처(board-out 위험)면 hop 생략하고 squash만 → 안착 후 밀려나 낙나는 것 방지.</summary>
-    /// <summary>v17: 목표를 **보드 좌표**로 받는다. 마지막에 SetBoardMotion으로 고정하므로
-    /// 안착한 돌이 자기 BoardPos를 갖게 되고, 그림자가 실제 착지 지점에 찍힌다.</summary>
-    private IEnumerator SettleStone(Stone s, Vector2 boardTarget)
+    // ── M1-S1 토스 계획 ────────────────────────────────────────────────────────
+
+    /// <summary>돌 하나의 비행·착지 계획. 보드 좌표 S(출발) → A(첫 접촉) → F(최종 = boardTargets[i]).</summary>
+    private struct TossPlan
     {
-        Vector2 target = BoardSpace.ToScreen(boardTarget, 0f);
-        Vector3 baseScale = s.transform.localScale;
-        // 경계 근처면 hop 생략(스쿼시만) — 튀다가 보드 밖으로 나가는 것 방어.
-        //
-        // ⚠️ v17에서 동작이 바뀌었다. 구 코드는 `IsOutsideMatStrict(target, 0.5f)`로
-        //    "보드를 0.5 **넓힌** 영역 밖"일 때만 hop을 껐다 — 안착 돌은 항상 보드 안이라
-        //    사실상 hop이 꺼지지 않아, 주석("경계 근처면 생략")과 반대로 동작했다.
-        //    여기서는 보드를 0.5 **좁힌** 영역 기준으로 판정해 원래 의도대로 만든다.
-        float hop = BoardSpace.Current.ContainsWithMargin(boardTarget, -0.5f) ? 0.09f : 0f;
-        float dur = 0.16f, e = 0f;
-        while (e < dur)
+        public Vector2 S, A, F, Dir;
+        public bool IsNak;
+        public float Delay;   // 출발 지연(초)
+        public float T, H;    // 체공 시간, 최고 높이
+        public float DPost;   // 첫 접촉 후 수평 이동 거리 (A→F)
+        public float B1, T1, B2, T2, Slide;
+        public float SpinDeg; // 전체 Z 회전량(부호 포함)
+        public float End => IsNak ? T : T + Mathf.Max(T1 + T2 + Slide, Squash1Dur);
+    }
+
+    private TossPlan[] BuildTossPlans(Vector2[] startBoard, Vector2[] boardTargets, bool[] isNak)
+    {
+        int n = boardTargets.Length;
+        var plans = new TossPlan[n];
+
+        // 출발 간격: 각 0.02~0.07, 합이 0.18을 넘으면 비례 축소 (n=10에서도 합 ≤ 0.18)
+        var gaps = new float[n];
+        float gapSum = 0f;
+        for (int i = 1; i < n; i++) { gaps[i] = FxRange(StaggerMin, StaggerMax); gapSum += gaps[i]; }
+        float gapScale = gapSum > StaggerSumMax ? StaggerSumMax / gapSum : 1f;
+        float delay = 0f;
+
+        for (int i = 0; i < n; i++)
         {
-            e += Time.deltaTime; float u = Mathf.Clamp01(e / dur);
-            float y = target.y + Mathf.Sin(u * Mathf.PI) * hop * (1f - u); // 1회 튐 후 감쇠
-            s.transform.position = new Vector3(target.x, y, 0f);
-            float sq = Mathf.Sin(u * Mathf.PI); // 0→1→0
-            s.transform.localScale = new Vector3(baseScale.x * (1f + 0.15f * sq), baseScale.y * (1f - 0.20f * sq), baseScale.z);
+            if (i > 0) delay += gaps[i] * gapScale;
+            var p = new TossPlan { S = startBoard[i], F = boardTargets[i], IsNak = isNak[i], Delay = delay };
+
+            Vector2 sf = p.F - p.S;
+            float L = sf.magnitude;
+            p.Dir = L > 1e-4f ? sf / L : Vector2.zero;
+
+            // 첫 접촉점 계산 전용 체공(지터 없음) → 접근 속도 → 선행 거리
+            float tNominal = Mathf.Lerp(TossTMin, TossTMax, Mathf.Clamp01(L / TossTRefDist));
+            float v0 = L / tNominal;
+            // 0.30·L 상한이 우선: 아주 가까운 목표에서 A가 S 뒤로 넘어가지 않게.
+            float dNom = Mathf.Min(Mathf.Max(LandLeadK * v0, LandLeadMin), LandLeadMaxFrac * L);
+            p.DPost = p.IsNak ? 0f : dNom;   // S1: 낙 돌은 F까지 그대로 날아간다(현행 5) 흐름)
+            p.A = p.F - p.Dir * p.DPost;
+
+            float flightDist = (p.A - p.S).magnitude;
+            p.T = Mathf.Lerp(TossTMin, TossTMax, Mathf.Clamp01(flightDist / TossTRefDist))
+                + FxRange(-TossTJitter, TossTJitter);
+            p.H = TossGravity * p.T * p.T / 8f;
+
+            if (!p.IsNak && p.DPost > 0f)
+            {
+                float ratio = dNom > 0f ? p.DPost / dNom : 0f;
+                p.B1 = Bounce1Base * Mathf.Clamp(p.H / 1.2f, 0.8f, 1.2f) * ratio;
+                p.T1 = 2f * Mathf.Sqrt(2f * p.B1 / TossGravity);
+                p.B2 = Bounce2Ratio * p.B1;
+                p.T2 = 2f * Mathf.Sqrt(2f * p.B2 / TossGravity);
+                p.Slide = SlideDuration;
+            }
+
+            float spin = FxRange(SpinMinDeg, SpinMaxDeg);
+            p.SpinDeg = fxRng.NextDouble() < 0.5 ? -spin : spin;
+            plans[i] = p;
+
+            Debug.Log($"[Scatter] plan i={i} nak={p.IsNak} S={p.S:F2} A={p.A:F2} F={p.F:F2} " +
+                      $"T={p.T:F3} H={p.H:F2} D={p.DPost:F3} B1={p.B1:F3} delay={p.Delay:F3} end={p.Delay + p.End:F3}");
+        }
+#if UNITY_EDITOR
+        DebugLastStaggerSum = n > 0 ? plans[n - 1].Delay : 0f;
+#endif
+        return plans;
+    }
+
+    /// <summary>돌 하나의 토스. 비행(단일 중력 포물선) → 첫 접촉 → 작게 두 번 튐 → 미끄러져 정확히 F에 정지.
+    /// 낙 돌(S1)은 F에 h=0으로 도달하면 끝 — 이후는 DoScatter 5)가 처리한다.</summary>
+    private IEnumerator TossStone(int i, int gen)
+    {
+        var p = tossPlans[i];
+        var s = tossStones[i];
+        float tau = -p.Delay;
+        bool contact1 = false, contact2 = false;
+
+        while (true)
+        {
+            if (gen != scatterGen) yield break;
+            tau += Time.deltaTime;
+            if (tau < 0f) { yield return null; continue; }   // 아직 출발 전 — 손에서 떨어진 자리에 대기
+
+            if (tau >= p.End) break;
+
+            Vector2 bp; float h; Vector3 mul = Vector3.one; float rot;
+            if (tau < p.T)
+            {
+                // 비행: 수평 등속 + 높이 h = G·τ·(T−τ)/2 (최고 G·T²/8, 단일 G = 무게의 일관성)
+                float u = tau / p.T;
+                bp = Vector2.Lerp(p.S, p.A, u);
+                h = TossGravity * tau * (p.T - tau) * 0.5f;
+                float k = Mathf.Abs(1f - 2f * u);   // |높이속도| / (G·T/2)
+                mul = new Vector3(1f - StretchX * k, 1f + StretchY * k, 1f - StretchX * k);
+                rot = p.SpinDeg * SpinAtContact * u;
+            }
+            else
+            {
+                if (!contact1) { contact1 = true; OnTossContact(i, p, false); }
+                float post = tau - p.T;
+                float postDur = Mathf.Max(p.T1 + p.T2 + p.Slide, 1e-4f);
+                float v = Mathf.Clamp01(post / postDur);
+                rot = p.SpinDeg * (SpinAtContact + (1f - SpinAtContact) * (1f - (1f - v) * (1f - v))); // 감속해 멈춤
+
+                if (post < p.T1)
+                {
+                    float u = post / p.T1;
+                    bp = p.A + p.Dir * (p.DPost * Bounce1Frac * u);
+                    h = 4f * p.B1 * u * (1f - u);
+                }
+                else if (post < p.T1 + p.T2)
+                {
+                    if (!contact2) { contact2 = true; OnTossContact(i, p, true); }
+                    float u = (post - p.T1) / p.T2;
+                    bp = p.A + p.Dir * (p.DPost * (Bounce1Frac + Bounce2Frac * u));
+                    h = 4f * p.B2 * u * (1f - u);
+                }
+                else
+                {
+                    float u = p.Slide > 0f ? Mathf.Clamp01((post - p.T1 - p.T2) / p.Slide) : 1f;
+                    float e = 1f - (1f - u) * (1f - u);   // ease-out
+                    bp = p.A + p.Dir * (p.DPost * (Bounce1Frac + Bounce2Frac + SlideFrac * e));
+                    h = 0f;
+                }
+
+                // 스쿼시: 접촉 순간부터 짧게 (앞 30% 눌림 → 복귀). ≤6% (T1 확정)
+                float sq1 = SquashCurve(post / Squash1Dur);
+                float sq2 = p.T1 > 0f ? SquashCurve((post - p.T1) / Squash2Dur) : 0f;
+                float dy = (1f - Squash1Y) * sq1 + (1f - Squash2Y) * sq2;
+                float dxz = (Squash1XZ - 1f) * sq1 + (Squash2XZ - 1f) * sq2;
+                mul = new Vector3(1f + dxz, 1f - dy, 1f + dxz);
+            }
+
+            s.SetBoardMotion(bp, h);   // 위치·원근 크기 파생
+            s.transform.localScale = Vector3.Scale(s.transform.localScale, mul); // 매 프레임 원근 크기에서 다시 곱함 → 누적 없음
+            s.transform.rotation = Quaternion.Euler(0f, 0f, rot);
             yield return null;
         }
-        // ⚠️ SetBoardMotion이 위치와 **원근 크기**를 함께 정한다. 그 뒤에 localScale을
-        //    baseScale로 덮으면 원근이 지워져 뒤쪽 돌이 다시 커진다(스쿼시 복원은 여기 불필요).
-        s.SetBoardMotion(boardTarget, 0f);
-        s.Rb.isKinematic = true; // 드리프트 방지 최종 고정
+
+        if (gen != scatterGen) yield break;
+        FinishToss(i, natural: true);
+    }
+
+    /// <summary>토스 종료 처리 — 정상 종료와 ForceCompleteTosses가 같은 경로를 쓴다(최종 위치 = F 직접 대입).
+    /// natural=true(정상 종료)일 때만 소리를 보충한다 — 큰 프레임 튐으로 접촉 구간을 건너뛰어도 첫 접촉음은 난다.
+    /// 강제 종료(스테이지 전환·실패 확정)에서는 소리를 내지 않는다.</summary>
+    private void FinishToss(int i, bool natural)
+    {
+        if (tossDone == null || tossDone[i]) return;
+        tossDone[i] = true;
+        var p = tossPlans[i];
+        var s = tossStones[i];
+        if (s != null)
+        {
+            if (p.IsNak)
+            {
+                // S1: 현행과 같이 보드 밖 목표에 h=0으로 도달 → 5)에서 떨어뜨린다.
+                if (natural && !TossContactPlayed(i)) OnTossContact(i, p, false);
+                s.SetBoardMotion(p.F, 0f);
+                nakStones.Add(s);
+            }
+            else
+            {
+                if (natural && !TossContactPlayed(i)) OnTossContact(i, p, false);
+                s.SetBoardMotion(p.F, 0f);   // 정지: 직접 대입 → boardTargets와 diff 0
+                s.transform.rotation = Quaternion.Euler(0f, 0f, p.SpinDeg);
+                s.SetState(Stone.State.OnBoard);
+                s.Rb.linearVelocity = Vector3.zero;
+                s.Rb.angularVelocity = Vector3.zero;
+                s.Rb.isKinematic = true;   // 드리프트 방지 최종 고정 (줍힐 때 InHand로 전환됨)
+                float diff = (s.BoardPos - p.F).magnitude;
+#if UNITY_EDITOR
+                DebugLastMaxDiff = Mathf.Max(DebugLastMaxDiff, diff);
+#endif
+                Debug.Log($"[Scatter] final i={i} diff={diff:F4} t={Time.time - tossStartTime:F3}");
+            }
+        }
+        activeTosses = Mathf.Max(0, activeTosses - 1);
+    }
+
+    private bool[] tossContact;
+    private bool TossContactPlayed(int i) => tossContact != null && tossContact[i];
+
+    /// <summary>접촉 순간 — 소리(S1은 현행 클립 유지; S2에서 음계·먼지로 교체).</summary>
+    private void OnTossContact(int i, TossPlan p, bool second)
+    {
+        if (second) return;   // S1: 둘째 접촉 소리는 S2에서
+        if (tossContact == null || tossContact.Length != tossPlans.Length) tossContact = new bool[tossPlans.Length];
+        if (tossContact[i]) return;
+        tossContact[i] = true;
+        AudioManager.Instance?.PlayScatterHit(i);
+    }
+
+    private static float SquashCurve(float x)
+    {
+        if (x <= 0f || x >= 1f) return 0f;
+        return x < SquashRise ? x / SquashRise : 1f - Mathf.SmoothStep(0f, 1f, (x - SquashRise) / (1f - SquashRise));
+    }
+
+    private float FxRange(float a, float b) => a + (float)fxRng.NextDouble() * (b - a);
+
+    /// <summary>미완료 토스를 전부 최종 자세(F, h=0)로 맞추고 뿌리기 코루틴을 멈춘다.
+    /// 스테이지 전환(ResetGauge)과 실패 확정(S7 FinishNakWait)이 부른다 — 리셋된 돌을
+    /// 남은 코루틴이 다시 움직이거나, 지난 뿌리기가 새 스테이지에 SetPhase를 거는 것을 막는다.</summary>
+    public void ForceCompleteTosses()
+    {
+        bool hadWork = scatterRoutine != null || activeTosses > 0;
+        scatterGen++;   // 남은 코루틴은 다음 프레임에 스스로 빠진다(아래 Stop과 이중 안전)
+        if (scatterRoutine != null) { StopCoroutine(scatterRoutine); scatterRoutine = null; }
+        foreach (var r in tossRoutines) if (r != null) StopCoroutine(r);
+        tossRoutines.Clear();
+        if (tossDone != null && tossPlans != null && tossStones != null)
+        {
+            for (int i = 0; i < tossDone.Length; i++)
+            {
+                if (tossDone[i]) continue;
+                var s = tossStones[i];
+                if (s == null) { tossDone[i] = true; continue; }
+                if (tossPlans[i].IsNak) { tossDone[i] = true; s.SetBoardMotion(tossPlans[i].F, 0f); }
+                else FinishToss(i, natural: false);
+            }
+        }
+        activeTosses = 0;
+        RestoreNakWall();
+        if (hadWork) Debug.Log("[Scatter] ForceCompleteTosses");
+    }
+
+    private void RestoreNakWall()
+    {
+        if (nakWall != null) nakWall.SetActive(nakWallWasActive);
+        nakWall = null;
     }
 
     /// <summary>

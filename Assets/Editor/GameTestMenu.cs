@@ -145,6 +145,103 @@ public static class GameTestMenu
         Debug.Log($"[GameTestMenu] 뿌리기 기준값 캡처 완료 → {relPath} ({lines}줄, 결정성={deterministic})");
     }
 
+    // ── M1 뿌리기 검증 (계획서 §12 S1 완료 확인) ────────────────────────────────
+    // 10나이 × 게이지(0.1/0.45/0.95) 실제 뿌리기를 연속으로 돌려 돌별 diff·총 시간·출발 간격 합을 요약한다.
+    // 여러 프레임에 걸치므로 EditorApplication.update로 한 단계씩 진행한다(메뉴는 즉시 반환).
+    private static System.Collections.IEnumerator editorRoutine;
+
+    [MenuItem("Tools/테스트: 뿌리기 검증 (10나이 × 게이지 3, 중심)")]
+    public static void VerifyScatterCenter() =>
+        StartEditorRoutine(VerifyScatterRoutine(new[] { 0.10f, 0.45f, 0.95f }, new Vector2(0.5f, 0.5f), 7));
+
+    [MenuItem("Tools/테스트: 뿌리기 검증 (10나이, 앞오른쪽 g0.95 — 낙 포함)")]
+    public static void VerifyScatterNak() =>
+        StartEditorRoutine(VerifyScatterRoutine(new[] { 0.95f }, new Vector2(0.75f, 0.78f), 3));
+
+    private static void StartEditorRoutine(System.Collections.IEnumerator r)
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        if (editorRoutine != null) EditorApplication.update -= TickEditorRoutine;
+        editorRoutine = r;
+        EditorApplication.update += TickEditorRoutine;
+    }
+
+    private static void TickEditorRoutine()
+    {
+        if (editorRoutine == null || !Application.isPlaying || !editorRoutine.MoveNext())
+        {
+            EditorApplication.update -= TickEditorRoutine;
+            editorRoutine = null;
+        }
+    }
+
+    private static System.Collections.IEnumerator VerifyScatterRoutine(float[] gauges, Vector2 center, int seed)
+    {
+        var gm = GameManager.Instance;
+        var session = GameSession.Instance;
+        var scatter = Object.FindFirstObjectByType<ScatterSystem>();
+        if (gm == null || session == null || scatter == null) { Debug.LogError("[ScatterVerify] 준비 안 됨"); yield break; }
+
+        int origLoop = Mathf.Max(1, session.CurrentLoop);
+        int runs = 0, bad = 0;
+        float maxTotal = 0f, maxDiff = 0f, maxStagger = 0f, maxDrift = 0f;
+        for (int loop = 1; loop <= 10; loop++)
+        {
+            foreach (float g in gauges)
+            {
+                session.CurrentLoop = loop;
+                session.CurrentAge = 10 + (loop - 1) * 5;
+                gm.StartStage(1);
+                float t0 = Time.time;
+                while ((gm.CurrentPhase != GameManager.GamePhase.Scatter || gm.IsTransitioning) && Time.time - t0 < 8f)
+                    yield return null;
+                if (gm.CurrentPhase != GameManager.GamePhase.Scatter)
+                {
+                    Debug.LogError($"[ScatterVerify] loop={loop} Scatter 진입 실패 ({gm.CurrentPhase})");
+                    bad++; continue;
+                }
+                yield return null; yield return null;
+
+                var scattered = (Stone[])gm.Stones.Clone();
+                scatter.DebugScatterSeeded(g, seed, center);
+                t0 = Time.time;
+                while (gm.CurrentPhase == GameManager.GamePhase.Scatter && Time.time - t0 < 6f)
+                    yield return null;
+                var phase = gm.CurrentPhase;
+
+                // 완료 직후 위치 → 0.3초 뒤 위치: 완료 뒤 아무 코루틴도 돌을 움직이지 않아야 한다(F2·Obstacle nudge 유지)
+                var before = new Vector3[scattered.Length];
+                for (int i = 0; i < scattered.Length; i++) before[i] = scattered[i].transform.position;
+                t0 = Time.time;
+                while (Time.time - t0 < 0.3f) yield return null;
+                float drift = 0f;
+                if (phase == GameManager.GamePhase.PickThrowStone)
+                    for (int i = 0; i < scattered.Length; i++)
+                        drift = Mathf.Max(drift, (scattered[i].transform.position - before[i]).magnitude);
+
+                runs++;
+                bool ok = phase == GameManager.GamePhase.PickThrowStone
+                    ? scatter.DebugLastTotal > 0f && scatter.DebugLastTotal <= 1.20f && scatter.DebugLastMaxDiff < 1e-4f
+                      && scatter.DebugLastStaggerSum <= 0.18f + 1e-5f && drift < 1e-4f
+                    : phase == GameManager.GamePhase.Failed;
+                if (!ok) bad++;
+                if (phase == GameManager.GamePhase.PickThrowStone)
+                {
+                    maxTotal = Mathf.Max(maxTotal, scatter.DebugLastTotal);
+                    maxDiff = Mathf.Max(maxDiff, scatter.DebugLastMaxDiff);
+                    maxDrift = Mathf.Max(maxDrift, drift);
+                }
+                maxStagger = Mathf.Max(maxStagger, scatter.DebugLastStaggerSum);
+                Debug.Log($"[ScatterVerify] age={session.CurrentAge} g={g:F2} n={scattered.Length} phase={phase} " +
+                          $"total={scatter.DebugLastTotal:F3} maxDiff={scatter.DebugLastMaxDiff:F4} " +
+                          $"stagger={scatter.DebugLastStaggerSum:F3} drift={drift:F4} ok={ok}");
+            }
+        }
+        Debug.Log($"[ScatterVerify] SUMMARY runs={runs} bad={bad} maxTotal={maxTotal:F3} maxDiff={maxDiff:F4} " +
+                  $"maxStagger={maxStagger:F3} maxDrift={maxDrift:F4}");
+        GoLoop(origLoop);
+    }
+
     private static string RunBaselineOnce(GameManager gm, GameSession session, ScatterSystem scatter)
     {
         var sb = new System.Text.StringBuilder();
