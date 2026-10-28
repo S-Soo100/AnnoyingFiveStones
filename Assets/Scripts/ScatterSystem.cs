@@ -240,6 +240,63 @@ public class ScatterSystem : MonoBehaviour
         rangeIndicator?.Hide();
         StartCoroutine(DoScatter(gauge));
     }
+
+    // ── M1-S0 기준값 캡처 (에디터 전용) ──────────────────────────────────────
+    // 목표 계산(1~2.5단계)이 소비하는 UnityEngine.Random을 시드로 고정하고, 산개 중심을
+    // 손 위치 대신 고정 uv로 바꿔 "같은 입력 → 같은 targets/isNak"을 기록한다.
+    // 이후 단계(연출 재구성)가 목표 계산을 건드리지 않았는지 이 기록과 비교한다(계획서 T6).
+    private bool debugHasCenterUV;
+    private Vector2 debugCenterUV;
+    private bool debugPlanOnly;                       // true면 2.5 판정 직후 종료(돌·상태 무변경)
+    private System.Text.StringBuilder debugBaselineSink; // null이면 콘솔 로그
+    private string debugBaselineTag;                  // "stage=.. gauge=.. seed=.."
+
+    /// <summary>시드·중심 고정 뿌리기. planOnly=true면 목표 계산과 기준값 기록만 하고 끝낸다
+    /// (돌을 움직이지 않으므로 수백 번 연속 호출해도 된다). sink가 있으면 콘솔 대신 거기에 쓴다.</summary>
+    public void DebugScatterSeeded(float gauge, int seed, Vector2 centerUV,
+                                   bool planOnly = false, System.Text.StringBuilder sink = null)
+    {
+        int loop = GameSession.Instance != null ? GameSession.Instance.CurrentLoop : 0;
+        int age = GameSession.Instance != null ? GameSession.Instance.CurrentAge : 0;
+        debugBaselineTag = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+            "stage={0} age={1} center=({4:F2},{5:F2}) gauge={2:F2} seed={3}", loop, age, gauge, seed,
+            centerUV.x, centerUV.y);
+        debugHasCenterUV = true;
+        debugCenterUV = centerUV;
+        debugPlanOnly = planOnly;
+        debugBaselineSink = sink;
+        if (!planOnly)
+        {
+            waitingForPress = false;
+            isGaugeActive = false;
+            GaugeBarUI.Instance?.Hide();
+            rangeIndicator?.Hide();
+        }
+        Random.InitState(seed);
+        StartCoroutine(DoScatter(gauge));   // planOnly면 첫 yield 전에 끝나므로 여기서 동기 완료
+        if (planOnly) DebugClearSeeded();
+    }
+
+    private void DebugClearSeeded()
+    {
+        debugHasCenterUV = false;
+        debugPlanOnly = false;
+        debugBaselineSink = null;
+        debugBaselineTag = null;
+    }
+
+    private void DebugWriteBaseline(Vector2[] boardTargets, bool[] isNak)
+    {
+        if (debugBaselineTag == null) return;
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        for (int i = 0; i < boardTargets.Length; i++)
+        {
+            string line = string.Format(ci, "[ScatterBaseline] {0} i={1} target=({2:F6}, {3:F6}) isNak={4}",
+                debugBaselineTag, i, boardTargets[i].x, boardTargets[i].y, isNak[i]);
+            if (debugBaselineSink != null) debugBaselineSink.AppendLine(line);
+            else Debug.Log(line);
+        }
+    }
 #endif
 
     private IEnumerator DoScatter(float gauge)
@@ -366,6 +423,13 @@ public class ScatterSystem : MonoBehaviour
             isNak[i] = !BoardSpace.Current.ContainsWithMargin(boardTargets[i], BoardMarginUnits);
             targets[i] = BoardSpace.ToScreen(boardTargets[i], 0f); // 애니메이션용 화면 좌표(파생)
         }
+
+#if UNITY_EDITOR
+        // [S0 기준값 로그 지점] — 목표 계산이 끝난 직후, 연출이 시작되기 전.
+        DebugWriteBaseline(boardTargets, isNak);
+        if (debugPlanOnly) yield break;
+        DebugClearSeeded();   // 실제 뿌리기는 계속 진행 — 다음 일반 뿌리기에 고정값이 남지 않게
+#endif
 
         // v16: 놓는 즉시 던지기 — 윈드업 대기 제거. 아래 준비 루프에서 즉시 detach + startPos(현재 손=커서 위치)
         //   재캡처 + 토스 시작 → 유저 릴리스와 돌 발사 타이밍 일치(체감 딜레이 제거).
@@ -518,6 +582,9 @@ public class ScatterSystem : MonoBehaviour
     /// </summary>
     private Vector2 ScatterCenterUV()
     {
+#if UNITY_EDITOR
+        if (debugHasCenterUV) return debugCenterUV;   // S0 기준값 캡처 전용
+#endif
         if (handController == null) return new Vector2(0.5f, 0.5f);
         Vector2 raw = BoardUV(new Vector2(handController.transform.position.x,
                                           handController.transform.position.y));

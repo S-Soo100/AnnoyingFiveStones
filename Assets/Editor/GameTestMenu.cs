@@ -83,6 +83,84 @@ public static class GameTestMenu
     [MenuItem("Tools/테스트: 나이 → 20살 (3회차)")]
     public static void GoAge20() => GoLoop(3);
 
+    // M1-S0: 뿌리기 검증은 10개 나이 전부를 돌아야 한다(계획서 §12).
+    [MenuItem("Tools/테스트: 나이 → 10살 (1회차)")]
+    public static void GoAge10() => GoLoop(1);
+
+    [MenuItem("Tools/테스트: 나이 → 15살 (2회차)")]
+    public static void GoAge15() => GoLoop(2);
+
+    [MenuItem("Tools/테스트: 나이 → 25살 (4회차)")]
+    public static void GoAge25() => GoLoop(4);
+
+    [MenuItem("Tools/테스트: 나이 → 30살 (5회차)")]
+    public static void GoAge30() => GoLoop(5);
+
+    [MenuItem("Tools/테스트: 나이 → 45살 (8회차)")]
+    public static void GoAge45() => GoLoop(8);
+
+    [MenuItem("Tools/테스트: 나이 → 50살 (9회차)")]
+    public static void GoAge50() => GoLoop(9);
+
+    [MenuItem("Tools/테스트: 나이 → 55살 (10회차)")]
+    public static void GoAge55() => GoLoop(10);
+
+    // ── M1-S0 뿌리기 기준값 캡처 ──────────────────────────────────────────────
+    // 10회차 × 게이지 4 × seed 20의 목표(targets, isNak)를 파일로 남긴다.
+    // 목표 계산은 시드 고정 + 중심 uv 고정(0.5,0.5)이라 돌 수(n)만 회차마다 다르다.
+    // 같은 캡처를 두 번 돌려 문자열이 같은지(결정성)도 함께 확인한다.
+    private static readonly float[] BaselineGauges = { 0.10f, 0.45f, 0.67f, 0.95f };
+    private const int BaselineSeeds = 20;
+    // 중심 (0.5,0.5)만으로는 게이지 0.95(반경 최대 4.27)도 반깊이+마진(4.7) 안이라 isNak가 전부 False다.
+    // 앞·오른쪽으로 치우친 중심을 하나 더 넣어 낙 판정도 기준값에 들어가게 한다.
+    private static readonly Vector2[] BaselineCenters = { new Vector2(0.5f, 0.5f), new Vector2(0.75f, 0.78f) };
+
+    [MenuItem("Tools/테스트: 뿌리기 기준값 캡처 (before)")]
+    public static void CaptureScatterBaselineBefore() => CaptureScatterBaseline("Logs/scatter-baseline-before.txt");
+
+    [MenuItem("Tools/테스트: 뿌리기 기준값 캡처 (after)")]
+    public static void CaptureScatterBaselineAfter() => CaptureScatterBaseline("Logs/scatter-baseline-after.txt");
+
+    private static void CaptureScatterBaseline(string relPath)
+    {
+        if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
+        var gm = GameManager.Instance;
+        var session = GameSession.Instance;
+        var scatter = Object.FindFirstObjectByType<ScatterSystem>();
+        if (gm == null || session == null || scatter == null)
+        {
+            Debug.LogError($"[GameTestMenu] GM={gm != null} Session={session != null} Scatter={scatter != null}");
+            return;
+        }
+
+        int origLoop = session.CurrentLoop;
+        string run1 = RunBaselineOnce(gm, session, scatter);
+        string run2 = RunBaselineOnce(gm, session, scatter);
+        bool deterministic = run1 == run2;
+
+        string path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), relPath);
+        System.IO.File.WriteAllText(path, run1);
+        int lines = run1.Split('\n').Length - 1;
+        GoLoop(origLoop < 1 ? 1 : origLoop);   // 원래 나이로 복귀
+        Debug.Log($"[GameTestMenu] 뿌리기 기준값 캡처 완료 → {relPath} ({lines}줄, 결정성={deterministic})");
+    }
+
+    private static string RunBaselineOnce(GameManager gm, GameSession session, ScatterSystem scatter)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int loop = 1; loop <= 10; loop++)
+        {
+            session.CurrentLoop = loop;
+            session.CurrentAge = 10 + (loop - 1) * 5;
+            gm.StartStage(1);   // 동기: 돌 활성화(회차별 개수)·기믹 OnStageStart까지 이 호출 안에서 끝난다
+            foreach (var c in BaselineCenters)
+                foreach (float g in BaselineGauges)
+                    for (int seed = 1; seed <= BaselineSeeds; seed++)
+                        scatter.DebugScatterSeeded(g, seed, c, planOnly: true, sink: sb);
+        }
+        return sb.ToString();
+    }
+
     private static void GoLoop(int loop)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
