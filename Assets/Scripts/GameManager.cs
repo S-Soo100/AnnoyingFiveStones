@@ -835,6 +835,9 @@ public class GameManager : MonoBehaviour
         {
             stone.transform.SetParent(null);
             stone.transform.localScale = StoneOriginalScale; // 5단 스케일 변동 복원
+            // 리뷰 반영(안전장치): 낙하 연출이 숨긴 돌·뿌리기 회전이 RestoreAll을 거치지 않는 경로로도 남지 않게
+            stone.SetRendererVisible(true);
+            stone.transform.rotation = Quaternion.identity;
             stone.SetState(Stone.State.OnBoard);
             stone.Rb.linearVelocity = Vector3.zero;
             stone.Rb.angularVelocity = Vector3.zero;

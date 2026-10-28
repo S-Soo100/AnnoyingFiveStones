@@ -65,8 +65,10 @@ public class ScatterSystem : MonoBehaviour
     private const float TossTRefDist = 4.4f;
     private const float TossTJitter = 0.025f;               // 돌마다 ±0.025 (fxRng)
     private const float StaggerMin = 0.02f, StaggerMax = 0.07f, StaggerSumMax = 0.18f;
-    private const float SpinMinDeg = 120f, SpinMaxDeg = 260f; // Z축(화면 평면) 회전 — Y축은 정면 카메라에서 안 보였다
-    private const float SpinAtContact = 0.70f;              // 첫 접촉까지 70%, 나머지는 감속하며 정지
+    // Z축(화면 평면) 회전 — Y축은 정면 카메라에서 안 보였다.
+    // 리뷰 반영: 돌 메시는 바닥이 평평한 구(StoneShape)라 방향이 있다. 회전이 남으면 옆으로 누운 채 놓이고,
+    // 스쿼시가 돌의 로컬 축에 걸려 화면 세로가 아닌 방향으로 눌린다 → **정확히 한 바퀴** 돌아 첫 접촉에 똑바로 선다.
+    private const float SpinTurnDeg = 360f;
     private const float StretchY = 0.04f, StretchX = 0.02f; // 비행 중 늘어남(높이 속도 비례)
     private const float LandLeadK = 0.11f, LandLeadMin = 0.08f, LandLeadMaxFrac = 0.30f; // 첫 접촉 선행 거리
     private const float Bounce1Base = 0.16f, Bounce2Ratio = 0.35f; // 튐 높이(T1 축소안)
@@ -240,6 +242,21 @@ public class ScatterSystem : MonoBehaviour
     {
         if (!isGaugeActive) return;
 
+        // 리뷰 반영: 일시정지 메뉴는 Time.timeScale을 멈추지 않는다 — 게이지·달그락도 같이 멈춘다.
+        if (GameManager.Instance != null && GameManager.Instance.IsPaused) return;
+
+        // 일시정지·전환 중에 손을 떼면 OnPressReleased가 무시된다. 재개했을 때 버튼이 이미 떨어져 있으면
+        // 놓은 걸로 치지 않고 취소한다(플레이어가 보지 않은 순간에 뿌려지지 않게) — 짧게 뗌과 같은 재대기.
+        bool pressed = pressAction.IsPressed();
+#if UNITY_EDITOR
+        pressed |= debugGaugeFrozen;   // 검증용 게이지 고정은 실제 버튼 없이 돈다
+#endif
+        if (!pressed)
+        {
+            CancelGaugeToWaiting();
+            return;
+        }
+
         gaugeActiveTime += Time.deltaTime;
 
         if (gaugeGoingUp)
@@ -342,13 +359,7 @@ public class ScatterSystem : MonoBehaviour
         // 딸깍 방지: 너무 짧게 눌렀다 놓으면 던지지 않고 재대기(다음 Press에 다시 게이지 시작)
         if (gaugeActiveTime < MinGaugeHold)
         {
-            isGaugeActive = false;
-            currentGaugeValue = 0f;
-            gaugeGoingUp = true;
-            waitingForPress = true;
-            GaugeBarUI.Instance?.SetValue(0f); // 바는 유지(재대기), 값만 0으로 — Hide하면 다음 Press에 안 켜져 사라짐
-            rangeIndicator?.Hide();
-            CancelGrip(restoreStones: true);   // M1-S3: 손가락 펼침, 오프셋 0, 돌 원위치
+            CancelGaugeToWaiting();
             return;
         }
 
@@ -363,6 +374,18 @@ public class ScatterSystem : MonoBehaviour
 
         handController?.PlayScatterFlick();
         StartScatterRoutine(gauge);
+    }
+
+    /// <summary>게이지를 접고 다음 누름을 기다린다 — 짧게 뗌, 그리고 일시정지 중 뗌을 재개 후 발견했을 때.</summary>
+    private void CancelGaugeToWaiting()
+    {
+        isGaugeActive = false;
+        currentGaugeValue = 0f;
+        gaugeGoingUp = true;
+        waitingForPress = true;
+        GaugeBarUI.Instance?.SetValue(0f); // 바는 유지(재대기), 값만 0으로 — Hide하면 다음 Press에 안 켜져 사라짐
+        rangeIndicator?.Hide();
+        CancelGrip(restoreStones: true);   // M1-S3: 손가락 펼침, 오프셋 0, 돌 원위치
     }
 
     /// <summary>v14: 코루틴 토스 산개. 손 중앙 → 보드 좌표 목표까지 아치 애니메이션.
@@ -818,8 +841,7 @@ public class ScatterSystem : MonoBehaviour
                 p.Slide = SlideDuration;
             }
 
-            float spin = FxRange(SpinMinDeg, SpinMaxDeg);
-            p.SpinDeg = fxRng.NextDouble() < 0.5 ? -spin : spin;
+            p.SpinDeg = fxRng.NextDouble() < 0.5 ? -SpinTurnDeg : SpinTurnDeg;
             p.Order = -1;
             plans[i] = p;
         }
@@ -834,7 +856,7 @@ public class ScatterSystem : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             var p = plans[i];
-            Debug.Log($"[Scatter] plan i={i} nak={p.IsNak} kind={(p.IsNak ? p.Kind.ToString() : "-")} " +
+            EditorLog($"[Scatter] plan i={i} nak={p.IsNak} kind={(p.IsNak ? p.Kind.ToString() : "-")} " +
                       $"edge={(p.IsNak ? p.Edge.ToString() : "-")} S={p.S:F2} A={p.A:F2} F={p.F:F2} " +
                       $"T={p.T:F3} H={p.H:F2} D={p.DPost:F3} B1={p.B1:F3} tc={(p.IsLedgeNak ? p.TCross : -1f):F3} " +
                       $"delay={p.Delay:F3} end={p.Delay + p.End:F3} order={p.Order}");
@@ -885,15 +907,13 @@ public class ScatterSystem : MonoBehaviour
                 h = TossGravity * tau * (p.T - tau) * 0.5f;
                 float k = Mathf.Abs(1f - 2f * u);   // |높이속도| / (G·T/2)
                 mul = new Vector3(1f - StretchX * k, 1f + StretchY * k, 1f - StretchX * k);
-                rot = p.SpinDeg * SpinAtContact * u;
+                rot = p.SpinDeg * u;   // 첫 접촉(u=1)에 한 바퀴 = 똑바로
             }
             else
             {
                 if (!contact1) { contact1 = true; OnTossContact(i, p, false); }
                 float post = tau - p.T;
-                float postDur = Mathf.Max(p.T1 + p.T2 + p.Slide, 1e-4f);
-                float v = Mathf.Clamp01(post / postDur);
-                rot = p.SpinDeg * (SpinAtContact + (1f - SpinAtContact) * (1f - (1f - v) * (1f - v))); // 감속해 멈춤
+                rot = 0f;   // 접촉 후엔 똑바로 — 스쿼시가 화면 세로로 눌린다
 
                 if (post < p.T1)
                 {
@@ -940,7 +960,7 @@ public class ScatterSystem : MonoBehaviour
     {
         if (tossDone == null || tossDone[i]) return;
         tossDone[i] = true;
-        Debug.Log($"[Scatter] handoff i={i} edge={edge} b={b:F2} h={h:F2} t={Time.time - tossStartTime:F3}");
+        EditorLog($"[Scatter] handoff i={i} edge={edge} b={b:F2} h={h:F2} t={Time.time - tossStartTime:F3}");
         var presenter = GameManager.Instance != null ? GameManager.Instance.NakPresenter : null;
         if (presenter != null) presenter.FallFromBoard(s, b, vB, h, vH, TossGravity, edge, startTau);
         activeTosses = Mathf.Max(0, activeTosses - 1);
@@ -962,8 +982,8 @@ public class ScatterSystem : MonoBehaviour
                 // Flat 낙: 바깥 면에 앉는다 — InHand·키네마틱 유지, 그림자 유지(그 면에 깔림)
                 if (natural && !TossContactPlayed(i)) OnTossContact(i, p, false);
                 s.SetBoardMotion(p.F, 0f);
-                s.transform.rotation = Quaternion.Euler(0f, 0f, p.SpinDeg);
-                Debug.Log($"[Scatter] final i={i} kind=Flat diff={(s.BoardPos - p.F).magnitude:F4} t={Time.time - tossStartTime:F3}");
+                s.transform.rotation = Quaternion.identity;
+                EditorLog($"[Scatter] final i={i} kind=Flat diff={(s.BoardPos - p.F).magnitude:F4} t={Time.time - tossStartTime:F3}");
                 if (natural) GameManager.Instance?.NotifyNakStoneEnded();
             }
             else if (p.IsNak)
@@ -976,7 +996,7 @@ public class ScatterSystem : MonoBehaviour
             {
                 if (natural && !TossContactPlayed(i)) OnTossContact(i, p, false);
                 s.SetBoardMotion(p.F, 0f);   // 정지: 직접 대입 → boardTargets와 diff 0
-                s.transform.rotation = Quaternion.Euler(0f, 0f, p.SpinDeg);
+                s.transform.rotation = Quaternion.identity;
                 s.SetState(Stone.State.OnBoard);
                 s.SetFlightShadow(false);   // (SetState가 이미 초기화 — 명시)
                 s.Rb.linearVelocity = Vector3.zero;
@@ -986,7 +1006,7 @@ public class ScatterSystem : MonoBehaviour
 #if UNITY_EDITOR
                 DebugLastMaxDiff = Mathf.Max(DebugLastMaxDiff, diff);
 #endif
-                Debug.Log($"[Scatter] final i={i} diff={diff:F4} t={Time.time - tossStartTime:F3}");
+                EditorLog($"[Scatter] final i={i} diff={diff:F4} t={Time.time - tossStartTime:F3}");
             }
         }
         activeTosses = Mathf.Max(0, activeTosses - 1);
@@ -1009,7 +1029,7 @@ public class ScatterSystem : MonoBehaviour
             }
             if (tossPlans.Length > 5) return;   // 보이스 예산: n=10이면 둘째 접촉음 없음
             float p2 = audio != null ? audio.PlayScatterLand(p.Order, tossSafeCount, true) : 0f;
-            Debug.Log($"[Scatter] land i={i} contact=2 order={p.Order} pitch={p2:F3}");
+            EditorLog($"[Scatter] land i={i} contact=2 order={p.Order} pitch={p2:F3}");
             return;
         }
         if (tossContact == null || tossContact.Length != tossPlans.Length) tossContact = new bool[tossPlans.Length];
@@ -1021,13 +1041,17 @@ public class ScatterSystem : MonoBehaviour
             // Flat 낙만 접촉한다(Ledge는 선에서 넘겨짐). 둔탁음 + 먼지
             float tp = audio != null ? audio.PlayScatterThud(false, tossPlans.Length) : 0f;
             scatterFx?.SpawnDust(p.A, fxRng);
-            Debug.Log($"[Scatter] land i={i} contact=1 kind=Flat pitch={tp:F3} t={Time.time - tossStartTime:F3}");
+            EditorLog($"[Scatter] land i={i} contact=1 kind=Flat pitch={tp:F3} t={Time.time - tossStartTime:F3}");
             return;
         }
         float pitch = audio != null ? audio.PlayScatterLand(p.Order, tossSafeCount, false) : 0f;
         scatterFx?.SpawnDust(p.A, fxRng);   // 먼지는 첫 접촉에만 (T1)
-        Debug.Log($"[Scatter] land i={i} contact=1 order={p.Order} pitch={pitch:F3} t={Time.time - tossStartTime:F3}");
+        EditorLog($"[Scatter] land i={i} contact=1 order={p.Order} pitch={pitch:F3} t={Time.time - tossStartTime:F3}");
     }
+
+    /// <summary>돌 하나마다 찍는 검증 로그 — 에디터에서만. Conditional이라 빌드에선 호출과 문자열 생성이 함께 빠진다.</summary>
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    private static void EditorLog(string msg) => Debug.Log(msg);
 
     private static float SquashCurve(float x)
     {

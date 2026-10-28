@@ -149,19 +149,8 @@ public class ScatterFx : MonoBehaviour
     // ── 머티리얼: StoneShadow와 같은 URP Unlit 투명 설정 (같은 셰이더 경로 → 빌드 정합 동일) ──
     private static Material BuildMaterial()
     {
-        var shader = Shader.Find("Universal Render Pipeline/Unlit");
-        if (shader == null) shader = Shader.Find("Unlit/Transparent");
-        var mat = new Material(shader);
         if (sharedTex == null) sharedTex = BuildSoftCircle(64);
-        mat.mainTexture = sharedTex;
-        mat.SetFloat("_Surface", 1f);    // Transparent
-        mat.SetFloat("_Blend", 0f);      // Alpha
-        mat.SetFloat("_SrcBlend", 5f);   // SrcAlpha
-        mat.SetFloat("_DstBlend", 10f);  // OneMinusSrcAlpha
-        mat.SetFloat("_ZWrite", 0f);
-        mat.renderQueue = 3000;
-        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        return mat;
+        return StoneShadow.CreateTransparentUnlit(sharedTex);
     }
 
     /// <summary>흰색 RGB + 부드럽게 빠지는 알파. 색은 PropertyBlock(_BaseColor)이 곱한다.

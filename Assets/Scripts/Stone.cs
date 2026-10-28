@@ -457,6 +457,10 @@ public class Stone : MonoBehaviour
         State prevState = currentState;
         currentState = newState;
 
+        // 리뷰 반영(안전장치): 아래 switch가 상태에 맞는 물리 플래그를 새로 쓴다. 스크립트 낙하 중 저장해 둔
+        // 옛 플래그가 남아 있으면 나중 ExitScriptedFall이 이 값을 덮어쓰므로, 상태가 바뀌면 저장분을 버린다.
+        scriptedFall = false;
+
         // v17: 상태가 바뀌면 보드 좌표 관리를 해제한다.
         // 보드 좌표 관리를 놓아야 하는 상태에서만 해제한다.
         //   InHand/Caught: 손에 붙어 보드를 떠남.

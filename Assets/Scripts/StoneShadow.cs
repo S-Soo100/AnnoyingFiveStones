@@ -60,24 +60,7 @@ public class StoneShadow : MonoBehaviour
         // 그라데이션 텍스처 런타임 생성
         var tex = CreateCircleGradientTexture(64);
 
-        // Unlit/Transparent 머티리얼 생성 (URP)
-        var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        if (mat.shader == null || mat.shader.name == "Hidden/InternalErrorShader")
-        {
-            // URP Unlit 폴백
-            mat = new Material(Shader.Find("Unlit/Transparent"));
-        }
-
-        mat.mainTexture = tex;
-
-        // 알파 블렌드 설정
-        mat.SetFloat("_Surface", 1f);    // Transparent
-        mat.SetFloat("_Blend", 0f);      // Alpha
-        mat.SetFloat("_SrcBlend", 5f);   // SrcAlpha
-        mat.SetFloat("_DstBlend", 10f);  // OneMinusSrcAlpha
-        mat.SetFloat("_ZWrite", 0f);
-        mat.renderQueue = 3000;
-        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        var mat = CreateTransparentUnlit(tex);
 
         shadowRenderer = shadowObj.GetComponent<Renderer>();
         shadowRenderer.material = mat;
@@ -243,6 +226,28 @@ public class StoneShadow : MonoBehaviour
         // QuadPoint(u, 0.5) — v=0.5는 사다리꼴 중심 수평선
         Vector2 pt = BoardBounds.QuadPoint(u, 0.5f);
         return pt.y;
+    }
+
+    /// <summary>URP Unlit 알파 블렌드 머티리얼(없으면 Unlit/Transparent 폴백). 색·알파는 PropertyBlock의 _BaseColor/_Color로 준다.
+    /// 그림자와 뿌리기 먼지(ScatterFx)가 같은 셰이더 경로를 쓰게 하나로 둔다 — 빌드 정합(셰이더 포함 여부)이 같이 따라간다.</summary>
+    public static Material CreateTransparentUnlit(Texture2D tex)
+    {
+        var shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null || shader.name == "Hidden/InternalErrorShader")
+            shader = Shader.Find("Unlit/Transparent");   // URP Unlit 폴백
+
+        var mat = new Material(shader);
+        mat.mainTexture = tex;
+
+        // 알파 블렌드 설정
+        mat.SetFloat("_Surface", 1f);    // Transparent
+        mat.SetFloat("_Blend", 0f);      // Alpha
+        mat.SetFloat("_SrcBlend", 5f);   // SrcAlpha
+        mat.SetFloat("_DstBlend", 10f);  // OneMinusSrcAlpha
+        mat.SetFloat("_ZWrite", 0f);
+        mat.renderQueue = 3000;
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        return mat;
     }
 
     /// <summary>중심 진하고 가장자리 투명한 원형 그라데이션 텍스처 생성.
