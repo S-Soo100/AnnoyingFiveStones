@@ -145,22 +145,33 @@ public class ScatterRangeIndicator : MonoBehaviour
 
     /// <summary>게이지 값에 대응하는 산개 반경(**보드 단위**)으로 링을 갱신.
     /// centerBoard = 산개 중심(커서/손 위치의 보드 좌표).
-    /// v17: 보드 공간의 진짜 원을 그린다 → 화면에서는 원근에 눌린 타원으로 보이는데,
-    /// 그게 "돗자리 위에 그린 원"의 올바른 모습이고 실제 산개와 정확히 일치한다.</summary>
+    /// 2026-10-28: 모양은 화면 타원(아래 본문 주석), 위험색은 보드 좌표의 실제 착지 원으로 계산한다.</summary>
     public void UpdateRing(float radiusBoard, Vector2 centerBoard)
     {
+        // 사용자 결정(2026-10-28): 링은 **화면에서 깔끔한 타원**으로 그린다.
+        //   보드 투영(BoardGeometry.Project)은 가로만 원근으로 넓히고 깊이는 균일하게 눌러서, 보드 위 진짜 원이
+        //   화면에선 위가 좁고 아래가 넓은 달걀이 된다. 그 달걀이 "찌그러져 보인다"는 피드백.
+        //   타원 = 중심은 원 중심의 화면 위치, 가로 반지름은 그 깊이의 화면 폭, 세로 반지름은 깊이 압축 그대로
+        //   (원의 위·아래·좌·우 끝점은 실제 착지 범위와 일치). 대각선 방향은 실제 착지 경계와 최대 ~0.4 화면 단위
+        //   어긋난다(위쪽은 넓게, 아래쪽은 좁게) — 감수한 트레이드오프.
+        //   ⚠️ 낙 위험색(outside)은 계속 **실제 착지 원(보드 좌표)** 으로 센다 — 색이 말하는 정보는 정확하다.
+        Vector2 cw = BoardSpace.ToScreen(centerBoard, 0f);
+        float halfWAtCenter = Mathf.LerpUnclamped(BoardSpace.BackHalfWidth, BoardSpace.FrontHalfWidth,
+                                                  centerBoard.y / BoardSpace.LogicalDepth + 0.5f);
+        float sx = halfWAtCenter / (BoardSpace.LogicalWidth * 0.5f);                          // 보드 1 → 화면 가로
+        float sy = (BoardSpace.BackScreenY - BoardSpace.FrontScreenY) / BoardSpace.LogicalDepth; // 보드 1 → 화면 세로
+
         // 1) 원판 테두리 SEG개 점 배치 + 낙 위험(보드 밖) 카운트. (구 링과 같은 48점·같은 판정)
         int outside = 0;
         for (int i = 0; i < SEG; i++)
         {
             float theta = 2f * Mathf.PI * i / SEG;
             Vector2 bp = centerBoard + new Vector2(Mathf.Cos(theta), Mathf.Sin(theta)) * radiusBoard;
-            Vector2 world = BoardSpace.ToScreen(bp, 0f);
-            verts[DiscRimV + i] = new Vector3(world.x, world.y, RingZ);
-
             if (!BoardSpace.Current.Contains(bp)) outside++;
+
+            Vector2 world = Ellipse(cw, radiusBoard * sx, radiusBoard * sy, theta);
+            verts[DiscRimV + i] = new Vector3(world.x, world.y, RingZ);
         }
-        Vector2 cw = BoardSpace.ToScreen(centerBoard, 0f);
         verts[DiscCenterV] = new Vector3(cw.x, cw.y, RingZ);
 
         float dangerFrac = (float)outside / SEG;
@@ -173,9 +184,8 @@ public class ScatterRangeIndicator : MonoBehaviour
         for (int i = 0; i < SEG; i++)
         {
             float theta = 2f * Mathf.PI * i / SEG;
-            Vector2 dir = new Vector2(Mathf.Cos(theta), Mathf.Sin(theta));
-            Vector2 wi = BoardSpace.ToScreen(centerBoard + dir * GuideInnerBoard, 0f);
-            Vector2 wo = BoardSpace.ToScreen(centerBoard + dir * GuideOuterBoard, 0f);
+            Vector2 wi = Ellipse(cw, GuideInnerBoard * sx, GuideInnerBoard * sy, theta);
+            Vector2 wo = Ellipse(cw, GuideOuterBoard * sx, GuideOuterBoard * sy, theta);
             verts[GuideInV + i] = new Vector3(wi.x, wi.y, RingZ);
             verts[GuideOutV + i] = new Vector3(wo.x, wo.y, RingZ);
         }
@@ -188,7 +198,7 @@ public class ScatterRangeIndicator : MonoBehaviour
             for (int j = 0; j < DashPts; j++)
             {
                 float a = a0 + step * DashDuty * j / DashSubdiv;
-                dashScreen[j] = BoardSpace.ToScreen(centerBoard + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radiusBoard, 0f);
+                dashScreen[j] = Ellipse(cw, radiusBoard * sx, radiusBoard * sy, a);
             }
             int baseV = DashV + dsh * DashPts * 2;
             for (int j = 0; j < DashPts; j++)
@@ -213,6 +223,10 @@ public class ScatterRangeIndicator : MonoBehaviour
         mesh.vertices = verts;     // 같은 크기 배열 덮어쓰기 — 관리 힙 할당 없음
         mesh.colors32 = colors;
     }
+
+    /// <summary>화면 타원 위의 점. 보드 +y(앞)가 화면 아래이므로 sin 항은 빼서 원과 같은 방향으로 돈다.</summary>
+    private static Vector2 Ellipse(Vector2 c, float rx, float ry, float theta)
+        => new Vector2(c.x + rx * Mathf.Cos(theta), c.y - ry * Mathf.Sin(theta));
 
     private static Color32 WithAlpha(Color c, float a)
     {
