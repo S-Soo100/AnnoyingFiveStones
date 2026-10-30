@@ -51,7 +51,10 @@ public partial class HandController : MonoBehaviour
     //   화면 단위 1.8은 보드 앞쪽에서 1.8, 뒤쪽에서 3.1에 해당해 사실상 관대함이 달랐다.
     //   사용자 테스트에서 "5단 아주 안정적"이라 체감값을 유지하는 쪽으로 1.8을 그대로 둔다.
     [SerializeField] private float stage5CatchRadius = 1.8f;    // 5개 동시 캐치 반경 (보드 단위, 손등 받기 시 2배)
-    [SerializeField] private float stage5BackhandScaleMultiplier = 2f; // 손등 받기 시 손 크기 배율
+    [SerializeField] private float stage5BackhandScaleMultiplier = 2f; // 5단 받기 시 **판정 반경** 배율 (받기·낚아채기)
+    // 2026-10-30 기획 피드백 "꺾기 때 손이 확 커짐": 3D 손 모델엔 2배가 과했다.
+    //   보이는 손만 줄이고 판정 반경은 위 2배 그대로 둔다 — 난이도 불변.
+    [SerializeField] private float stage5BackhandVisualScale = 1.3f;   // 5단 받기 시 **보이는 손** 크기 배율
     // v17: 화면 단위 → **보드 단위**. 보드 반너비가 8이므로 같은 숫자라도 의미가 달라진다
     //   (구 화면 1.2 ≈ 보드 1.2 수준으로 비슷하나, 깊이에 따라 화면 폭이 달라지던 문제가 사라진다).
     [SerializeField] private float stage5SpreadRange = 1.4f;     // 돌 퍼짐 범위 (보드 단위)

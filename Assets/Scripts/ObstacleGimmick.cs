@@ -3,10 +3,13 @@ using UnityEngine;
 
 /// <summary>
 /// Stage 5 방해물 기믹.
-/// 자(ruler) 1개 — 보드를 비스듬히 양단
-/// 볼펜 1개 — 가장자리에서 대각선 침범
-/// 지우개 2개 — 모서리에서 안쪽 침범
+/// 자(ruler) 1개 — 보드 중심을 비스듬히 양단 (기울기 방향 랜덤)
+/// 볼펜 1개 · 지우개 2개 — 보드 4분면에 하나씩 (자가 지나는 칸 하나는 자가 맡는다)
 /// 굴러다니는 공 2개 — 보드 내부 왕복
+///
+/// 2026-10-30 기획 피드백 "왼쪽이 비어 장애물이 역할을 못 한다": 배치를 화면 AABB(MatRect) 근사에서
+/// **보드 좌표(BoardSpace)** 로 옮겼다. 구 방식은 자가 늘 중심 오른쪽·우상향이라 왼쪽이 비었고,
+/// 사각형 모서리 기준이라 뒤쪽 지우개가 사다리꼴 밖(매트 밖)에 떴다. 개수·크기·판정 반경은 그대로다.
 /// </summary>
 public class ObstacleGimmick : StageGimmick
 {
@@ -25,43 +28,79 @@ public class ObstacleGimmick : StageGimmick
         SpawnObstacles();
     }
 
+    // 보드 좌표 배치 상수 (보드 단위: x ±8, y ±4.5, +y=앞)
+    private const float RulerHalfLen = 4.2f;                    // 자 반길이
+    private const float RulerAngleMin = 35f, RulerAngleMax = 55f; // 보드 기준 기울기 (깊이는 화면에서 눌려 화면각은 더 완만)
+    private const float ItemXMin = 2.5f, ItemXMax = 5.5f;       // 4분면 안 볼펜·지우개 |x|
+    private const float ItemYMin = 1.4f, ItemYMax = 2.6f;       // 4분면 안 볼펜·지우개 |y|
+    private const float RulerClearance = 2.0f;                  // 자가 지나는 칸의 물건은 자에서 이만큼 띄운다
+
     private void SpawnObstacles()
     {
-        // v10: BoardBounds 기준으로 영역 계산 (구 하드코딩 halfW=4.8 halfH=3.05 교체)
-        // 중심: quad centroid. 폴백: BoardTransform
-        float cx, cy;
-        if (BoardBounds.HasQuad)
-        {
-            Vector2 c = BoardBounds.QuadPoint(0.5f, 0.5f);
-            cx = c.x; cy = c.y;
-        }
-        else
-        {
-            var board = gameManager?.BoardTransform;
-            cx = board != null ? board.position.x : 0f;
-            cy = board != null ? board.position.y : 0f;
-        }
-        // halfW: MatRect.width(=AABB 앞폭)를 그대로 쓰면 너무 넓으므로 0.65 근사
-        // 새 보드 앞폭 16.1 → MatRect.width*0.5*0.65 ≈ 5.23
-        Rect r = BoardBounds.MatRect;
-        float halfW = r.width  * 0.5f * 0.65f;
-        // halfH: MatRect.height(=깊이 3.15) * 0.5 * 0.85 ≈ 1.34
-        float halfH = r.height * 0.5f * 0.85f;
+        // 자: 중심 근처를 지나고 기울기 부호가 랜덤 → 지나는 대각선 두 칸이 매번 바뀐다.
+        float sign = Random.value < 0.5f ? 1f : -1f;
+        float a = sign * Random.Range(RulerAngleMin, RulerAngleMax) * Mathf.Deg2Rad;
+        Vector2 dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+        Vector2 rc = new Vector2(Random.Range(-1f, 1f), Random.Range(-0.6f, 0.6f));
+        Vector2 rulerBoardA = rc - dir * RulerHalfLen;
+        Vector2 rulerBoardB = rc + dir * RulerHalfLen;
+        SpawnRuler(rulerBoardA, rulerBoardB);
 
-        SpawnRuler(cx, cy, halfW, halfH);
-        SpawnPen(cx, cy, halfW, halfH);
-        SpawnEraser(cx, cy, halfW, halfH);
-        SpawnBalls(cx, cy, halfW, halfH);
+        // 4분면 (x부호, y부호). 자는 dir 방향 칸과 그 반대 칸을 지난다.
+        var crossed = new[] { new Vector2(1f, sign), new Vector2(-1f, -sign) };
+        var free    = new[] { new Vector2(1f, -sign), new Vector2(-1f, sign) };
+        // 볼펜·지우개 3개 → 자가 안 지나는 두 칸 + 자가 지나는 칸 하나. 어떤 물건이 어느 칸에 갈지는 셔플.
+        var quads = new[] { free[0], free[1], crossed[Random.Range(0, 2)] };
+        var items = new[] { 0, 1, 2 }; // 0=볼펜, 1·2=지우개
+        for (int i = items.Length - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (items[i], items[j]) = (items[j], items[i]);
+        }
+        int eraserIdx = 0;
+        for (int k = 0; k < 3; k++)
+        {
+            Vector2 p = QuadrantPoint(quads[k], rulerBoardA, rulerBoardB);
+            if (items[k] == 0) SpawnPen(p);
+            else SpawnEraser(p, eraserIdx++);
+        }
 
-        Debug.Log($"[ObstacleGimmick] Spawned ruler×1 + pen×1 + eraser×2 + ball×2. cx={cx:F2} cy={cy:F2} halfW={halfW:F2} halfH={halfH:F2}");
+        SpawnBalls();
+
+        Debug.Log($"[ObstacleGimmick] Spawned ruler×1 + pen×1 + eraser×2 + ball×2 (board). " +
+                  $"ruler {rulerBoardA:F1}→{rulerBoardB:F1}, quads=[{quads[0]},{quads[1]},{quads[2]}] items=[{items[0]},{items[1]},{items[2]}]");
+    }
+
+    /// <summary>4분면 안 랜덤 점(보드 좌표). 자와 가까우면 자에서 수직으로 밀어낸다.</summary>
+    private static Vector2 QuadrantPoint(Vector2 quadSign, Vector2 rulerA, Vector2 rulerB)
+    {
+        Vector2 p = new Vector2(quadSign.x * Random.Range(ItemXMin, ItemXMax),
+                                quadSign.y * Random.Range(ItemYMin, ItemYMax));
+        float d = DistanceToSegment(p, rulerA, rulerB, out Vector2 closest);
+        if (d < RulerClearance)
+        {
+            Vector2 away = p - closest;
+            if (away.sqrMagnitude < 0.0001f) away = new Vector2(-(rulerB - rulerA).y, (rulerB - rulerA).x);
+            p = closest + away.normalized * RulerClearance;
+            // 같은 칸·보드 안에 남긴다 (칸 경계 0.8, 바깥 한계는 Item 최대값)
+            p.x = quadSign.x * Mathf.Clamp(p.x * quadSign.x, 0.8f, ItemXMax);
+            p.y = quadSign.y * Mathf.Clamp(p.y * quadSign.y, 0.8f, ItemYMax);
+        }
+        return p;
+    }
+
+    /// <summary>보드 좌표 → 지면 월드 위치 (z 지정).</summary>
+    private static Vector3 BoardToWorld(Vector2 board, float z)
+    {
+        Vector2 s = BoardSpace.ToScreen(board, 0f);
+        return new Vector3(s.x, s.y, z);
     }
 
     // ─── 자(ruler) ×1 — Cube, 보드를 비스듬히 양단 ──────────────────────────
-    private void SpawnRuler(float cx, float cy, float halfW, float halfH)
+    private void SpawnRuler(Vector2 boardA, Vector2 boardB)
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         go.name = "Obstacle_Ruler";
-        go.transform.localScale = new Vector3(halfW * 1.1f, 0.35f, 0.2f); // v10: 새 보드 halfW에 비례 (≈5.75)
 
         var col = go.GetComponent<Collider>();
         if (col != null) Object.Destroy(col);
@@ -70,10 +109,13 @@ public class ObstacleGimmick : StageGimmick
         if (renderer != null)
             renderer.material = CreateLitMaterial(new Color(0.85f, 0.72f, 0.45f));
 
-        float posX = cx + halfW * 0.15f;
-        float posY = cy + halfH * 0.15f;
-        go.transform.position = new Vector3(posX, posY, -0.1f);
-        float rulerAngle = Random.Range(25f, 40f);
+        // 보드 양 끝점을 화면에 투영 → 그 사이를 잇는 큐브 (로컬 x ±0.5 = 양 끝)
+        Vector3 wa = BoardToWorld(boardA, -0.1f);
+        Vector3 wb = BoardToWorld(boardB, -0.1f);
+        Vector3 delta = wb - wa;
+        float rulerAngle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
+        go.transform.localScale = new Vector3(new Vector2(delta.x, delta.y).magnitude, 0.35f, 0.2f);
+        go.transform.position = (wa + wb) * 0.5f;
         go.transform.rotation = Quaternion.Euler(15f, 0f, rulerAngle);
 
         var obs = go.AddComponent<Obstacle>();
@@ -90,11 +132,9 @@ public class ObstacleGimmick : StageGimmick
         obstacles.Add(go);
     }
 
-    // ─── 볼펜 ×1 — Cylinder, 가장자리에서 대각선 침범 ───────────────────────
-    private void SpawnPen(float cx, float cy, float halfW, float halfH)
+    // ─── 볼펜 ×1 — Cylinder, 4분면 한 칸에 비스듬히 ─────────────────────────
+    private void SpawnPen(Vector2 board)
     {
-        int side = Random.Range(0, 4); // 상하좌우 중 랜덤 1변
-
         var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         go.name = "Obstacle_Pen";
         go.transform.localScale = new Vector3(0.3f, 1.5f, 0.3f);
@@ -106,32 +146,9 @@ public class ObstacleGimmick : StageGimmick
         if (renderer != null)
             renderer.material = CreateLitMaterial(new Color(0.2f, 0.2f, 0.6f));
 
-        float posX, posY, angle;
-        switch (side)
-        {
-            case 0: // 상
-                posX = cx + Random.Range(-halfW * 0.5f, halfW * 0.5f);
-                posY = cy + halfH;
-                angle = Random.Range(210f, 240f);
-                break;
-            case 1: // 하
-                posX = cx + Random.Range(-halfW * 0.5f, halfW * 0.5f);
-                posY = cy - halfH;
-                angle = Random.Range(30f, 60f);
-                break;
-            case 2: // 좌
-                posX = cx - halfW;
-                posY = cy + Random.Range(-halfH * 0.5f, halfH * 0.5f);
-                angle = Random.Range(300f, 330f);
-                break;
-            default: // 우
-                posX = cx + halfW;
-                posY = cy + Random.Range(-halfH * 0.5f, halfH * 0.5f);
-                angle = Random.Range(120f, 150f);
-                break;
-        }
-
-        go.transform.position = new Vector3(posX, posY, 0f);
+        // Cylinder 길이 축 = 로컬 Y(화면 세로). 90°±35° 회전 → 가로에 가깝게 눕혀 보드 뒷변 위로 삐져나가지 않게.
+        float angle = 90f + Random.Range(-35f, 35f);
+        go.transform.position = BoardToWorld(board, 0f);
         go.transform.rotation = Quaternion.Euler(20f, 0f, angle);
 
         var obs = go.AddComponent<Obstacle>();
@@ -144,52 +161,33 @@ public class ObstacleGimmick : StageGimmick
         obstacles.Add(go);
     }
 
-    // ─── 지우개 ×2 — Cube, 모서리에서 안쪽 침범 ──────────────────────────────
-    private void SpawnEraser(float cx, float cy, float halfW, float halfH)
+    // ─── 지우개 — Cube, 4분면 한 칸에 ───────────────────────────────────────
+    private void SpawnEraser(Vector2 board, int index)
     {
-        int[] corners = { 0, 1, 2, 3 };
-        for (int i = 0; i < 2; i++)
-        {
-            int j = Random.Range(i, 4);
-            int tmp = corners[i]; corners[i] = corners[j]; corners[j] = tmp;
-        }
+        var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        go.name = $"Obstacle_Eraser_{index}";
+        go.transform.localScale = new Vector3(1.8f, 1.0f, 0.6f);
 
-        for (int i = 0; i < 2; i++)
-        {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = $"Obstacle_Eraser_{i}";
-            go.transform.localScale = new Vector3(1.8f, 1.0f, 0.6f);
+        var col = go.GetComponent<Collider>();
+        if (col != null) Object.Destroy(col);
 
-            var col = go.GetComponent<Collider>();
-            if (col != null) Object.Destroy(col);
+        var renderer = go.GetComponent<Renderer>();
+        if (renderer != null)
+            renderer.material = CreateLitMaterial(new Color(0.9f, 0.85f, 0.75f));
 
-            var renderer = go.GetComponent<Renderer>();
-            if (renderer != null)
-                renderer.material = CreateLitMaterial(new Color(0.9f, 0.85f, 0.75f));
+        go.transform.position = BoardToWorld(board, 0f);
+        go.transform.rotation = Quaternion.Euler(25f, 0f, Random.Range(-15f, 15f));
 
-            float posX, posY;
-            switch (corners[i])
-            {
-                case 0: posX = cx - halfW + 0.5f; posY = cy + halfH - 0.3f; break;
-                case 1: posX = cx + halfW - 0.5f; posY = cy + halfH - 0.3f; break;
-                case 2: posX = cx - halfW + 0.5f; posY = cy - halfH + 0.3f; break;
-                default: posX = cx + halfW - 0.5f; posY = cy - halfH + 0.3f; break;
-            }
+        var obs = go.AddComponent<Obstacle>();
+        obs.type = Obstacle.ObstacleType.Static;
+        obs.shape = ObstacleShape.Point;
+        obs.hitRadius = 0.8f;
 
-            go.transform.position = new Vector3(posX, posY, 0f);
-            go.transform.rotation = Quaternion.Euler(25f, 0f, Random.Range(-15f, 15f));
-
-            var obs = go.AddComponent<Obstacle>();
-            obs.type = Obstacle.ObstacleType.Static;
-            obs.shape = ObstacleShape.Point;
-            obs.hitRadius = 0.8f;
-
-            obstacles.Add(go);
-        }
+        obstacles.Add(go);
     }
 
     // ─── 굴러다니는 공 ×2 — Sphere, 보드 내부 왕복 ──────────────────────────
-    private void SpawnBalls(float cx, float cy, float halfW, float halfH)
+    private void SpawnBalls()
     {
         // v7-3: 6단 BallSpeedMultiplier 적용 (다른 스테이지는 1.0으로 효과 없음)
         var cfg = StageConfig.Get(GameManager.Instance.CurrentStage);
@@ -214,7 +212,7 @@ public class ObstacleGimmick : StageGimmick
                 renderer.material = CreateLitMaterial(ballColors[i]);
 
             Vector3 startPos, endPos;
-            BuildBallPath(cx, cy, halfW, halfH, i, out startPos, out endPos);
+            BuildBallPath(i, out startPos, out endPos);
             go.transform.position = startPos;
 
             var obs = go.AddComponent<Obstacle>();
@@ -232,20 +230,21 @@ public class ObstacleGimmick : StageGimmick
         }
     }
 
-    private void BuildBallPath(float cx, float cy, float halfW, float halfH,
-                               int index, out Vector3 startPos, out Vector3 endPos)
+    /// <summary>공 왕복 경로 — 보드 좌표 직선을 투영(사다리꼴에서도 직선으로 남는다).
+    /// 0=가로(좌↔우), 1=세로(뒤↔앞). 범위는 구 화면 근사(±0.7×halfW/halfH)와 비슷하게 — 공 난이도는 그대로.</summary>
+    private static void BuildBallPath(int index, out Vector3 startPos, out Vector3 endPos)
     {
         if (index == 0)
         {
-            float rowY = cy + Random.Range(-halfH * 0.5f, halfH * 0.5f);
-            startPos = new Vector3(cx - halfW * 0.7f, rowY, 0f);
-            endPos   = new Vector3(cx + halfW * 0.7f, rowY, 0f);
+            float rowY = Random.Range(-2.0f, 2.0f);
+            startPos = BoardToWorld(new Vector2(-4.8f, rowY), 0f);
+            endPos   = BoardToWorld(new Vector2( 4.8f, rowY), 0f);
         }
         else
         {
-            float colX = cx + Random.Range(-halfW * 0.5f, halfW * 0.5f);
-            startPos = new Vector3(colX, cy - halfH * 0.7f, 0f);
-            endPos   = new Vector3(colX, cy + halfH * 0.7f, 0f);
+            float colX = Random.Range(-4.0f, 4.0f);
+            startPos = BoardToWorld(new Vector2(colX, -2.8f), 0f);
+            endPos   = BoardToWorld(new Vector2(colX,  2.8f), 0f);
         }
     }
 
@@ -306,7 +305,7 @@ public class ObstacleGimmick : StageGimmick
     }
 
     /// <summary>2D 점과 선분 사이의 최단 거리 + 최근접점 반환</summary>
-    private float DistanceToSegment(Vector2 point, Vector2 segA, Vector2 segB, out Vector2 closest)
+    private static float DistanceToSegment(Vector2 point, Vector2 segA, Vector2 segB, out Vector2 closest)
     {
         Vector2 ab = segB - segA;
         float sqrLen = ab.sqrMagnitude;

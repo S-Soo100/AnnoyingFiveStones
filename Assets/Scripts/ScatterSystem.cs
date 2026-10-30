@@ -44,8 +44,10 @@ public class ScatterSystem : MonoBehaviour
     //   v17-b 튜닝: Span 4.00 → 3.00. 플레이 결과 게이지 0.54에서도 낙이 나서
     //   성공 구간이 0.4 이하뿐이었다(게이지가 왕복하는 걸 감안하면 너무 좁다).
     //   3.00이면 g=0.5에서 반경 2.60 — 중심이 앞쪽이어도 앞변(4.5) 안에 들어온다.
+    //   2026-10-30 기획 피드백: 3.00은 최대 4.10이라 가운데서 꽉 채워도 낙이 안 났다("낙이 생길 일이 거의 없다").
+    //   3.60 → 최대 4.70. 가운데서도 g≈0.94부터 앞뒤 낙. g=0.54는 반경 3.04로 여전히 안전(v17-b 문제 구간 아님).
     private const float RBoardBase = 1.10f;  // g=0 (뭉침)
-    private const float RBoardSpan = 3.00f;  // g=1 → 4.10 (반깊이 4.5에 근접 = 고게이지 낙)
+    private const float RBoardSpan = 3.60f;  // g=1 → 4.70 (반깊이 4.5를 넘음 = 꽉 채우면 낙)
     // M1-S7(D9): 뿌리기 낙 마진은 BoardSpace.ScatterMargins(변별: Ledge 0 / Flat 0.2)로 옮겼다 — 상수는 BoardSpace 한 곳.
 
     /// <summary>뿌리기 낙의 실패 상한(놓은 순간부터, T5).</summary>

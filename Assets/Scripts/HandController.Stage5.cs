@@ -242,12 +242,12 @@ public partial class HandController
         SetCatchMode(true);
         stage5CatchActive = true;
 
-        // === 손등 받기: 손 크기 2배로 확대 (0.3초 보간) ===
+        // === 손등 받기: 손 확대(시각 1.3배) + 판정 반경 2배 (0.3초 보간) ===
         float originalCatchRadius = stage5CatchRadius;
         float scaleDuration = 0.3f;
         float scaleElapsed = 0f;
         Vector3 originalScale = transform.localScale;
-        Vector3 targetScale = originalScale * stage5BackhandScaleMultiplier;
+        Vector3 targetScale = originalScale * stage5BackhandVisualScale;
         float targetRadius = originalCatchRadius * stage5BackhandScaleMultiplier;
 
         while (scaleElapsed < scaleDuration)
@@ -436,10 +436,10 @@ public partial class HandController
         SetCatchMode(true);
         stage5CatchActive = true;
 
-        // === 손바닥 받기: 손 크기 2배로 확대 (0.3초 보간) ===
+        // === 손바닥 받기: 손 확대(시각 1.3배) + 판정 반경 2배 (0.3초 보간) ===
         float originalGrabRadius = stage5FistGrabRadius;
         Vector3 originalScale = transform.localScale;
-        Vector3 targetScale = originalScale * stage5BackhandScaleMultiplier;
+        Vector3 targetScale = originalScale * stage5BackhandVisualScale;
         float targetGrabRadius = originalGrabRadius * stage5BackhandScaleMultiplier;
         {
             float scaleElapsed = 0f;
