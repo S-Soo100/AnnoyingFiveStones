@@ -46,8 +46,10 @@ public class ScatterSystem : MonoBehaviour
     //   3.00이면 g=0.5에서 반경 2.60 — 중심이 앞쪽이어도 앞변(4.5) 안에 들어온다.
     //   2026-10-30 기획 피드백: 3.00은 최대 4.10이라 가운데서 꽉 채워도 낙이 안 났다("낙이 생길 일이 거의 없다").
     //   3.60 → 최대 4.70. 가운데서도 g≈0.94부터 앞뒤 낙. g=0.54는 반경 3.04로 여전히 안전(v17-b 문제 구간 아님).
-    private const float RBoardBase = 1.10f;  // g=0 (뭉침)
-    private const float RBoardSpan = 3.60f;  // g=1 → 4.70 (반깊이 4.5를 넘음 = 꽉 채우면 낙)
+    //   2026-10-31 기획 결정("쫄깃하게"): 최소·최대 모두 +50% → 1.65~7.05. 가운데서도 g≈0.5부터 앞뒤 낙,
+    //   g≥0.6은 거의 확정 낙. 최소가 커져 저게이지 뭉침(줍기 실패) 위험은 줄어든다(사용자 확인 후 결정).
+    private const float RBoardBase = 1.65f;  // g=0 (뭉침) — 구 1.10
+    private const float RBoardSpan = 5.40f;  // g=1 → 7.05 (반깊이 4.5를 크게 넘음) — 구 3.60(최대 4.70)
     // M1-S7(D9): 뿌리기 낙 마진은 BoardSpace.ScatterMargins(변별: Ledge 0 / Flat 0.2)로 옮겼다 — 상수는 BoardSpace 한 곳.
 
     /// <summary>뿌리기 낙의 실패 상한(놓은 순간부터, T5).</summary>

@@ -613,6 +613,11 @@ public static class GameTestMenu
     public static void VerifyScatterNak() =>
         StartEditorRoutine(VerifyScatterRoutine(new[] { 0.95f }, new Vector2(0.75f, 0.78f), 3));
 
+    // 2026-10-31 반경 +50% 측정용 — 게이지별 낙(phase=Failed) 비율을 로그에서 센다.
+    [MenuItem("Tools/테스트: 뿌리기 낙 비율 (10나이 × 게이지 7, 중심)")]
+    public static void MeasureScatterNakRate() =>
+        StartEditorRoutine(VerifyScatterRoutine(new[] { 0.10f, 0.30f, 0.45f, 0.50f, 0.60f, 0.80f, 1.00f }, new Vector2(0.5f, 0.5f), 11));
+
     private static void StartEditorRoutine(System.Collections.IEnumerator r)
     {
         if (!Application.isPlaying) { Debug.LogError("[GameTestMenu] Play 중에만 동작"); return; }
