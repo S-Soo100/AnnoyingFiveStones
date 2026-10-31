@@ -60,6 +60,9 @@ public class StageConfig
     // v8-2c 이미지 매트 정렬 미세조정. offset=quad localPos.xy 가산, scale=화면 채움 배율(1=정확히 화면).
     public Vector2 BgImageOffset = Vector2.zero;
     public Vector2 BgImageScale  = Vector2.one;
+    // v31: 기본 돌 색 덮어쓰기. 기본 돌(노랑)이 판 색에 묻히는 스테이지만 지정(교실 책상 10·15살).
+    // null = 머티리얼 기본색. 기믹 색 배정(OnStageStart)은 이 위에 덮인다.
+    public Color? StoneTint = null;
 
     // v30: v8-2e 매트 레이어 필드(MatImage/MatCenter/MatSize)는 v17부터 죽은 설정이라 삭제됨.
     public Vector2 BoardCenter = Vector2.zero;  // 플레이 영역(BoardBounds) 월드 중심
@@ -87,6 +90,7 @@ public class StageConfig
             TableColor=new Color(0.95f,0.85f,0.7f), ClothColor=new Color(1.0f,0.5f,0.5f),
             BackgroundImage = "StageBackgrounds/Life/v2/age10_bg", // v22 정식 아트 (구: "StageBackgrounds/Life/age10")
             BoardImage      = "StageBackgrounds/Life/v2/age10_board", // 학교 책상 레이어
+            StoneTint       = new Color(0.2f, 0.4f, 0.9f), // v31: 노랑 책상에 노랑 돌이 묻혀 파랑으로
             BoardCenter     = new Vector2(0f, -4.8f),
             BoardSize       = new Vector2(10.6f, 3.8f),
             // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)
@@ -103,6 +107,7 @@ public class StageConfig
             TableColor=new Color(0.6f,0.5f,0.4f), ClothColor=new Color(0.6f,0.65f,0.75f),
             BackgroundImage = "StageBackgrounds/Life/v2/age10_bg", // v22 정식 아트 — 15살은 10살과 동일(사용자 확정 2026-10-27)
             BoardImage      = "StageBackgrounds/Life/v2/age10_board",
+            StoneTint       = new Color(0.2f, 0.4f, 0.9f), // v31: 10살과 같은 책상 — 기믹이 꺼지는 5단 꺾기의 기본 돌용
             BoardCenter     = new Vector2(0f, -4.8f),
             BoardSize       = new Vector2(10.6f, 3.8f),
             // (구 수동 측정 BoardQuad·측정 주석은 v30 리뷰 정리에서 삭제 — 이력은 git v16~v21)

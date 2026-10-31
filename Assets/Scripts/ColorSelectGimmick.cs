@@ -4,6 +4,7 @@ using UnityEngine;
 /// Stage 2 [15살] 색깔 선택 기믹 v6-split.
 /// 시작 시 5개만 활성화(낙 확률 감소). ScatterComplete 후 나머지 13개를 매트 위 빈 곳에 배치.
 /// 타겟 색 = 던진 돌의 색 (노랑 고정 제거).
+/// v31: 색 구성 노랑 → 파랑 — 15살 교실 책상이 노랑이라 노랑 돌이 묻혔다.
 /// </summary>
 public class ColorSelectGimmick : StageGimmick
 {
@@ -13,7 +14,7 @@ public class ColorSelectGimmick : StageGimmick
 
     private static readonly Stone.StoneColor[] allColors = new Stone.StoneColor[]
     {
-        Stone.StoneColor.Yellow,
+        Stone.StoneColor.Blue,
         Stone.StoneColor.Red,
         Stone.StoneColor.Green,
     };
@@ -46,10 +47,10 @@ public class ColorSelectGimmick : StageGimmick
         pool.DeactivateAll();
         var active = pool.Activate(5);
 
-        // 5개 색 배정: 노랑2, 빨강1, 초록2
-        // [0]=Yellow, [1]=Yellow, [2]=Red, [3]=Green, [4]=Green
-        active[0].SetColor(Stone.StoneColor.Yellow);
-        active[1].SetColor(Stone.StoneColor.Yellow);
+        // 5개 색 배정: 파랑2, 빨강1, 초록2
+        // [0]=Blue, [1]=Blue, [2]=Red, [3]=Green, [4]=Green
+        active[0].SetColor(Stone.StoneColor.Blue);
+        active[1].SetColor(Stone.StoneColor.Blue);
         active[2].SetColor(Stone.StoneColor.Red);
         active[3].SetColor(Stone.StoneColor.Green);
         active[4].SetColor(Stone.StoneColor.Green);
@@ -57,7 +58,7 @@ public class ColorSelectGimmick : StageGimmick
         // GameManager.stones를 5개로 갱신
         GameManager.Instance?.RefreshStones();
 
-        Debug.Log("[ColorSelectGimmick] Stage started: 5 stones activated (Yellow=2, Red=1, Green=2). Remaining 13 spawn after scatter.");
+        Debug.Log("[ColorSelectGimmick] Stage started: 5 stones activated (Blue=2, Red=1, Green=2). Remaining 13 spawn after scatter.");
     }
 
     /// <summary>
@@ -72,11 +73,11 @@ public class ColorSelectGimmick : StageGimmick
         var added = pool.ActivateAdditional(13);
         if (added == null || added.Length == 0) return;
 
-        // 2) 색 배정: 노4 빨5 초4 (5+13=18, 합계 노6 빨6 초6)
+        // 2) 색 배정: 파4 빨5 초4 (5+13=18, 합계 파6 빨6 초6)
         var colorSequence = new Stone.StoneColor[]
         {
-            Stone.StoneColor.Yellow, Stone.StoneColor.Yellow,
-            Stone.StoneColor.Yellow, Stone.StoneColor.Yellow,
+            Stone.StoneColor.Blue,   Stone.StoneColor.Blue,
+            Stone.StoneColor.Blue,   Stone.StoneColor.Blue,
             Stone.StoneColor.Red,    Stone.StoneColor.Red,
             Stone.StoneColor.Red,    Stone.StoneColor.Red,
             Stone.StoneColor.Red,

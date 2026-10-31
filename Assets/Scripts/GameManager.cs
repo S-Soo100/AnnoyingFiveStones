@@ -936,8 +936,12 @@ public class GameManager : MonoBehaviour
             : (currentStageConfig != null ? currentStageConfig.TotalStones : 5);
         stones = StonePool.Instance != null ? StonePool.Instance.Activate(stoneCount) : stones;
 
+        // v31: 판 색에 묻히는 스테이지는 기본 돌 색을 바꾼다(Activate가 기본색으로 되돌린 직후).
+        Color? tint = currentStageConfig != null ? currentStageConfig.StoneTint : null;
+
         foreach (var stone in stones)
         {
+            if (tint.HasValue) stone.SetColorRGB(JitterTint(tint.Value));
             stone.transform.SetParent(null);
             stone.transform.localScale = StoneOriginalScale; // 5단 스케일 변동 복원
             // 리뷰 반영(안전장치): 낙하 연출이 숨긴 돌·뿌리기 회전이 RestoreAll을 거치지 않는 경로로도 남지 않게
@@ -947,6 +951,16 @@ public class GameManager : MonoBehaviour
             stone.Rb.linearVelocity = Vector3.zero;
             stone.Rb.angularVelocity = Vector3.zero;
         }
+    }
+
+    /// <summary>Stone.Awake의 기본색 지터와 같은 폭 — 다섯 개가 완전히 같은 색이면 공산품처럼 보인다.</summary>
+    private static Color JitterTint(Color c)
+    {
+        Color.RGBToHSV(c, out float hue, out float sat, out float val);
+        hue = Mathf.Repeat(hue + Random.Range(-0.015f, 0.015f), 1f);
+        sat = Mathf.Clamp01(sat * Random.Range(0.92f, 1.08f));
+        val = Mathf.Clamp01(val * Random.Range(0.94f, 1.06f));
+        return Color.HSVToRGB(hue, sat, val);
     }
 
     /// <summary>
