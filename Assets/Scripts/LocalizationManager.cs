@@ -182,7 +182,8 @@ public static class LocalizationManager
         // === 튜토리얼 (10살) — 영어 확정 (2026-07-06 사용자 승인) ===
         ["tutorial.slide1"] = ("꾹 눌러서 힘을 조절하고,\n놓으면 돌이 뿌려집니다.",
                                "Press and hold to set your power,\nrelease to scatter the stones."),
-        // 2026-11-15 "누르는 순간 집기" — 누른 채 쓸고 지나가면 안 집힌다
+        // 2026-11-15 던질 돌 고르기 안내(다음 장이 던지기) — 던질 돌은 누르는 순간 집는다.
+        //   바닥 돌은 누른 뒤 2초 동안 쓸어담기가 되지만 이 장의 대상이 아니다.
         ["tutorial.slide2"] = ("돌 위에서 누르면\n돌을 집습니다.",
                                "Press on a stone\nto pick it up."),
         ["tutorial.slide3"] = ("잡은 돌을 클릭해 위로 던지고,\n떨어질 때 다시 받으세요!",

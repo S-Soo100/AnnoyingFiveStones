@@ -180,9 +180,12 @@ public partial class HandController : MonoBehaviour
             // 히스테리시스 0.2 unit: 한 번 catch 모드면 경계 - 0.2 아래로 가야 해제 → chattering 방지
             // v19(0825 피드백): 받기 허용 영역을 보드 앞변(아랫쪽 끝)까지 확장.
             // 던진 돌이 낙하 중(catch phase)이고 줍기 홀드 중이 아니면, 보드 앞변이 경계가 된다.
-            // 홀드 중엔 기존 경계 유지 — 보드 위 쓸기(줍기)가 받기 자세로 끊기면 안 된다.
+            // 쓸어담기 중(누른 뒤 SweepWindow초)엔 기존 경계 유지 — 보드 위 쓸기(줍기)가 받기 자세로 끊기면 안 된다.
+            // 2026-11-15: 조건을 "누르고 있음" → "쓸기 시간 안"으로 좁혔다. 2초가 지나 더 못 줍는데도 누르고만 있으면
+            //   받기 영역이 좁은 채로 남아, 보드 앞쪽에서 받으려다 실패했다(리뷰 지적).
             var catchSys = CatchSystemRef;
-            float boundary = (catchSys != null && catchSys.IsCatchPhase && !isHolding)
+            bool sweepActive = isHolding && Time.time < sweepEndTime;
+            float boundary = (catchSys != null && catchSys.IsCatchPhase && !sweepActive)
                 ? BoardSpace.FrontScreenY
                 : BoardBounds.SkyFloorY;
             float skyEnter = boundary;
@@ -213,8 +216,8 @@ public partial class HandController : MonoBehaviour
         UpdateHandShadow();
 
         // 보드 모드에서만 줍기 판정 (낙 대기 중에는 TryHoldPick*가 IsInputBlocked로 막는다 — D5 B)
-        // 누른 직후 첫 Update에서 **한 번만** 판정한다. 위치 갱신·모드 전환이 끝난 뒤라 손 위치가 이번 프레임 값이다.
-        // 하늘(받기 모드)에서 누른 경우도 여기서 소모한다 — 누른 채 보드로 끌고 내려와 줍는 우회를 막는다.
+        // 누른 직후 첫 Update에서 판정하고(pickNow), 바닥 돌은 이어서 SweepWindow초 동안 매 프레임 판정한다(sweeping).
+        // 던질 돌은 pickNow 1회만. 위치 갱신·모드 전환이 끝난 뒤라 손 위치가 이번 프레임 값이다.
         bool pickNow = pickArmed;
         pickArmed = false;
         // 하늘(받기 모드)에서 누른 누름은 쓸기 시간을 주지 않는다 — 누른 채 보드로 내려와 쓸어담는 우회 차단

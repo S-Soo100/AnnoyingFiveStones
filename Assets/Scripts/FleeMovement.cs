@@ -62,7 +62,8 @@ public class FleeMovement : MonoBehaviour
             Debug.Log($"[FleeMovement] {gameObject.name} → Flee");
             fleeDirection = Random.insideUnitCircle.normalized;
             // 2026-11-15 난이도 완화 (기존 속도 3~6 / 도망 1.5~2 / 쉬기 1~1.5 → 이동량 약 1/3)
-            // "누르는 순간 집기"로 움직이는 돌을 겨냥하기 더 어려워져 함께 낮춘다. 쉬는 틈을 노리는 판단이 생기게.
+            // 플레이 피드백 "20살이 제일 어렵다"에 대한 완화. 쉬는 틈을 노리는 판단이 생기게.
+            // (같은 날 줍기를 "누르는 순간"으로 바꿨다가 "누른 뒤 2초 쓸어담기"로 되살렸다 — 쓸기가 다시 되니 플레이로 재조정 여지)
             fleeSpeed = Random.Range(1.5f, 3f);
             float fleeDuration = Random.Range(1.0f, 1.5f);
 

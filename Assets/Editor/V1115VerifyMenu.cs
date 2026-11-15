@@ -54,7 +54,7 @@ public static class V1115VerifyMenu
     {
         pass = fail = 0;
         Application.logMessageReceived += OnLog;
-        IEnumerator[] tests = { TestPressPick(), TestSkyPress(), TestAirtime(), TestFlee(), TestSpotlight() };
+        IEnumerator[] tests = { TestPressPick(), TestSkyPress(), TestHoldCatchZone(), TestAirtime(), TestFlee(), TestSpotlight() };
         foreach (var t in tests)
         {
             while (true)
@@ -65,6 +65,9 @@ public static class V1115VerifyMenu
                 if (!more) break;
                 yield return null;
             }
+            // 테스트가 중간에 yield break로 끝나도 검증용 오버라이드(낙하 시간 등)가 다음 테스트로 새지 않게
+            // (StartStage는 오버라이드를 지우지 않는다 — 단 완료·RestartGame만 지운다)
+            Hand?.ClearAllOverrides();
         }
         Application.logMessageReceived -= OnLog;
         Debug.Log($"[V1115] SUMMARY pass={pass} fail={fail}");
@@ -248,7 +251,6 @@ public static class V1115VerifyMenu
         Report("1-5 다시 누른 채 돌 B 위로 끌기 → 2개", afterDragB == 2,
                $"picked={afterDragB} phase={GM.CurrentPhase} t={Time.time - tThrow:F2}s");
         w = Wait(5.5f); while (w.MoveNext()) yield return null; // 받기 실패 → 리셋 대기
-        Hand.ClearAllOverrides();
     }
 
     // ── 1-6. 하늘에서 누른 채 보드로 끌고 내려오기 → 안 집힘 ─────────────
@@ -270,6 +272,40 @@ public static class V1115VerifyMenu
         Report("1-6 하늘(받기 모드)에서 누른 채 보드 돌 위로 내려오기 → 안 집힘", wasCatch && picked == 0,
                $"catchModeAtPress={wasCatch} picked={picked}");
         var w = Wait(4f); while (w.MoveNext()) yield return null;
+    }
+
+    // ── 1-7. 쓸기 시간이 끝난 홀드는 받기 영역을 좁히지 않는다 (리뷰 지적) ──
+    private static IEnumerator TestHoldCatchZone()
+    {
+        var p = Prep(1, 1); while (p.MoveNext()) yield return null;
+        Hand.SetThrowDownDurationOverride(3f); // 낙하 3초 — 2초 쓸기 시간이 끝난 뒤에도 낙하 중이게
+        var th = ThrowFromPick(); while (th.MoveNext()) yield return null;
+        if (GM.CurrentPhase != GameManager.GamePhase.PickStones) { Report("1-7 준비", false, $"phase={GM.CurrentPhase}"); yield break; }
+        float tThrow = Time.time;
+        var board = OnBoard();
+        if (!FindEmpty(board, out var empty)) { Report("1-7 준비", false, "빈 곳 없음"); yield break; }
+        var catchSys = Object.FindFirstObjectByType<CatchSystem>();
+
+        // 보드 빈 곳(받기 확장 영역 = 보드 앞변~뒷변 사이)에서 누르고 계속 누르고 있는다
+        PlacePalm(empty); yield return null;
+        Hand.DebugPress(); yield return null;
+        bool catchInWindow = true, sawFallInWindow = false;
+        float tPress = Time.time;
+        while (Time.time - tPress < 1.9f)
+        {
+            PlacePalm(empty); yield return null;
+            if (catchSys != null && catchSys.IsCatchPhase) { sawFallInWindow = true; catchInWindow = Hand.IsCatchMode; }
+        }
+        var w = Wait(0.4f); while (w.MoveNext()) { PlacePalm(empty); yield return null; }
+        bool fallingAfter = catchSys != null && catchSys.IsCatchPhase;
+        bool catchAfter = Hand.IsCatchMode;
+        bool stillHolding = Hand.IsHolding;
+        Hand.DebugRelease(); yield return null;
+        Report("1-7a 쓸기 시간 안(낙하 중) 홀드 → 보드 모드 유지(쓸기 계속)", sawFallInWindow && !catchInWindow,
+               $"낙하관측={sawFallInWindow} catchMode={catchInWindow}");
+        Report("1-7b 쓸기 시간 지난 홀드(낙하 중) → 받기 모드(보드 앞쪽까지 받기 영역)", fallingAfter && stillHolding && catchAfter,
+               $"낙하중={fallingAfter} 누르는중={stillHolding} catchMode={catchAfter} t={Time.time - tThrow:F2}s");
+        w = Wait(4.5f); while (w.MoveNext()) yield return null;
     }
 
     // ── 2·3. 단별 체공 + 40살 중력 기준값 ────────────────────────────────
