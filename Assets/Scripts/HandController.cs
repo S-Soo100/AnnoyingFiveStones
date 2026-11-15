@@ -19,6 +19,17 @@ public partial class HandController : MonoBehaviour
     [SerializeField] private float throwUpDuration = 0.8f;
     [SerializeField] private float throwDownDuration = 1.0f;
     private float throwDownDurationOverride = -1f;
+    // 2026-11-15 단별 체공 배율 (1~4단). "누르는 순간 집기"로 줍기 횟수 = 시간 비용이 됐으므로
+    // 줍는 개수가 많은 단일수록 체공을 늘린다. 올라가기·내려오기 둘 다에 곱한다(궤적 모양 유지).
+    // 기믹 오버라이드(중력·모노톤) 위에도 곱해진다 → 기믹 고유의 빠름/느림 대비는 유지.
+    private static readonly float[] airtimeMultiplierPerStage = { 1.0f, 1.15f, 1.25f, 1.35f };
+    /// <summary>오버라이드 없는 기본 낙하 시간(씬 직렬화값). 기믹이 배율 기준으로 쓴다.</summary>
+    public float BaseThrowDownDuration => throwDownDuration;
+    private static float AirtimeMultiplier(int stage)
+    {
+        int i = stage - 1;
+        return (i >= 0 && i < airtimeMultiplierPerStage.Length) ? airtimeMultiplierPerStage[i] : 1f;
+    }
     public enum ThrowDownCurveMode { EaseIn, Linear, EaseOut }
     private ThrowDownCurveMode throwDownCurveMode = ThrowDownCurveMode.EaseIn;
     private float maxMoveSpeed = -1f;      // 음수 = 무제한
@@ -42,6 +53,9 @@ public partial class HandController : MonoBehaviour
     private bool isOnBoard;
     private bool isCatchMode;
     private bool isHolding;  // 클릭 Hold 상태
+    // 2026-11-15 "누르는 순간 집기": 누를 때 1번만 줍기 판정한다. 누른 채 쓸고 지나가며 줍지 못하게.
+    // (기존엔 Hold 중 매 프레임 판정 → 커서가 돌 위를 지나가기만 해도 다 주워져 난이도가 무너졌다)
+    private bool pickArmed;
     private bool suppressCursorFollow; // 뿌리기 토스 중 커서추종 OFF (손 position을 코루틴이 직접 제어)
     private HandShadow handShadow;     // v18: 보드 위 손의 접지 그림자 (= 줍기 판정 원)
 
@@ -194,7 +208,11 @@ public partial class HandController : MonoBehaviour
         UpdateHandShadow();
 
         // 보드 모드에서만 줍기 판정 (낙 대기 중에는 TryHoldPick*가 IsInputBlocked로 막는다 — D5 B)
-        if (!isCatchMode && isHolding)
+        // 누른 직후 첫 Update에서 **한 번만** 판정한다. 위치 갱신·모드 전환이 끝난 뒤라 손 위치가 이번 프레임 값이다.
+        // 하늘(받기 모드)에서 누른 경우도 여기서 소모한다 — 누른 채 보드로 끌고 내려와 줍는 우회를 막는다.
+        bool pickNow = pickArmed;
+        pickArmed = false;
+        if (pickNow && !isCatchMode && isHolding)
         {
             if (phase == GameManager.GamePhase.PickThrowStone)
             {
@@ -332,6 +350,7 @@ public partial class HandController : MonoBehaviour
         if (phase == GameManager.GamePhase.PickThrowStone || phase == GameManager.GamePhase.PickStones)
         {
             isHolding = true;
+            pickArmed = true;        // 이번 누름의 줍기 판정 1회 (Update에서 소모)
             AnimateFingerFold(true); // 손가락 접힘
             // Collider는 켜지 않음 — 손바닥 중심 거리로 판정 (물리 밀어냄 방지)
         }
@@ -362,7 +381,7 @@ public partial class HandController : MonoBehaviour
 
     // === Hold + Bounds 줍기 (Phase C) ===
 
-    /// <summary>던질 돌 1개 잡기: 돌 중심이 손바닥 안에 있으면 줍기</summary>
+    /// <summary>던질 돌 1개 잡기: **누르는 순간** 돌 중심이 손바닥 안에 있으면 줍기 (빈 곳이면 다시 누른다)</summary>
     private void TryHoldPickThrowStone()
     {
         if (throwStone != null) return;
@@ -424,7 +443,8 @@ public partial class HandController : MonoBehaviour
         }
     }
 
-    /// <summary>바닥 돌 줍기: Hold 중 손바닥이 돌을 100% 덮으면 줍기</summary>
+    /// <summary>바닥 돌 줍기: **누르는 순간** 손바닥 범위 안(돌 중심 기준)에 있는 돌을 줍는다.
+    /// 더 주우려면 떼었다가 다시 누른다 (2026-11-15 — 쓸고 지나가며 줍기 금지).</summary>
     private void TryHoldPickStones()
     {
         if (GameManager.Instance.IsInputBlocked) return;
@@ -621,12 +641,16 @@ public partial class HandController : MonoBehaviour
         // 줍기 단계 시작 (올라가는 동안 바닥 돌 줍기)
         GameManager.Instance.SetPhase(GameManager.GamePhase.PickStones);
 
+        // 2026-11-15 단별 체공 배율 — 이 던지기 동안 고정 (던지는 순간의 단 기준)
+        float airMul = AirtimeMultiplier(GameManager.Instance != null ? GameManager.Instance.CurrentStage : 1);
+        float upDuration = throwUpDuration * airMul;
+
         // === 올라가기 (EaseOut) ===
         float elapsed = 0f;
-        while (elapsed < throwUpDuration)
+        while (elapsed < upDuration)
         {
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / throwUpDuration);
+            float t = Mathf.Clamp01(elapsed / upDuration);
             float eased = 1f - (1f - t) * (1f - t);
             // v17: 화면 y가 아니라 높이(h)를 보간하고, 화면 위치는 투영으로 얻는다.
             float h = Mathf.Lerp(0f, peakHeight, eased);
@@ -658,7 +682,8 @@ public partial class HandController : MonoBehaviour
         // catchAreaY 위: 코루틴이 위치 직접 제어 (isKinematic=true)
         // catchAreaY 도달: isKinematic=false로 전환 → 물리 엔진이 위치 관리 → Collider 판정 가능
         // v6-1: catchAreaY = 받기 모드 전환 기준선 (더 이상 물리 전환점 아님 → 실제론 여전히 물리 전환점, Collision 판정 필수)
-        float effectiveDownDuration = throwDownDurationOverride > 0f ? throwDownDurationOverride : throwDownDuration;
+        float effectiveDownDuration = (throwDownDurationOverride > 0f ? throwDownDurationOverride : throwDownDuration) * airMul;
+        Debug.Log($"[Hand] Airtime stage={GameManager.Instance?.CurrentStage} x{airMul:F2}: up={upDuration:F2}s down={effectiveDownDuration:F2}s");
 
         // v6-1: 낙하 목표 Y를 boardSurfaceY 기준으로 (코루틴 타임아웃 대신 CatchSystem이 판정)
         float fallTargetY = catchSystem != null ? catchSystem.BoardSurfaceY : startY;
@@ -1361,6 +1386,7 @@ public partial class HandController : MonoBehaviour
 
         SetCatchMode(false);
         isHolding = false;
+        pickArmed = false;
         handModel?.SetCollidersEnabled(false);
 
         foreach (var stone in pickedStones)

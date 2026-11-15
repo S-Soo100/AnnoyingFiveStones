@@ -164,7 +164,7 @@ public static class LocalizationManager
 
         // === 게임플레이 조작 가이드 자막 (10살 전용, 영어 임시 번역 2026-07-06 승인) ===
         ["guide.scatter"]          = ("[ 꾹 눌러서 게이지 조절, 놓으면 뿌리기 ]", "[ Hold to set the gauge, release to scatter ]"),
-        ["guide.pick_throw"]       = ("[ 커서를 돌 위로 이동 ]", "[ Move the cursor over a stone ]"),
+        ["guide.pick_throw"]       = ("[ 돌 위에서 눌러 집기 ]", "[ Press on a stone to pick it up ]"),
         ["guide.throw"]            = ("[ 클릭하여 던지기 ]", "[ Click to throw ]"),
         ["guide.pick_stones"]      = ("[ 돌을 단계에 맞게 주우세요 ]", "[ Pick up the stones in order ]"),
         ["guide.pick_1"]           = ("[ 돌을 한 개씩 집으세요 ]", "[ Pick up the stones one by one ]"),
@@ -182,8 +182,9 @@ public static class LocalizationManager
         // === 튜토리얼 (10살) — 영어 확정 (2026-07-06 사용자 승인) ===
         ["tutorial.slide1"] = ("꾹 눌러서 힘을 조절하고,\n놓으면 돌이 뿌려집니다.",
                                "Press and hold to set your power,\nrelease to scatter the stones."),
-        ["tutorial.slide2"] = ("돌 위로 커서를 옮기면\n돌을 잡습니다.",
-                               "Move the cursor over a stone\nto pick it up."),
+        // 2026-11-15 "누르는 순간 집기" — 누른 채 쓸고 지나가면 안 집힌다
+        ["tutorial.slide2"] = ("돌 위에서 누르면\n돌을 집습니다.",
+                               "Press on a stone\nto pick it up."),
         ["tutorial.slide3"] = ("잡은 돌을 클릭해 위로 던지고,\n떨어질 때 다시 받으세요!",
                                "Click to toss the stone up,\nthen catch it as it falls!"),
 

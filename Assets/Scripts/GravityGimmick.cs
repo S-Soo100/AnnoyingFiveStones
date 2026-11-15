@@ -94,8 +94,9 @@ public class GravityGimmick : StageGimmick
             };
         }
 
-        // HandController의 기본 throwDownDuration은 1.0f
-        float overrideValue = 1.0f * multiplier;
+        // 2026-11-15: 기본 낙하 시간을 HandController에서 읽는다.
+        // 기존엔 1.0f 하드코딩이었으나 씬 직렬화값은 1.5 → 40살만 "보통" 돌도 33% 빨리 떨어졌다.
+        float overrideValue = handController.BaseThrowDownDuration * multiplier;
         handController.SetThrowDownDurationOverride(overrideValue);
 
         // 무게별 낙하 커브 지정 (배율과 함께 체감 무게 차이 극대화)

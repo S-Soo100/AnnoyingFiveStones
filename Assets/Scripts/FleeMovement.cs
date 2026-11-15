@@ -61,8 +61,10 @@ public class FleeMovement : MonoBehaviour
             state = FleeState.Flee;
             Debug.Log($"[FleeMovement] {gameObject.name} → Flee");
             fleeDirection = Random.insideUnitCircle.normalized;
-            fleeSpeed = Random.Range(3f, 6f);
-            float fleeDuration = Random.Range(1.5f, 2f);
+            // 2026-11-15 난이도 완화 (기존 속도 3~6 / 도망 1.5~2 / 쉬기 1~1.5 → 이동량 약 1/3)
+            // "누르는 순간 집기"로 움직이는 돌을 겨냥하기 더 어려워져 함께 낮춘다. 쉬는 틈을 노리는 판단이 생기게.
+            fleeSpeed = Random.Range(1.5f, 3f);
+            float fleeDuration = Random.Range(1.0f, 1.5f);
 
             // Kinematic으로 전환 (다른 돌을 밀지 않도록)
             if (rb != null) rb.isKinematic = true;
@@ -133,7 +135,7 @@ public class FleeMovement : MonoBehaviour
             state = FleeState.Rest;
             Debug.Log($"[FleeMovement] {gameObject.name} → Rest");
             if (rb != null) rb.linearVelocity = Vector3.zero;
-            float restDuration = Random.Range(1f, 1.5f);
+            float restDuration = Random.Range(1.5f, 2.5f);
             yield return new WaitForSeconds(restDuration);
         }
     }
