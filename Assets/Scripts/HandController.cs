@@ -933,6 +933,12 @@ public partial class HandController : MonoBehaviour
 
     public bool DebugIsThrowing => throwCoroutine != null;
 
+    /// <summary>2026-11-15 검증 전용 — 마우스 없이 누르기/떼기/클릭. 실제 입력 콜백(OnClickStarted/Canceled/OnClick)을
+    /// 그대로 호출하므로 판정은 실제 경로(다음 Update에서 1회 줍기)를 탄다. ctx는 콜백 안에서 쓰지 않는다.</summary>
+    public void DebugPress()   => OnClickStarted(default);
+    public void DebugRelease() => OnClickCanceled(default);
+    public void DebugClick()   => OnClick(default);
+
     /// <summary>M2-S3 검증 전용 — 내려오는 중인 던진 돌을 손가락에 튕긴다. DoThrow의 Finger 분기와 같은 순서
     /// (던지기 코루틴 종료 → CatchSystem.OnFingerBounce). 받기 페이즈가 아니면 false.</summary>
     public bool DebugFingerBounceNow(Vector3 dir)
