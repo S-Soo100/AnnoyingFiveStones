@@ -56,6 +56,11 @@ public partial class HandController : MonoBehaviour
     // 2026-11-15 "누르는 순간 집기": 누를 때 1번만 줍기 판정한다. 누른 채 쓸고 지나가며 줍지 못하게.
     // (기존엔 Hold 중 매 프레임 판정 → 커서가 돌 위를 지나가기만 해도 다 주워져 난이도가 무너졌다)
     private bool pickArmed;
+    // 2026-11-15 피드백 2차: 바닥 돌 줍기(PickStones)는 누른 순간부터 SweepWindow초 동안 쓸어담기 허용.
+    //   누를 때마다 새로 시작한다(사용자 결정). 시간이 지나면 누른 채로는 더 안 주워진다 → 떼고 다시 눌러야 한다.
+    //   던질 돌 고르기(PickThrowStone)는 여전히 누르는 순간 1회 — 쓸다가 2개 걸려 "너무 많이" 실패하는 사고 방지.
+    private const float SweepWindow = 2f;
+    private float sweepEndTime = -1f;
     private bool suppressCursorFollow; // 뿌리기 토스 중 커서추종 OFF (손 position을 코루틴이 직접 제어)
     private HandShadow handShadow;     // v18: 보드 위 손의 접지 그림자 (= 줍기 판정 원)
 
@@ -212,11 +217,14 @@ public partial class HandController : MonoBehaviour
         // 하늘(받기 모드)에서 누른 경우도 여기서 소모한다 — 누른 채 보드로 끌고 내려와 줍는 우회를 막는다.
         bool pickNow = pickArmed;
         pickArmed = false;
-        if (pickNow && !isCatchMode && isHolding)
+        // 하늘(받기 모드)에서 누른 누름은 쓸기 시간을 주지 않는다 — 누른 채 보드로 내려와 쓸어담는 우회 차단
+        if (pickNow && isCatchMode) sweepEndTime = -1f;
+        bool sweeping = !pickNow && isHolding && Time.time < sweepEndTime;
+        if ((pickNow || sweeping) && !isCatchMode && isHolding)
         {
             if (phase == GameManager.GamePhase.PickThrowStone)
             {
-                TryHoldPickThrowStone();
+                if (pickNow) TryHoldPickThrowStone();   // 던질 돌은 누르는 순간 1회만
             }
             else if (phase == GameManager.GamePhase.PickStones)
             {
@@ -351,6 +359,7 @@ public partial class HandController : MonoBehaviour
         {
             isHolding = true;
             pickArmed = true;        // 이번 누름의 줍기 판정 1회 (Update에서 소모)
+            sweepEndTime = Time.time + SweepWindow; // 바닥 돌은 지금부터 SweepWindow초 쓸어담기
             AnimateFingerFold(true); // 손가락 접힘
             // Collider는 켜지 않음 — 손바닥 중심 거리로 판정 (물리 밀어냄 방지)
         }
@@ -360,6 +369,7 @@ public partial class HandController : MonoBehaviour
     {
         if (!isHolding) return;
         isHolding = false;
+        sweepEndTime = -1f;
         AnimateFingerFold(false); // 손가락 펼침
 
         if (GameManager.Instance == null) return;
@@ -443,8 +453,8 @@ public partial class HandController : MonoBehaviour
         }
     }
 
-    /// <summary>바닥 돌 줍기: **누르는 순간** 손바닥 범위 안(돌 중심 기준)에 있는 돌을 줍는다.
-    /// 더 주우려면 떼었다가 다시 누른다 (2026-11-15 — 쓸고 지나가며 줍기 금지).</summary>
+    /// <summary>바닥 돌 줍기: 손바닥 범위 안(돌 중심 기준)에 있는 돌을 줍는다.
+    /// 누른 순간 + 누른 뒤 SweepWindow초 동안 매 프레임 호출된다(쓸어담기). 그 뒤엔 떼었다가 다시 눌러야 한다.</summary>
     private void TryHoldPickStones()
     {
         if (GameManager.Instance.IsInputBlocked) return;
@@ -1393,6 +1403,7 @@ public partial class HandController : MonoBehaviour
         SetCatchMode(false);
         isHolding = false;
         pickArmed = false;
+        sweepEndTime = -1f;
         handModel?.SetCollidersEnabled(false);
 
         foreach (var stone in pickedStones)

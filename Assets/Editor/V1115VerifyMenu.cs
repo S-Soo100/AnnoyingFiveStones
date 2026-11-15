@@ -199,47 +199,56 @@ public static class V1115VerifyMenu
         if (solo.Count < 2 || !FindEmpty(board, out var empty)) { Report("1 줍기 준비", false, $"solo={solo.Count}"); yield break; }
         Stone a = solo[0], b = solo[1];
 
-        // 1-2 쓸기: 빈 곳에서 누른 채 A → B 를 지나간다 → 0개
+        // 1-2 쓸기(2초 안): 빈 곳에서 누른 채 A → B 를 지나간다 → 2개 (2026-11-15 2차: 누른 뒤 2초 쓸어담기)
         PlacePalm(empty); yield return null;
         Hand.DebugPress(); yield return null;
-        d = Drag(empty, a.transform.position, 8); while (d.MoveNext()) yield return null;
-        d = Drag(a.transform.position, b.transform.position, 8); while (d.MoveNext()) yield return null;
+        d = Drag(empty, a.transform.position, 4); while (d.MoveNext()) yield return null;
+        d = Drag(a.transform.position, b.transform.position, 4); while (d.MoveNext()) yield return null;
         int afterSweep = Hand.PickedStones.Count;
         Hand.DebugRelease(); yield return null;
-        Report("1-2 빈 곳에서 누른 채 돌 2개 위로 쓸기 → 안 집힘", afterSweep == 0,
-               $"picked={afterSweep} phase={GM.CurrentPhase} (이전 동작이면 2)");
+        Report("1-2 누른 뒤 2초 안에 돌 2개 위로 쓸기 → 2개", afterSweep == 2,
+               $"picked={afterSweep} phase={GM.CurrentPhase}");
         var w = Wait(4.5f); while (w.MoveNext()) yield return null; // 받기 실패 → 리셋 대기
 
-        // 1-3~1-5는 새 던지기에서 (백그라운드 에디터는 ~10fps라 한 던지기 안에 다 넣으면 체공이 끝난다)
-        p = Prep(1, 2); while (p.MoveNext()) yield return null;
+        // 1-3~1-5는 2초 기다린 뒤에도 줍기 단계가 남아 있어야 한다 → 이 던지기만 낙하를 늘린다(검증 전용, 끝나면 해제)
+        //   백그라운드 에디터 ~10fps에선 4단 체공 3.38초로도 1-5 전에 떨어졌다 (1차 실행 t=3.50s Failed)
+        p = Prep(1, 4); while (p.MoveNext()) yield return null;
+        Hand.SetThrowDownDurationOverride(3f); // 3 × 1.35 = 4.05초 낙하
         th = ThrowFromPick(); while (th.MoveNext()) yield return null;
         if (GM.CurrentPhase != GameManager.GamePhase.PickStones) { Report("1-3 준비", false, $"phase={GM.CurrentPhase}"); yield break; }
         float tThrow = Time.time;
         board = OnBoard();
         solo = SoloStones(board);
-        if (solo.Count < 2) { Report("1-3 준비", false, $"solo={solo.Count}"); yield break; }
+        if (solo.Count < 2 || !FindEmpty(board, out var empty2)) { Report("1-3 준비", false, $"solo={solo.Count}"); yield break; }
         a = solo[0]; b = solo[1];
 
-        // 1-3 A 위에서 누르기 → 1개, 누른 채 B로 끌기 → 그대로 1개
+        // 1-3 빈 곳에서 누른 채 2초 넘게 버틴 뒤 A 위로 끌기 → 0개
+        PlacePalm(empty2); yield return null;
+        Hand.DebugPress(); yield return null;
+        w = Wait(2.1f); while (w.MoveNext()) { PlacePalm(empty2); yield return null; }
+        d = Drag(empty2, a.transform.position, 3); while (d.MoveNext()) yield return null;
+        yield return null;
+        int afterExpire = Hand.PickedStones.Count;
+        bool aUnder = Hand.DebugIsStoneUnderHand(a);
+        Hand.DebugRelease(); yield return null;
+        Report("1-3 누른 채 2초 지난 뒤 돌 위로 끌기 → 안 집힘", afterExpire == 0 && aUnder,
+               $"picked={afterExpire} A가손아래={aUnder} phase={GM.CurrentPhase} t={Time.time - tThrow:F2}s");
+
+        // 1-4 떼고 A 위에서 다시 누르기 → 1개
         PlacePalm(a.transform.position); yield return null;
         Hand.DebugPress(); yield return null; yield return null;
         int afterPressA = Hand.PickedStones.Count;
-        d = Drag(Hand.DebugPalmCenter, b.transform.position, 4); while (d.MoveNext()) yield return null;
-        int afterDragB = Hand.PickedStones.Count;
-        bool bUnder = Hand.DebugIsStoneUnderHand(b);
-        Hand.DebugRelease(); yield return null;
-        Report("1-3 돌 A 위에서 누르기 → 1개", afterPressA == 1, $"picked={afterPressA}");
-        Report("1-4 누른 채 돌 B 위로 끌기 → 그대로 1개", afterDragB == 1 && bUnder,
-               $"picked={afterDragB} B가손아래={bUnder} phase={GM.CurrentPhase} t={Time.time - tThrow:F2}s");
+        Report("1-4 떼고 돌 A 위에서 다시 누르기 → 1개", afterPressA == 1, $"picked={afterPressA} t={Time.time - tThrow:F2}s");
 
-        // 1-5 떼고 B 위에서 다시 누르기 → 2개
-        PlacePalm(b.transform.position); yield return null;
-        Hand.DebugPress(); yield return null; yield return null;
-        int afterPressB = Hand.PickedStones.Count;
+        // 1-5 그 누름 그대로 B 위로 끌기 → 2개 (다시 누르면 쓸기 시간 새로 시작)
+        d = Drag(Hand.DebugPalmCenter, b.transform.position, 3); while (d.MoveNext()) yield return null;
+        yield return null;
+        int afterDragB = Hand.PickedStones.Count;
         Hand.DebugRelease(); yield return null;
-        Report("1-5 떼고 돌 B 위에서 다시 누르기 → 2개", afterPressB == 2 && GM.CurrentPhase == GameManager.GamePhase.PickStones,
-               $"picked={afterPressB} phase={GM.CurrentPhase} t={Time.time - tThrow:F2}s");
-        w = Wait(4.5f); while (w.MoveNext()) yield return null; // 받기 실패 → 리셋 대기
+        Report("1-5 다시 누른 채 돌 B 위로 끌기 → 2개", afterDragB == 2,
+               $"picked={afterDragB} phase={GM.CurrentPhase} t={Time.time - tThrow:F2}s");
+        w = Wait(5.5f); while (w.MoveNext()) yield return null; // 받기 실패 → 리셋 대기
+        Hand.ClearAllOverrides();
     }
 
     // ── 1-6. 하늘에서 누른 채 보드로 끌고 내려오기 → 안 집힘 ─────────────
