@@ -16,13 +16,25 @@ public partial class HandController : MonoBehaviour
 
     [Header("Throw Settings")]
     [SerializeField] private float throwPeakY = 8f;        // 최고점 Y (하늘 영역 상단)
-    [SerializeField] private float throwUpDuration = 0.8f;
-    [SerializeField] private float throwDownDuration = 1.0f;
+    // 2026-11-16 밸런스 A2: 씬 1.0/1.5 → 0.85/1.3 (전 단 체공 −14%). 씬 직렬화값이 우선이라 씬도 같이 바꿨다.
+    [SerializeField] private float throwUpDuration = 0.85f;
+    [SerializeField] private float throwDownDuration = 1.3f;
     private float throwDownDurationOverride = -1f;
     // 2026-11-15 단별 체공 배율 (1~4단). "누르는 순간 집기"로 줍기 횟수 = 시간 비용이 됐으므로
     // 줍는 개수가 많은 단일수록 체공을 늘린다. 올라가기·내려오기 둘 다에 곱한다(궤적 모양 유지).
     // 기믹 오버라이드(중력·모노톤) 위에도 곱해진다 → 기믹 고유의 빠름/느림 대비는 유지.
-    private static readonly float[] airtimeMultiplierPerStage = { 1.0f, 1.15f, 1.25f, 1.35f };
+    // 2026-11-16 밸런스 A1: 1.15/1.25/1.35 → 1.05/1.1/1.15. 같은 날 2초 쓸어담기가 들어와
+    //   줍기를 푼 보정이 이 배율과 2중으로 걸려 있었다("노잼 — 너무 쉽다" 피드백).
+    private static readonly float[] airtimeMultiplierPerStage = { 1.0f, 1.05f, 1.1f, 1.15f };
+    // 2026-11-16 밸런스 1: 내려오기 속도를 던질 때마다 1.0~1.3배 사이로 랜덤(= 낙하 시간 ×0.77~1.0).
+    //   기믹 오버라이드 위에도 곱해진다(사용자 결정 — 40살 무게 구간은 안 겹침, 55살 포함). 5단은 별도 코드라 무관.
+    private const float FallSpeedRandomMax = 1.3f;
+    // 2026-11-16 밸런스 A4: 던진 돌이 수직이 아니라 옆(보드 x)으로 이만큼 흘러 떨어진다. 그림자가 따라가 조준선은 유지.
+    //   손바닥 반경 0.8 / 손 반경 1.6이라 가만히 있으면 0.8 넘게 흐른 판은 손가락(튕김)이 된다 → 따라가야 받는다.
+    //   2026-11-16 직접 검증: 0.4~1.2면 절반쯤은 가만히 있어도 받혀서 0.6~1.4로 넓혔다(사용자 결정).
+    private const float ThrowDriftMin = 0.6f, ThrowDriftMax = 1.4f;
+    // 5단 꺾기는 이번 밸런스 범위 밖 — A2 이전 씬 값(1.0/1.5)에 고정해 체감을 보존한다("5단 아주 안정적").
+    private const float Stage5ThrowUpDuration = 1.0f, Stage5ThrowDownDuration = 1.5f;
     /// <summary>오버라이드 없는 기본 낙하 시간(씬 직렬화값). 기믹이 배율 기준으로 쓴다.</summary>
     public float BaseThrowDownDuration => throwDownDuration;
     private static float AirtimeMultiplier(int stage)
@@ -575,6 +587,7 @@ public partial class HandController : MonoBehaviour
         if (stone != null)
         {
             stone.SetBoardMotion(throwingBoardPos, 0f);
+            stone.RandomizeRestPose();   // 2026-11-19: 굴러 날던 자세 그대로 앉지 않게
             stone.SetState(Stone.State.OnBoard);
             stone.Rb.linearVelocity = Vector3.zero;
             stone.Rb.angularVelocity = Vector3.zero;
@@ -628,6 +641,8 @@ public partial class HandController : MonoBehaviour
             BoardSpace.ToBoard(new Vector2(transform.position.x, transform.position.y)));
         Vector2 groundScreen  = BoardSpace.ToScreen(throwBoardPos, 0f);
         float peakHeight      = Mathf.Max(0.1f, throwPeakY - groundScreen.y);
+        // 2026-11-16 A4: 떨어질 자리. 보드 x만 흐르고 깊이(y)는 같다 → 높이·원근·받기 깊이(catchDepthBoard)는 그대로.
+        Vector2 landBoardPos  = PickThrowLandBoardPos(throwBoardPos);
 
         // 이 던지기의 받기 판정은 이 깊이에서 일어난다 → 손도 그 깊이 크기로 그린다.
         catchDepthBoard = throwBoardPos;
@@ -635,7 +650,7 @@ public partial class HandController : MonoBehaviour
 
         // 출발점도 그 보드 좌표의 지면으로 맞춘다 (그림자와 발밑이 어긋나지 않게).
         stone.SetBoardMotion(throwBoardPos, 0f);
-        throwingStone = stone; throwingBoardPos = throwBoardPos;   // M2-S2
+        throwingStone = stone; throwingBoardPos = landBoardPos;    // M2-S2 (A4: 판정 해제 착지도 떨어질 자리로)
         stone.SetTrailActive(true); // v20: 던진 돌 꼬리 — 공중의 돌을 눈이 놓치지 않게
         startX = groundScreen.x;
         startY = groundScreen.y;
@@ -645,6 +660,8 @@ public partial class HandController : MonoBehaviour
         // 뿌리기(DoScatter)는 이미 랜덤 스핀을 주고 있어, 던지기만 비어 있었다.
         // 코루틴이 kinematic으로 위치를 모는 동안 transform 회전만 돌리므로 물리·판정 무관.
         float throwSpin = Random.Range(140f, 240f) * (Random.value < 0.5f ? -1f : 1f);
+        // 2026-11-19: 화면 축(z)으로만 돌면 늘 같은 면만 보인다 → 비스듬한 축으로 돌려 입체로 구르게 한다
+        Vector3 throwSpinAxis = new Vector3(Random.Range(-0.6f, 0.6f), Random.Range(-0.6f, 0.6f), 1f).normalized;
         TestLogger.Instance?.LogStoneState(stone.StoneIndex, "thrown_up", stone.transform.position);
         Debug.Log($"[Hand] Threw stone {stone.StoneIndex} from y={startY:F1} to peak y={throwPeakY}");
 
@@ -657,6 +674,10 @@ public partial class HandController : MonoBehaviour
         // 2026-11-15 단별 체공 배율 — 이 던지기 동안 고정 (던지는 순간의 단 기준)
         float airMul = AirtimeMultiplier(GameManager.Instance != null ? GameManager.Instance.CurrentStage : 1);
         float upDuration = throwUpDuration * airMul;
+        // 낙하 시간은 던지는 순간 확정한다. 중력 기믹의 오버라이드는 위 NotifyThrowStart에서 이미 세팅됐다.
+        float baseDownDuration = (throwDownDurationOverride > 0f ? throwDownDurationOverride : throwDownDuration) * airMul;
+        float fallRand = Random.Range(1f / FallSpeedRandomMax, 1f);   // 2026-11-16 밸런스 1
+        float effectiveDownDuration = baseDownDuration * fallRand;
 
         // === 올라가기 (EaseOut) ===
         float elapsed = 0f;
@@ -667,8 +688,12 @@ public partial class HandController : MonoBehaviour
             float eased = 1f - (1f - t) * (1f - t);
             // v17: 화면 y가 아니라 높이(h)를 보간하고, 화면 위치는 투영으로 얻는다.
             float h = Mathf.Lerp(0f, peakHeight, eased);
-            stone.SetBoardMotion(throwBoardPos, h);
-            stone.transform.Rotate(0f, 0f, throwSpin * Time.deltaTime); // v21: 상승 회전
+            // A4: 옆 흐름은 **올라가는 동안에만** — 정점에서 떨어질 자리에 도착하고 이후 수직 낙하.
+            //   체공 전체에 걸쳐 흐르게 했더니, 받기 판정이 "돌이 손 높이를 지나는 순간"이라 손을 높이 들수록
+            //   덜 흐른 상태에서 판정돼 높이 들고 가만히 있으면 언제나 받혔다(직접 검증 seed2 흐름 0.92 손바닥 받음).
+            //   정점부터는 그림자가 최종 자리에 멈춰 있어 낙하 내내 조준할 수 있다.
+            stone.SetBoardMotion(Vector2.Lerp(throwBoardPos, landBoardPos, t), h);
+            stone.transform.Rotate(throwSpinAxis, throwSpin * Time.deltaTime, Space.World); // v21: 상승 회전 (11-19 비스듬한 축)
             yield return null;
         }
 
@@ -695,8 +720,9 @@ public partial class HandController : MonoBehaviour
         // catchAreaY 위: 코루틴이 위치 직접 제어 (isKinematic=true)
         // catchAreaY 도달: isKinematic=false로 전환 → 물리 엔진이 위치 관리 → Collider 판정 가능
         // v6-1: catchAreaY = 받기 모드 전환 기준선 (더 이상 물리 전환점 아님 → 실제론 여전히 물리 전환점, Collision 판정 필수)
-        float effectiveDownDuration = (throwDownDurationOverride > 0f ? throwDownDurationOverride : throwDownDuration) * airMul;
-        Debug.Log($"[Hand] Airtime stage={GameManager.Instance?.CurrentStage} x{airMul:F2}: up={upDuration:F2}s down={effectiveDownDuration:F2}s");
+        // down = 랜덤 전 기준값(검증 메뉴가 이 값을 본다), fall = 실제 낙하 시간
+        Debug.Log($"[Hand] Airtime stage={GameManager.Instance?.CurrentStage} x{airMul:F2}: up={upDuration:F2}s down={baseDownDuration:F2}s " +
+                  $"fall={effectiveDownDuration:F2}s(speed x{1f / fallRand:F2}) drift={landBoardPos.x - throwBoardPos.x:+0.00;-0.00}");
 
         // v6-1: 낙하 목표 Y를 boardSurfaceY 기준으로 (코루틴 타임아웃 대신 CatchSystem이 판정)
         float fallTargetY = catchSystem != null ? catchSystem.BoardSurfaceY : startY;
@@ -723,10 +749,11 @@ public partial class HandController : MonoBehaviour
                 ThrowDownCurveMode.EaseOut => 1f - (1f - t) * (1f - t),
                 _ => t * t
             };
-            // v17: 화면 y가 아니라 높이(h)를 보간한다. 보드 좌표는 고정.
+            // v17: 화면 y가 아니라 높이(h)를 보간한다. (A4: 옆 흐름은 정점에서 끝났다 → 떨어질 자리에서 수직 낙하)
             float h = Mathf.Lerp(peakHeight, 0f, eased);
-            stone.SetBoardMotion(throwBoardPos, h);
-            stone.transform.Rotate(0f, 0f, throwSpin * Time.deltaTime); // v21: 낙하 회전
+            Vector2 curBoard = landBoardPos;
+            stone.SetBoardMotion(curBoard, h);
+            stone.transform.Rotate(throwSpinAxis, throwSpin * Time.deltaTime, Space.World); // v21: 낙하 회전 (11-19 비스듬한 축)
             var p = new Vector2(stone.transform.position.x, stone.transform.position.y);
 
             // ── v17 받기 판정 ────────────────────────────────────────────────
@@ -738,7 +765,7 @@ public partial class HandController : MonoBehaviour
             // (손이 하늘로 들려 있으므로 "특정 h"가 아니라 "손 높이 통과"가 시각적으로 맞다)
             if (!throwDisarmed && IsAtCatchMoment(p.y))
             {
-                var verdict = JudgeBoardCatch(throwBoardPos);
+                var verdict = JudgeBoardCatch(curBoard);   // A4: 떨어질 자리(= 지금 돌·그림자 자리)로 판정
                 if (verdict != BoardCatchVerdict.Miss)
                 {
                     if (verdict == BoardCatchVerdict.Palm)
@@ -783,7 +810,7 @@ public partial class HandController : MonoBehaviour
         // 영영 안 걸린다. 받기 자세로 x가 정렬돼 있으면 지면 도달 시점에 받아준다.
         if (isCatchMode)
         {
-            var lastVerdict = JudgeBoardCatch(throwBoardPos);
+            var lastVerdict = JudgeBoardCatch(landBoardPos);   // A4: 지면에 닿은 자리
             if (lastVerdict != BoardCatchVerdict.Miss)
             {
                 if (lastVerdict == BoardCatchVerdict.Palm)
@@ -809,7 +836,9 @@ public partial class HandController : MonoBehaviour
         // 물리 전환 후 OnBoard 복귀 시 isKinematic 보정
         stone.Rb.isKinematic = true;
         stone.Rb.useGravity = false;
-        stone.transform.position = new Vector3(startX, startY, 0f);
+        // A4: 던진 자리가 아니라 떨어진 자리에 놓는다 (실패 화면에서 돌이 옆으로 순간이동하지 않게)
+        stone.SetBoardMotion(landBoardPos, 0f);
+        stone.RandomizeRestPose();   // 2026-11-19: 굴러 날던 자세 그대로 앉지 않게
         stone.SetState(Stone.State.OnBoard);
         TestLogger.Instance?.LogFailure("catch_missed_landing");
         GameManager.Instance.SetFailReason("돌을 놓쳤다!");
@@ -883,6 +912,22 @@ public partial class HandController : MonoBehaviour
     /// 화면 겹침(구 물리 충돌)과 달리 **보드 단위 거리**라 돌이 앞에 있든 뒤에 있든 관대함이 같다.
     /// (깊이까지 맞추는 판정은 손을 하늘로 들지 않는 구조로 바꾼 뒤에 검토 — 미결)
     /// </summary>
+    /// <summary>2026-11-16 A4 — 던진 돌이 떨어질 자리. 보드 x로 ThrowDriftMin~Max만큼 좌우 랜덤.
+    /// 보드 가장자리에 막혀 덜 흐르면 반대쪽으로 보낸다(가장자리 던지기에서만 흐름이 약해지지 않게).
+    /// 50살 시야 제한은 수직 낙하 유지 — 어둠 속이라 옆으로 흐르는 돌이 안 보인다("몰라서 죽음" 금지, 기획 §8).</summary>
+    private Vector2 PickThrowLandBoardPos(Vector2 from)
+    {
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentGimmick is SpotlightGimmick) return from;
+
+        float d = Random.Range(ThrowDriftMin, ThrowDriftMax);
+        float sign = Random.value < 0.5f ? -1f : 1f;
+        Vector2 to = BoardSpace.ClampToBoard(from + new Vector2(sign * d, 0f));
+        if (Mathf.Abs(to.x - from.x) < d - 0.001f)
+            to = BoardSpace.ClampToBoard(from - new Vector2(sign * d, 0f));
+        return to;
+    }
+
     private BoardCatchVerdict JudgeBoardCatch(Vector2 stoneBoardPos)
     {
         float groundY = BoardSpace.ToScreen(stoneBoardPos, 0f).y;
@@ -1079,6 +1124,10 @@ public partial class HandController : MonoBehaviour
 
         if (zone == HandHitbox.HitZone.Palm)
         {
+            // 2026-11-16: 1~4단에서 손가락에 튕긴 돌은 손바닥에 닿아도 받지 않는다 → 떨어져 실패("손가락 = 튕김").
+            //   튕기는 순간 물리가 켜지며 이미 겹쳐 있던 손바닥 콜라이더에 즉시 닿아 받기 성공이 됐다
+            //   (직접 검증: 손가락 튕김 7번 중 4번이 같은 순간 Palm catch). 1~4단 받기는 보드 거리 판정(JudgeBoardCatch)이 유일한 기준.
+            if (!IsStage5 && stone.CurrentState == Stone.State.Bouncing) return;
             // 손바닥 안착
             catchSystem.OnPalmCatch(stone);
         }

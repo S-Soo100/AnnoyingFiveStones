@@ -951,7 +951,7 @@ public class ScatterSystem : MonoBehaviour
             s.SetBoardMotion(bp, h);   // 위치·원근 크기 파생
             if (!departed) { departed = true; s.SetFlightShadow(true); }   // M1-S6 (D2): 비행 그림자 — 보드 좌표가 생긴 뒤 켠다
             s.transform.localScale = Vector3.Scale(s.transform.localScale, mul); // 매 프레임 원근 크기에서 다시 곱함 → 누적 없음
-            s.transform.rotation = Quaternion.Euler(0f, 0f, rot);
+            s.transform.rotation = Quaternion.Euler(0f, 0f, rot) * s.RestRotation;   // 2026-11-19: 놓일 자세 기준으로 돈다 (첫 접촉 = 그 자세)
             yield return null;
         }
 
@@ -986,7 +986,7 @@ public class ScatterSystem : MonoBehaviour
                 // Flat 낙: 바깥 면에 앉는다 — InHand·키네마틱 유지, 그림자 유지(그 면에 깔림)
                 if (natural && !TossContactPlayed(i)) OnTossContact(i, p, false);
                 s.SetBoardMotion(p.F, 0f);
-                s.transform.rotation = Quaternion.identity;
+                s.transform.rotation = s.RestRotation;   // 2026-11-19 돌 자세 C (이전 identity — 다섯 개가 같은 원판)
                 EditorLog($"[Scatter] final i={i} kind=Flat diff={(s.BoardPos - p.F).magnitude:F4} t={Time.time - tossStartTime:F3}");
                 if (natural) GameManager.Instance?.NotifyNakStoneEnded();
             }
@@ -1000,7 +1000,7 @@ public class ScatterSystem : MonoBehaviour
             {
                 if (natural && !TossContactPlayed(i)) OnTossContact(i, p, false);
                 s.SetBoardMotion(p.F, 0f);   // 정지: 직접 대입 → boardTargets와 diff 0
-                s.transform.rotation = Quaternion.identity;
+                s.transform.rotation = s.RestRotation;   // 2026-11-19 돌 자세 C (이전 identity — 다섯 개가 같은 원판)
                 s.SetState(Stone.State.OnBoard);
                 s.SetFlightShadow(false);   // (SetState가 이미 초기화 — 명시)
                 s.Rb.linearVelocity = Vector3.zero;

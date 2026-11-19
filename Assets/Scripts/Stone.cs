@@ -240,8 +240,28 @@ public class Stone : MonoBehaviour
         // 중간 깊이의 축소율에 묶인 채 하늘에 떠 있어 계속 작아 보인다.
         // v18: 원근으로 계산한 크기를 팝의 기준으로 삼고, 팝 배율을 곱해서 그린다.
         // (기준을 갱신하지 않으면 팝 도중 깊이가 바뀔 때 원근이 멈춘 것처럼 보인다)
-        popAnchor = baseScale * BoardSpace.Current.PerspectiveScale(boardPos, height);
+        popAnchor = baseScale * BoardSpace.Current.PerspectiveScale(boardPos, height, DepthSizeStrength);
         transform.localScale = Vector3.Scale(popAnchor, popScale);
+    }
+
+    /// <summary>2026-11-19 — 앞뒤 돌 크기 차 완화 강도. 1 = 보드 사다리꼴 비율 그대로(뒤 0.54배), 0 = 크기 같음.
+    /// 돌 그림에만 적용 — 손·줍기 원·받기 판정은 보드 단위 그대로라 판정은 안 바뀐다.
+    /// 0.5 = 뒤 돌이 앞의 약 77% (비교 촬영 Tools/검증 1115/1119 후 사용자 결정. 이전 1.0은 약 56~60%로 "차이가 너무 남").
+    /// static 필드인 이유: 비교 촬영 메뉴가 값을 바꿔 찍는다.</summary>
+    public static float DepthSizeStrength = 0.5f;
+
+    // 2026-11-19 돌 자세 — 놓일 때마다 방향(Y) 무작위 + 살짝 기울기(X ±12 / Z ±4).
+    //   이전엔 착지 회전이 전부 identity라 다섯 개가 정면에서 똑같은 원판으로 보였다("모두 같은 모양").
+    //   기울기를 ±25로 크게 주면 원통이 세워진 듯 보여(비교 촬영 B) 절반으로 줄였다(C, 사용자 결정).
+    private const float RestTiltX = 12f, RestTiltZ = 4f;
+    /// <summary>지금 놓인 자세. 뿌리기 비행 회전은 이 자세를 기준으로 돈다(첫 접촉에서 정확히 이 자세).</summary>
+    public Quaternion RestRotation { get; private set; } = Quaternion.identity;
+
+    /// <summary>새로 놓일 자세를 뽑고 바로 적용한다.</summary>
+    public void RandomizeRestPose()
+    {
+        RestRotation = Quaternion.Euler(Random.Range(-RestTiltX, RestTiltX), Random.Range(0f, 360f), Random.Range(-RestTiltZ, RestTiltZ));
+        transform.rotation = RestRotation;
     }
 
     /// <summary>보드 좌표 관리 해제 — 옛 화면 좌표 경로(뿌리기·5단 등)로 돌아갈 때.</summary>

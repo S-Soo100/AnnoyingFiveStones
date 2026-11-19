@@ -353,6 +353,7 @@ public class MonochromeGimmick : StageGimmick
 
         foreach (var stone in stones)
         {
+            stone.RandomizeRestPose();   // 2026-11-19 돌 자세 C
             stone.SetState(Stone.State.OnBoard);
 
             Vector2 pos = Vector2.zero;

@@ -173,10 +173,10 @@ public partial class HandController
 
         // 올라가기 (EaseOut — 중력에 거슬러 감속하는 상승. 물리적으로 맞다)
         float elapsed = 0f;
-        while (elapsed < throwUpDuration)
+        while (elapsed < Stage5ThrowUpDuration)
         {
             elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / throwUpDuration);
+            float t = Mathf.Clamp01(elapsed / Stage5ThrowUpDuration);
             float eased = 1f - (1f - t) * (1f - t); // EaseOut
 
             for (int i = 0; i < count; i++)
@@ -280,7 +280,7 @@ public partial class HandController
             stoneX[i] = stones[i].transform.position.x;
         }
 
-        float baseFallDuration = throwDownDuration * 1.2f;
+        float baseFallDuration = Stage5ThrowDownDuration * 1.2f;
 
         // 최고점/최저점 계산 (독립 낙하 시간 정규화용)
         float maxStartY = stoneStartY[0];

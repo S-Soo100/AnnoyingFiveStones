@@ -151,10 +151,16 @@ public class StoneShadow : MonoBehaviour
     }
 
     /// <summary>OnBoard: 접지 그림자 — 보이는 돌 지름에 비례하는 납작 타원 (v27).</summary>
+    /// <summary>돌의 가로 지름 — 회전과 무관하게 (메시 로컬 폭 × 스케일).
+    /// 2026-11-19: 돌을 기울여 놓으면서 월드 bounds가 회전 상자로 커져 그림자가 같이 커졌다(비교 촬영 B·C).
+    /// 회전 없는 돌에선 이전 bounds.size.x와 같은 값이다.</summary>
+    private float StoneWidth()
+        => stoneRenderer != null ? stoneRenderer.localBounds.size.x * stoneRenderer.transform.lossyScale.x : 0.5f;
+
     private void UpdateContactShadow()
     {
         Vector3 p = transform.position;
-        float dia = stoneRenderer != null ? stoneRenderer.bounds.size.x : 0.5f;
+        float dia = StoneWidth();
         shadowObj.transform.localScale = new Vector3(dia * ContactDiaMul, dia * ContactDiaMul * ContactFlatten, 1f);
         shadowObj.transform.position = new Vector3(p.x, p.y + dia * ContactYOffMul, ShadowZ);
 
@@ -168,7 +174,7 @@ public class StoneShadow : MonoBehaviour
     private void UpdateFallingShadow()
     {
         float stoneX, shadowY, heightAbove;
-        float dia = stoneRenderer != null ? stoneRenderer.bounds.size.x : 0.5f;
+        float dia = StoneWidth();
         bool legacy = !(stone != null && stone.HasBoardMotion);
 
         if (!legacy)

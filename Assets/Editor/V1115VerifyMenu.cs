@@ -73,6 +73,167 @@ public static class V1115VerifyMenu
         Debug.Log($"[V1115] SUMMARY pass={pass} fail={fail}");
     }
 
+    // ── 2026-11-16 받기 흔들림(A4) — 옆으로 흐르는 돌을 따라가면 받고, 가만히 있으면 흐른 만큼 판정 ──
+    [MenuItem("Tools/검증 1115/1116 받기 흔들림")]
+    public static void RunDrift() => Start(DriftAll());
+
+    private static IEnumerator DriftAll()
+    {
+        pass = fail = 0;
+        Application.logMessageReceived += OnLog;
+        // 검증 뿌리기는 Random을 시드 7로 고정한다 → 던지기 직전에 시드를 바꿔 흐름·속도를 다양하게 뽑는다
+        for (int sd = 1; sd <= 6; sd++)
+        {
+            // 0 = 돌 따라감, 1 = 가만히(보드 뒷변 위 1.5), 2 = 가만히 + 손을 정점 바로 아래로 높이(받기 판정을 최대한 일찍)
+            for (int mode = 0; mode <= 2; mode++)
+            {
+                var t = DriftCase(sd, mode, shoot: sd == 1 && mode == 0);
+                while (true)
+                {
+                    bool more;
+                    try { more = t.MoveNext(); }
+                    catch (System.Exception e) { Report("흔들림 예외", false, e.Message); break; }
+                    if (!more) break;
+                    yield return null;
+                }
+                Hand?.ClearAllOverrides();
+            }
+        }
+        Application.logMessageReceived -= OnLog;
+        Debug.Log($"[V1115] DRIFT SUMMARY pass={pass} fail={fail}");
+    }
+
+    private static IEnumerator DriftCase(int seed, int mode, bool shoot)
+    {
+        bool follow = mode == 0;
+        string tag = $"seed={seed} {(mode == 0 ? "따라감" : mode == 1 ? "가만히" : "가만히·높이")}";
+        var p = Prep(1, 1); while (p.MoveNext()) yield return null;
+        Random.InitState(1000 + seed);
+        logs.Clear();
+        var th = ThrowFromPick(); while (th.MoveNext()) yield return null;
+        if (GM.CurrentPhase != GameManager.GamePhase.PickStones) { Report($"6 준비 {tag}", false, $"phase={GM.CurrentPhase}"); yield break; }
+        var stone = Hand.ThrowStone;
+        // 던진 자리 = DoThrow의 throwBoardPos (손 transform → 보드 클램프). 던진 뒤 손은 움직이지 않았다.
+        Vector2 throwBoard = BoardSpace.ClampToBoard(BoardSpace.ToBoard((Vector2)Hand.transform.position));
+
+        // 1단 목표 1개 줍기
+        var solo = SoloStones(OnBoard());
+        if (solo.Count == 0) { Report($"6 준비 {tag}", false, "줍을 돌 없음"); yield break; }
+        PlacePalm(solo[0].transform.position); yield return null;
+        Hand.DebugPress(); yield return null; yield return null;
+        Hand.DebugRelease(); yield return null;
+        int picked = Hand.PickedStones.Count;
+
+        // 하늘로: 받기 경계(보드 뒷변) 위 1.5
+        float skyY = BoardBounds.SkyFloorY + 1.5f;
+        float t0 = Time.time;
+        bool shot1 = false, shot2 = false;
+        float peakY = float.MinValue;
+        var cs = Object.FindFirstObjectByType<CatchSystem>();
+        while (GM.CurrentPhase == GameManager.GamePhase.PickStones && !GM.IsNakPending && Time.time - t0 < 6f)
+        {
+            float x = follow
+                ? stone.transform.position.x                                   // 눈에 보이는 돌(= 그림자) x를 따라간다
+                : BoardSpace.ToScreen(throwBoard, 0f).x;                       // 던진 자리 위에 그대로
+            peakY = Mathf.Max(peakY, stone.transform.position.y);
+            float y = (mode == 2 && cs != null && cs.IsCatchPhase) ? peakY - 0.3f : skyY;   // 정점 직후 판정되게
+            PlacePalm(new Vector3(x, y, 0f));
+            if (shoot && !shot1 && Time.time - t0 > 0.3f) { Shot("V1116_rise.png"); shot1 = true; }
+            if (shoot && !shot2 && (Object.FindFirstObjectByType<CatchSystem>()?.IsCatchPhase ?? false)
+                && stone.transform.position.y < skyY + 2.5f) { Shot("V1116_fall.png"); shot2 = true; }
+            yield return null;
+        }
+
+        string a = logs.FirstOrDefault(l => l.StartsWith("[Hand] Airtime")) ?? "";
+        var md = System.Text.RegularExpressions.Regex.Match(a, @"drift=([+-][0-9.]+)");
+        float drift = md.Success ? float.Parse(md.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : float.NaN;
+        bool caught = GM.CurrentPhase == GameManager.GamePhase.Throw;
+        string detail = $"drift={drift:+0.00;-0.00} picked={picked} phase={GM.CurrentPhase} nak={GM.IsNakPending} | {a}";
+
+        if (follow)
+            Report($"6a 흐르는 돌 따라가면 받음 {tag}", caught, detail);
+        else
+        {
+            // 흐름은 정점에서 끝나므로 판정 자리 = 최종 자리(손 높이 무관). 손바닥 반경 0.8 근처(0.7~0.9)는 손바닥 중심 오차로 생략
+            float d = Mathf.Abs(drift);
+            if (d < 0.7f) Report($"6b 가만히 + 흐름 {d:F2}<0.8 → 손바닥 받음 {tag}", caught, detail);
+            // 못 받음 = 실제로 떨어져 실패 단계(낙 대기/Failed)까지 갔는가 — 튕긴 돌이 손 위에 얹혀 멈추는 것도 실패로 잡는다
+            else if (d > 0.9f) Report($"6b 가만히 + 흐름 {d:F2}>0.8 → 손가락 튕김 → 떨어져 실패 {tag}",
+                                      !caught && (GM.IsNakPending || GM.CurrentPhase == GameManager.GamePhase.Failed), detail);
+            else Debug.Log($"[V1115] SKIP — 6b 경계 흐름 {d:F2} {tag} ({detail})");
+        }
+        var w = Wait(4.5f); while (w.MoveNext()) yield return null;
+    }
+
+    // ── 2026-11-19 돌 자세·앞뒤 크기 비교 촬영 (판정 아님 — 사용자와 고르기 위한 미리보기) ──
+    [MenuItem("Tools/검증 1115/1119 돌 자세·크기 비교 촬영")]
+    public static void RunPosePreview() => Start(PosePreview());
+
+    private static readonly Vector2[] PreviewPos =
+        { new Vector2(-3f, 3.8f), new Vector2(3f, 3.8f), new Vector2(0f, 0f), new Vector2(-3f, -3.8f), new Vector2(3f, -3.8f) };
+    // 자세 B: X 기울기(윗면이 보이는 정도) ±25 / Y 방향 아무렇게나 / Z 기울기 ±8 (옆으로 눕지 않게 작게)
+    private static readonly Vector3[] PoseB =
+        { new Vector3(-20f, 40f, 5f), new Vector3(15f, 200f, -7f), new Vector3(-10f, 110f, 3f), new Vector3(25f, 300f, -4f), new Vector3(-25f, 160f, 8f) };
+    // 자세 C: 같은 방향 무작위 + 기울기 절반 이하(X ±12 / Z ±4) — B가 원통이 세워진 듯 보여서
+    private static readonly Vector3[] PoseC =
+        { new Vector3(-10f, 40f, 3f), new Vector3(8f, 200f, -4f), new Vector3(-5f, 110f, 2f), new Vector3(12f, 300f, -2f), new Vector3(-12f, 160f, 4f) };
+
+    private static IEnumerator PosePreview()
+    {
+        // 시작 멘트("클릭하여 계속")가 떠 있으면 먼저 닫는다 — Hide도 페이드아웃 끝에 콜백(StartStage(1))을 부르므로
+        // 배치 **전에** 닫고 그 재시작이 끝날 때까지 기다린다(배치 후에 닫으면 판이 새로 시작돼 돌이 사라졌다).
+        var ment = StoryMentUI.Instance;
+        if (ment != null && ment.IsShowing)
+        {
+            ment.Hide();
+            float tm = Time.time;
+            while (ment.IsShowing && Time.time - tm < 3f) yield return null;
+            var w0 = Wait(1f); while (w0.MoveNext()) yield return null;
+        }
+        var p = Prep(1, 1); while (p.MoveNext()) yield return null;
+        GameUI.Instance?.HideGuideText();
+        Hand.DebugPlaceHand(new Vector3(9f, 3f, 0f));   // 손은 화면 오른쪽 위로 치운다
+        var stones = OnBoard().Take(5).ToList();
+        float orig = Stone.DepthSizeStrength;
+        var cases = new (string name, int pose, float strength)[]
+            { ("A_now", 0, 1f), ("B_pose", 1, 1f), ("C_pose", 2, 1f), ("C_size07", 2, 0.7f), ("C_size05", 2, 0.5f) };
+        foreach (var c in cases)
+        {
+            Stone.DepthSizeStrength = c.strength;
+            for (int i = 0; i < stones.Count; i++)
+            {
+                stones[i].SetBoardMotion(PreviewPos[i], 0f);
+                stones[i].transform.rotation = c.pose == 1 ? Quaternion.Euler(PoseB[i]) : c.pose == 2 ? Quaternion.Euler(PoseC[i]) : Quaternion.identity;
+            }
+            yield return null; yield return null;   // 그림자(Update)가 새 크기를 따라오게
+            // 실측: 화면상 돌 지름(렌더러 bounds) — 앞 2개 / 가운데 / 뒤 2개
+            string sizes = string.Join(" ", stones.Select((st, k) =>
+                $"{(PreviewPos[k].y > 0 ? "앞" : PreviewPos[k].y < 0 ? "뒤" : "중")}{st.GetComponent<Renderer>().bounds.size.x:F3}"));
+            Debug.Log($"[V1115] SIZE {c.name} strength={c.strength:F1} phase={GM.CurrentPhase} {sizes}");
+            Shot($"V1119_{c.name}.png");
+            yield return null; yield return null;
+        }
+        Stone.DepthSizeStrength = orig;
+        // 실제 뿌리기 착지 결과(손으로 배치한 게 아니라 게임 코드가 놓은 자세·크기)
+        var p2 = Prep(1, 1); while (p2.MoveNext()) yield return null;
+        GameUI.Instance?.HideGuideText();
+        Hand.DebugPlaceHand(new Vector3(9f, 3f, 0f));
+        var w2 = Wait(0.5f); while (w2.MoveNext()) yield return null;
+        string poses = string.Join(" ", OnBoard().Select(st => $"({st.transform.eulerAngles.x:F0},{st.transform.eulerAngles.y:F0},{st.transform.eulerAngles.z:F0})"));
+        Debug.Log($"[V1115] REAL strength={Stone.DepthSizeStrength:F1} poses={poses}");
+        Shot("V1119_real_scatter.png");
+        yield return null; yield return null;
+        Debug.Log("[V1115] PREVIEW DONE");
+    }
+
+    /// <summary>게임 뷰 캡처 → 프로젝트 Temp/ (git 무시, 에디터 종료 시 정리).</summary>
+    private static void Shot(string name)
+    {
+        string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "Temp", name));
+        ScreenCapture.CaptureScreenshot(path);
+        Debug.Log($"[V1115] SHOT {path}");
+    }
+
     // ── 공통 ─────────────────────────────────────────────────────────────
     private static GameManager GM => GameManager.Instance;
     private static HandController Hand => Object.FindFirstObjectByType<HandController>(FindObjectsInactive.Include);
@@ -216,7 +377,8 @@ public static class V1115VerifyMenu
         // 1-3~1-5는 2초 기다린 뒤에도 줍기 단계가 남아 있어야 한다 → 이 던지기만 낙하를 늘린다(검증 전용, 끝나면 해제)
         //   백그라운드 에디터 ~10fps에선 4단 체공 3.38초로도 1-5 전에 떨어졌다 (1차 실행 t=3.50s Failed)
         p = Prep(1, 4); while (p.MoveNext()) yield return null;
-        Hand.SetThrowDownDurationOverride(3f); // 3 × 1.35 = 4.05초 낙하
+        // 2026-11-16: 4단 배율 1.15 + 낙하 랜덤(×0.77~1.0) → 4.5 × 1.15 × 0.77 ≈ 3.98초 이상 낙하 (구 3 × 1.35 = 4.05초와 비슷하게)
+        Hand.SetThrowDownDurationOverride(4.5f);
         th = ThrowFromPick(); while (th.MoveNext()) yield return null;
         if (GM.CurrentPhase != GameManager.GamePhase.PickStones) { Report("1-3 준비", false, $"phase={GM.CurrentPhase}"); yield break; }
         float tThrow = Time.time;
@@ -278,7 +440,7 @@ public static class V1115VerifyMenu
     private static IEnumerator TestHoldCatchZone()
     {
         var p = Prep(1, 1); while (p.MoveNext()) yield return null;
-        Hand.SetThrowDownDurationOverride(3f); // 낙하 3초 — 2초 쓸기 시간이 끝난 뒤에도 낙하 중이게
+        Hand.SetThrowDownDurationOverride(4f); // 낙하 3.1~4초(11-16 랜덤 ×0.77~1.0) — 2초 쓸기 시간이 끝난 뒤에도 낙하 중이게
         var th = ThrowFromPick(); while (th.MoveNext()) yield return null;
         if (GM.CurrentPhase != GameManager.GamePhase.PickStones) { Report("1-7 준비", false, $"phase={GM.CurrentPhase}"); yield break; }
         float tThrow = Time.time;
@@ -288,13 +450,21 @@ public static class V1115VerifyMenu
 
         // 보드 빈 곳(받기 확장 영역 = 보드 앞변~뒷변 사이)에서 누르고 계속 누르고 있는다
         PlacePalm(empty); yield return null;
-        Hand.DebugPress(); yield return null;
+        Hand.DebugPress();
+        float tPress = Time.time;   // 누른 그 프레임 기준 — 쓸기 끝 = tPress + 2.0 (yield 뒤에 재면 dt만큼 늦게 잡힌다)
+        yield return null;
         bool catchInWindow = true, sawFallInWindow = false;
-        float tPress = Time.time;
-        while (Time.time - tPress < 1.9f)
+        string firstCatchInfo = null;
+        // 2026-11-16: 한계 체크를 yield **뒤**에 한다. 앞에서만 보면 yield 뒤 샘플이 1.9초를 넘어(백그라운드 ~10fps)
+        //   쓸기 끝(2.0초) 이후 받기 모드 전환(= 1-7b의 정상 동작)을 1-7a 실패로 잡았다(실측 첫 catchMode t=2.00s).
+        while (true)
         {
             PlacePalm(empty); yield return null;
+            if (Time.time - tPress >= 1.9f) break;
             if (catchSys != null && catchSys.IsCatchPhase) { sawFallInWindow = true; catchInWindow = Hand.IsCatchMode; }
+            if (Hand.IsCatchMode && firstCatchInfo == null)
+                firstCatchInfo = $"첫 catchMode t={Time.time - tPress:F2}s handY={Hand.transform.position.y:F2} " +
+                                 $"skyFloor={BoardBounds.SkyFloorY:F2} front={BoardSpace.FrontScreenY:F2} hold={Hand.IsHolding} catchPhase={catchSys?.IsCatchPhase}";
         }
         var w = Wait(0.4f); while (w.MoveNext()) { PlacePalm(empty); yield return null; }
         bool fallingAfter = catchSys != null && catchSys.IsCatchPhase;
@@ -302,7 +472,7 @@ public static class V1115VerifyMenu
         bool stillHolding = Hand.IsHolding;
         Hand.DebugRelease(); yield return null;
         Report("1-7a 쓸기 시간 안(낙하 중) 홀드 → 보드 모드 유지(쓸기 계속)", sawFallInWindow && !catchInWindow,
-               $"낙하관측={sawFallInWindow} catchMode={catchInWindow}");
+               $"낙하관측={sawFallInWindow} catchMode={catchInWindow} {firstCatchInfo ?? "(창 안 catchMode 없음)"}");
         Report("1-7b 쓸기 시간 지난 홀드(낙하 중) → 받기 모드(보드 앞쪽까지 받기 영역)", fallingAfter && stillHolding && catchAfter,
                $"낙하중={fallingAfter} 누르는중={stillHolding} catchMode={catchAfter} t={Time.time - tThrow:F2}s");
         w = Wait(4.5f); while (w.MoveNext()) yield return null;
@@ -311,7 +481,8 @@ public static class V1115VerifyMenu
     // ── 2·3. 단별 체공 + 40살 중력 기준값 ────────────────────────────────
     private static IEnumerator TestAirtime()
     {
-        float[] mul = { 1f, 1.15f, 1.25f, 1.35f };
+        // 2026-11-16 밸런스 A1·A2: 배율 1.0/1.05/1.1/1.15, 기본 up 0.85 / down 1.3. down은 랜덤 전 기준값이다.
+        float[] mul = { 1f, 1.05f, 1.1f, 1.15f };
         for (int stage = 1; stage <= 4; stage++)
         {
             var p = Prep(1, stage); while (p.MoveNext()) yield return null;
@@ -322,12 +493,13 @@ public static class V1115VerifyMenu
             while (!logs.Any(l => l.StartsWith("[Hand] Airtime")) && Time.time - t0 < 3f) yield return null;
             float tPeak = Time.time - t0;
             string line = (logs.FirstOrDefault(l => l.StartsWith("[Hand] Airtime")) ?? "(없음)") + $" | 측정 상승≈{tPeak:F2}s";
-            string expect = $"x{mul[stage - 1]:F2}: up={1.0f * mul[stage - 1]:F2}s down={1.5f * mul[stage - 1]:F2}s";
+            string expect = $"x{mul[stage - 1]:F2}: up={0.85f * mul[stage - 1]:F2}s down={1.3f * mul[stage - 1]:F2}s";
             Report($"2 체공 10살 {stage}단", line.Contains(expect), $"{line} / 기대 {expect}");
+            Report($"2r 낙하 랜덤·옆 흐름 범위 10살 {stage}단", FallAndDriftInRange(line, 1.3f * mul[stage - 1]), line);
             var w = Wait(4.5f); while (w.MoveNext()) yield return null;
         }
 
-        // 40살: 무게별 override = 1.5 × (0.5/1.0/1.8), 그 위에 1단 배율 1.0
+        // 40살: 무게별 override = 1.3 × (0.5/1.0/1.8), 그 위에 1단 배율 1.0 (2026-11-16 A2로 기본 1.5→1.3)
         var seen = new HashSet<string>();
         for (int tryN = 0; tryN < 4 && seen.Count < 2; tryN++)
         {
@@ -339,7 +511,7 @@ public static class V1115VerifyMenu
             string g = logs.FirstOrDefault(l => l.StartsWith("[GravityGimmick] Thrown")) ?? "";
             string a = logs.FirstOrDefault(l => l.StartsWith("[Hand] Airtime")) ?? "";
             string weight = g.Contains("weight=Heavy") ? "Heavy" : g.Contains("weight=Light") ? "Light" : g.Contains("weight=Normal") ? "Normal" : "?";
-            float expDown = weight == "Heavy" ? 0.75f : weight == "Light" ? 2.7f : 1.5f;
+            float expDown = weight == "Heavy" ? 0.65f : weight == "Light" ? 2.34f : 1.3f;
             if (!seen.Contains(weight))
             {
                 seen.Add(weight);
@@ -347,6 +519,20 @@ public static class V1115VerifyMenu
             }
             var w = Wait(4f); while (w.MoveNext()) yield return null;
         }
+    }
+
+    /// <summary>2026-11-16 — Airtime 로그의 fall이 down × [1/1.3, 1] 안이고, drift가 0 또는 ±0.6~1.4 안인가.
+    /// (drift 0은 50살 시야 제한 / 가장자리 양쪽 막힘에서만 — 10살 검증에선 0.6 이상이어야 정상)</summary>
+    private static bool FallAndDriftInRange(string line, float expDown)
+    {
+        var mf = System.Text.RegularExpressions.Regex.Match(line, @"fall=([0-9.]+)s");
+        var md = System.Text.RegularExpressions.Regex.Match(line, @"drift=([+-][0-9.]+)");
+        if (!mf.Success || !md.Success) return false;
+        float fall = float.Parse(mf.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        float drift = Mathf.Abs(float.Parse(md.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture));
+        bool fallOk = fall >= expDown / 1.3f - 0.011f && fall <= expDown + 0.011f;
+        bool driftOk = drift >= 0.6f - 0.011f && drift <= 1.4f + 0.011f;
+        return fallOk && driftOk;
     }
 
     // ── 4. 20살 도망 공기 ────────────────────────────────────────────────

@@ -120,6 +120,19 @@ namespace FiveStones.Core
         /// - **높이**: 위로 뜰수록 커진다. 이 보드는 내려다보는 시점(그래서 사다리꼴)이라
         ///   물체가 뜨면 카메라에 가까워진다. 높이를 무시하면 던진 돌이 중간 깊이의 축소율에
         ///   묶인 채 하늘에 떠 있어 계속 작아 보인다.</summary>
+        /// <summary>2026-11-19 — 깊이 축소만 depthStrength로 완화한 원근 배율(높이 배율은 그대로).
+        /// 1 = <see cref="PerspectiveScale(Vector2, float)"/>와 같음, 0 = 깊이 축소 없음.
+        /// 돌 그림 전용 — 손·판정 원은 보드 단위와 맞아야 하므로 완화하지 않는다.</summary>
+        public float PerspectiveScale(Vector2 boardPos, float height, float depthStrength)
+        {
+            float h = Mathf.Max(0f, height) * heightScale;
+            float v = boardPos.y / Depth + 0.5f;
+            float effectiveV = Mathf.Min(1f, v + h * HeightConverge);
+            float depthScale = Mathf.LerpUnclamped(backHalfWidth, frontHalfWidth, effectiveV) / frontHalfWidth;
+            depthScale = Mathf.LerpUnclamped(1f, depthScale, depthStrength);
+            return depthScale * (1f + h * HeightGain);
+        }
+
         public float PerspectiveScale(Vector2 boardPos, float height = 0f)
         {
             float h = Mathf.Max(0f, height) * heightScale;

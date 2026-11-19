@@ -147,6 +147,7 @@ public class ColorSelectGimmick : StageGimmick
             rb.angularVelocity  = Vector3.zero;
             rb.isKinematic = wasKinematic;
 
+            stone.RandomizeRestPose();   // 2026-11-19 돌 자세 C
             stone.SetState(Stone.State.OnBoard);
             placed++;
         }
@@ -164,6 +165,7 @@ public class ColorSelectGimmick : StageGimmick
             rb.linearVelocity  = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
             rb.isKinematic = wasKinematic;
+            stone.RandomizeRestPose();   // 2026-11-19 돌 자세 C
             stone.SetState(Stone.State.OnBoard);
         }
 
