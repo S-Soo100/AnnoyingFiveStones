@@ -61,8 +61,7 @@ UI 수치는 **스크린샷 눈대중이 아니라 Figma 실측치**로 옮긴�
 # 기획 일관성 검사 (Gemini, 무료)
 /Users/baek/ideaBank/tools/consistency-check.sh /Users/baek/ideaBank/game-dev/specs/five-stones/ /Users/baek/ideaBank/game-dev/reports/five-stones-consistency.md
 
-# 코드 리뷰 (Gemini, 무료) — /검수 code 에서 자동 호출
-cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBank/tools/code-review.sh /Users/baek/ideaBank/game-dev/reports/code-review-gemini.md
+# 코드 리뷰 — 내장 /code-review만 쓴다 (사용자 호출). code-review.sh는 폐기됐다 (2026-06-21).
 
 # 문서 요약 (Gemini, 무료)
 /Users/baek/ideaBank/tools/gemini-summarize.sh input.md output.md
@@ -82,12 +81,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 - **Implementer**: unity-game-coder (Unity C# 전용) — Critical 트랙에서 투입, Trivial·Standard는 메인이 직접
 
 ### 사용자 안내 규칙
-게임 관련 작업 요청 시, 메인 Claude는 **트랙 판단 결과를 먼저 알려준다**:
-```
-📋 CAOF 트랙: [Trivial / Standard / Critical]
-이유: [1줄 근거]
-→ [어떤 에이전트가 어떤 순서로 작동하는지]
-```
+게임 관련 작업 요청 시, 메인 Claude는 **트랙 판단 결과를 먼저 알려준다**. 형식은 글로벌 규칙대로 `트랙: <이름> — <이유>` 한 줄이다.
 사용자가 "CAOF 끄기"라고 하면 해당 세션에서 비활성화.
 
 ### 트랙 분류 기준
@@ -254,7 +248,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 
 **GATE 5 — 검수** (산출물: 검수 보고서)
 - 자체 검수 (흐름 추적 + 상태 변수 + 엣지케이스)
-- `/검수 code` — 4모델 교차 코드 리뷰
+- 내장 `/code-review` (사용자 호출)
 - consistency-check.sh 실행
 
 **GATE 6 — 테스트** (산출물: 사용자 테스트 결과)
@@ -290,7 +284,7 @@ cd /Users/baek/unityProjects/AnnoyingFiveStones && git diff | /Users/baek/ideaBa
 2. Explore agent로 기존 기획 문서 수집 (병렬)
 3. 리서치 완료 후 `design-report.sh`로 보고서 생성
 4. **game-designer가 구현 계획서 작성** → 사용자 "승인" 대기
-5. 승인 후 unity-game-coder 구현 → `/검수 code`로 교차 모델 코드 리뷰
+5. 승인 후 unity-game-coder 구현 → 내장 `/code-review`로 코드 리뷰 (사용자 호출)
 6. `consistency-check.sh`로 정합성 검증
 7. 구현 현황 문서(`/Users/baek/ideaBank/game-dev/specs/five-stones/구현현황-phase0.md`) 업데이트
 
