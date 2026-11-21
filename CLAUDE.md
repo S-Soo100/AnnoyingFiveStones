@@ -186,4 +186,4 @@ Standard 버그는 메인이 원인을 분석하고 직접 고친다. 에이전�
 
 ### 5. New Input System 사용
 - 레거시 `Input.GetKey()` 사용 금지
-- Unity New Input System (`InputAction`, `PlayerInput`) 사용
+- Unity New Input System을 쓴다. 스크립트에서 코드로 `InputAction`을 만드는 기존 관례를 따른다(`PlayerInput` 컴포넌트는 쓰지 않는다).

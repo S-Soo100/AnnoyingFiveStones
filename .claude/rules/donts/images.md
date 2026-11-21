@@ -51,4 +51,3 @@ Transparent background. Copy the result to <절대경로>.png and print the sour
 
 ---
 **출처 메모리:** `feedback_api_roles`, `feedback_image_naming`, `feedback_illustration_pipeline`, `feedback_image_alpha_channel`, `feedback_sprite_grid_method`, `feedback_sprite_quality`
-**연관 규칙:** `CLAUDE.md` "시각 에셋 생성 규칙", "이미지 생성 사전 승인 프로세스"
