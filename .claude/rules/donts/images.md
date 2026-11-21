@@ -43,7 +43,7 @@ Transparent background. Copy the result to <절대경로>.png and print the sour
 ## 🔳 투명 배경 / 파일 포맷
 
 10. **투명 배경은 `-alpha on` + `PNG32:` 필수** — ImageMagick에서 투명 처리 안 되면 이 옵션 빠진 것. 리사이즈는 반드시 nearest-neighbor(`-filter Point`).
-11. **favicon은 `.ico` 대신 `.png`** — 투명도·품질 안정적.
+    (11번은 비어 있다. 번호를 채우거나 당기지 않는다.)
 
 ## 📐 일러스트 파이프라인
 

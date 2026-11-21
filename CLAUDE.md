@@ -134,10 +134,9 @@ gamedev-skills/awesome-gamedev-agent-skills (Apache-2.0) @ `c6ca6c4`에서 4개�
 - SpriteRenderer에 스프라이트 할당은 MCP로 불안정 → **런타임 Texture2D + Sprite.Create 패턴 사용**
 - 머테리얼/스프라이트 생성 후 반드시 **`get_gameobject`로 bounds 확인** (size 0,0,0이면 미할당)
 
-#### UI 렌더링 (URP + Viewport Rect 경험 반영)
-- **Screen Space Overlay는 URP Camera Viewport Rect와 충돌** — viewport 영역 내에서 Canvas가 카메라 뒤에 렌더링됨 (P0에서 확인된 버그)
-- 정식 UI는 **World Space Canvas** (카메라와 게임 오브젝트 사이 Z축 배치) 사용
-- viewport 밖(여백)에 표시할 UI만 Screen Space Overlay 허용 (게이지 바 등)
+#### UI 렌더링
+- 전체 화면 UI(타이틀·설정·일시정지·이름 입력·묘지·스토리 등)는 **Screen Space Overlay + CanvasScaler 1280×720**이다. 플레이 화면에 붙는 HUD(`GameUI`·`GaugeBarUI`·`SidePanelUI`·`TutorialUI`)는 **World Space Canvas**(카메라와 게임 오브젝트 사이 Z축 배치)다. 새 UI는 같은 종류의 기존 스크립트를 따른다.
+- 카메라 Viewport Rect를 기본값(0,0,1,1)에서 바꾸면 그 영역에서 Overlay Canvas가 카메라 뒤에 렌더링된다(P0에서 확인된 버그). 지금은 두 씬 모두 기본값이다.
 - 새 Canvas 렌더 모드 도입 시 반드시 **WebSearch로 URP 호환성 리서치** 후 진행
 
 #### Quad/Mesh 생성

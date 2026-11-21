@@ -4,11 +4,9 @@
 
 ## 🎮 게임플레이 / 시스템
 
-1. **퀘스트 조건 체크 시 `isCompleting` 가드 필수** — 중복 완료 호출 방지. 가드 없이 조건 체크 → 보상 2회 지급 버그.
-2. **퀘스트 전환 시 `CurrentQuest` 즉시 클리어** — 전환 직후 이전 퀘스트 참조 남으면 트리거 오발. 새 퀘스트 할당 전에 반드시 null.
-3. **AutoWalk는 장애물 없는 경로에만** — A* 없이 직선 이동이므로 벽/장애물 있는 맵에서 끼임. 내부 통로/직선 구간에만 사용.
+> 빈 번호(1~3·5·12)는 채우거나 당기지 않는다. CLAUDE.md와 스킬이 이 파일의 규칙을 번호로 참조한다.
+
 4. **빈 시간은 시스템이 아닌 콘텐츠로 채우기** — "할 게 없네" → 새 시스템 추가 유혹 금지. 서사·이벤트·대사로 먼저 채운다.
-5. **맵 재설계 시 기존 구조 보존** — 호수 형태, 동선, 크기는 명시 요청 없으면 그대로. 재배치만 허용, 리셋 금지.
 
 ## 🧰 Unity 엔진
 
@@ -24,8 +22,6 @@
 ## 🎨 시각 문제 진단
 
 11. **시각 문제는 에셋(PNG) 먼저 확인** — 색상/형태 이상 → 코드 의심 전에 스프라이트 파일을 `Read`로 열어본다. (Sand.png 사례)
-12. **나무 에셋 규칙** — 2×2 금지, 픽셀 고집 금지, 크기는 기획 시트 기준. 임의 리사이즈 금지.
-
 ## 🔁 작업 워크플로우
 
 13. **게임 코드 수정은 3단계 강제** — 진단(콘솔+코드+diff) → 최소 수정(1~3줄 우선) → 자체 검수(흐름+엣지케이스). 검수 통과 전 "테스트해보세요" 금지.
@@ -48,4 +44,4 @@
 21. **시각/판정 버그는 "실행 중 게임을 직접 확인" — 좌표 추측 금지** — get_gameobject로 실제 Transform/스케일, 콘솔 로그로 실측 좌표, computer-use로 화면 캡처해 눈으로 대조한다. ⚠️ **URP에서는 `OnRenderObject`+`GL` 즉시모드 디버그 라인이 렌더링 안 됨** → LineRenderer/마커 오브젝트로 시각화(`BoardBoundsDebugDrawer`가 이 방식). ⚠️ **Play 중 MCP 재컴파일은 Play를 정지→재시작하기 전까지 반영 안 됨** → 유저가 "똑같다"면 재시작 여부부터 확인. (v14 — 추측 기반 수정 반복이 실패의 근본 원인)
 
 ---
-**출처 메모리:** `feedback_unity_quest_guard`, `feedback_quest_advance`, `feedback_autowalk_pathfinding`, `feedback_content_not_system`, `feedback_map_redesign`, `feedback_unity_input_system`, `feedback_unity_tmp_font`, `feedback_parallel_agents`, `feedback_csharp_array_init`, `feedback_visual_check_asset_first`, `feedback_tree_rules`, `feedback_game_code_workflow`, `feedback_ai_design_review`, `feedback_build_diagnosis_log_first`, `feedback_verify_assumptions`
+**출처 메모리:** `feedback_content_not_system`, `feedback_unity_input_system`, `feedback_unity_tmp_font`, `feedback_parallel_agents`, `feedback_csharp_array_init`, `feedback_visual_check_asset_first`, `feedback_game_code_workflow`, `feedback_ai_design_review`, `feedback_build_diagnosis_log_first`, `feedback_verify_assumptions`
