@@ -6,8 +6,6 @@
 - 전역: [`.claude/rules/donts.md`](.claude/rules/donts.md)
 - 게임/Unity: [`.claude/rules/donts/game.md`](.claude/rules/donts/game.md)
 - 이미지/에셋: [`.claude/rules/donts/images.md`](.claude/rules/donts/images.md)
-- FlowForge/React/Supabase: [`.claude/rules/donts/flowforge.md`](.claude/rules/donts/flowforge.md)
-- 마케팅/콘텐츠: [`.claude/rules/donts/marketing.md`](.claude/rules/donts/marketing.md)
 
 **실전 검증 로그:** Standard 이상 트랙 작업을 마칠 때마다 [`.claude/donts-audit.md`](.claude/donts-audit.md)에 한 줄 추가(기능/참조/지킴/놓침/재발/메모). Three-Strike Rule 적용 — 같은 실수 3회 발생 시 이 프로젝트의 donts로 정식 승격.
 

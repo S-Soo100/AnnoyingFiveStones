@@ -35,9 +35,5 @@
   퀘스트 가드, AutoWalk 경로, 나무 에셋, 맵 재설계, C# 배열 초기화, TMP 한글 폰트 등
 - **이미지 / 에셋 생성** → [`donts/images.md`](donts/images.md)
   API 역할 분담, 참조 이미지 규칙, 덮어쓰기 금지, 스프라이트 2×2 그리드, 투명 배경 등
-- **FlowForge (React/Supabase)** → [`donts/flowforge.md`](donts/flowforge.md)
-  React Flow Controlled 모드, 태블릿 UX, 배포 전 git status 확인 등
-- **마케팅 / 콘텐츠 발행** → [`donts/marketing.md`](donts/marketing.md)
-  LinkedIn 한글 URL, 사업계획서 폴더 분리 등
 
 > 이 인덱스에 없는 피드백은 `~/.claude/projects/-Users-baek-ideaBank/memory/feedback_*.md` 참조.
