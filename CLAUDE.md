@@ -37,6 +37,19 @@ UI 수치는 **스크린샷 눈대중이 아니라 Figma 실측치**로 옮긴�
   `UISkin.Px(시안px)`를 통과시킨다. 팔레트·베벨 규칙도 [`Assets/Scripts/UISkin.cs`](Assets/Scripts/UISkin.cs)에 실측 출처와 함께 있다.
 - ⚠️ 시안 폰트 `Iosevka Charon Mono`에는 **한글 글립이 없다**(Figma의 한글은 폴백 렌더). 기본 언어가 한국어라 그대로 못 쓴다.
 
+## 프로젝트 스킬 (외부 이식, `.claude/skills/`)
+
+gamedev-skills/awesome-gamedev-agent-skills (Apache-2.0) @ `c6ca6c4`에서 4개만 골라 이 프로젝트에 맞게 개작했다(2026-11-16).
+전체 80개를 설치하지 않은 이유: 대부분 다른 엔진용이고, 이미 설치된 Unity 공식 플러그인 스킬과 겹치며, `create-game-assets`는 이미지 규칙(`donts/images.md`)과 충돌한다.
+**이 문서와 donts가 스킬보다 우선한다.** 스킬은 그 위에 얹는 체크리스트·함정 목록이다. Trivial 작업엔 발동하지 않는다.
+
+| 스킬 | 발동 신호 | 이 프로젝트에서 얻는 것 |
+|------|----------|----------------------|
+| `unity-csharp-scripting` | .cs 추가·이름 변경·이동, "Missing script", 직렬화 필드 이름 변경, `?.`/`??`를 Unity 객체에 쓸 때 | `.meta`/GUID 검사기(`scripts/check_unity_project.py`, 읽기 전용), Unity 객체 null 함정, `FormerlySerializedAs`, Awaitable 취소 |
+| `unity-input-system` | 입력 추가·수정, "입력이 안 먹어/두 번 눌려" | 구독/해제 짝, `FixedUpdate`에서 엣지 입력 누락, 맵 활성화 함정. **코드 생성 `InputAction` 관례 유지** |
+| `unity-physics` | 콜라이더·Rigidbody·키네마틱 변경, 돌 튐/밀림 | 키네마틱끼리 접촉 미보고, 쿼리가 트리거 맞음, `SyncTransforms`, `WakeUp`. 2D 내용 제외 |
+| `game-feel` | "타격감", "밋밋해", 흔들림·히트스톱·팝 조정 | 티어 표, 겹치는 히트스톱 처리, 접근성(흔들림 강도·플래시 3회/초). **기존 `ScreenShake`·`UIJuice` 확장 우선** |
+
 ## ideaBank 연동
 이 프로젝트의 기획 문서와 도구는 ideaBank에 있다. **절대경로로 접근**.
 
