@@ -15,7 +15,7 @@ using FiveStones.Core;
 public class ScatterSystem : MonoBehaviour
 {
     [Header("Gauge Settings")]
-    [SerializeField] private float gaugeSpeed = 1.3f;
+    [SerializeField] private float gaugeSpeed = 1.1f;   // 2026-11-25 1.3 → 1.1 ("감도 약간 완만하게") — 씬 값도 함께
     [SerializeField] private float minScatterForce = 1.0f; // (v14 미사용 — 씬 직렬화 잔존, 무해)
     [SerializeField] private float maxScatterForce = 3.0f; // (v14 미사용)
 
@@ -126,8 +126,9 @@ public class ScatterSystem : MonoBehaviour
 
     private bool gaugeGoingUp = true;
     // 딸깍 방지: 게이지가 활성된 시간이 이 값 미만이면 던지지 않고 재대기(캔슬)
+    // 2026-11-25 기획 피드백 "0.1초만 모아 좁게 뿌리려 하면 안 던져진다": 0.2 → 0.1초
     private float gaugeActiveTime;
-    private const float MinGaugeHold = 0.2f;
+    private const float MinGaugeHold = 0.1f;
     private InputAction pressAction;
     private HandController handController;
     private ScatterRangeIndicator rangeIndicator;

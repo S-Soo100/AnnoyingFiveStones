@@ -1047,13 +1047,13 @@ MonoBehaviour:
   stage5CatchRadius: 1.8
   stage5BackhandScaleMultiplier: 2
   stage5BackhandVisualScale: 1.3
-  stage5SpreadRange: 3.2
+  stage5SpreadRange: 2.2
   stage5MinSpacing: 0.8
   stage5MissThreshold: 3.5
-  stage5HeightStep: 1.5
+  stage5HeightStep: 0.6
   stage5GaugeSpeed: 1.5
-  stage5MinPeakY: 5
-  stage5MaxPeakY: 10
+  stage5MinPeakY: 3
+  stage5MaxPeakY: 4.2
   stage5FistGrabRadius: 0.8
   stage5BounceForce: 5
 --- !u!212 &1137297479
@@ -1838,7 +1838,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0b02cb13ad9654c62a3860add04dc972, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ScatterSystem
-  gaugeSpeed: 1.3
+  gaugeSpeed: 1.1
   minScatterForce: 0.3
   maxScatterForce: 5
   baseSpreadRadius: 0.4

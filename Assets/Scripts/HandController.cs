@@ -88,8 +88,9 @@ public partial class HandController : MonoBehaviour
     [SerializeField] private float stage5BackhandVisualScale = 1.3f;   // 5단 받기 시 **보이는 손** 크기 배율
     // v17: 화면 단위 → **보드 단위**. 보드 반너비가 8이므로 같은 숫자라도 의미가 달라진다
     //   (구 화면 1.2 ≈ 보드 1.2 수준으로 비슷하나, 깊이에 따라 화면 폭이 달라지던 문제가 사라진다).
-    [SerializeField] private float stage5SpreadRange = 1.4f;     // 돌 퍼짐 범위 (보드 단위)
-    [SerializeField] private float stage5MinSpacing = 0.35f;     // 돌 최소 간격 (보드 단위)
+    // 2026-11-25 기획 피드백 "패턴이 커서 매번 비슷하고 화면 밖으로 나가 불편": 3.2 → 2.2 (씬 값도 함께)
+    [SerializeField] private float stage5SpreadRange = 2.2f;     // 돌 퍼짐 범위 (보드 단위)
+    [SerializeField] private float stage5MinSpacing = 0.8f;      // 돌 최소 간격 (보드 단위) — 씬 값과 맞춤
     [SerializeField] private float stage5MissThreshold = 3.5f;   // catchAreaY - 이 값 아래로 지나가면 실패 (보드 근처까지 허용)
 
     private bool stage5ClickPending;
@@ -104,12 +105,15 @@ public partial class HandController : MonoBehaviour
     private Vector2 throwingBoardPos;
 
     [Header("Stage 5 Height Settings")]
-    [SerializeField] private float stage5HeightStep = 0.4f;   // 돌 간 높이 간격 (부드럽게 모임)
+    [SerializeField] private float stage5HeightStep = 0.6f;   // 돌 간 높이 간격 (부드럽게 모임) — 2026-11-25 1.5 → 0.6
 
     [Header("Stage 5 Gauge")]
     [SerializeField] private float stage5GaugeSpeed = 1.5f;
-    [SerializeField] private float stage5MinPeakY = 5f;
-    [SerializeField] private float stage5MaxPeakY = 10f;
+    // 2026-11-25: 화면 위 끝 = 카메라 y -1.5 + 직교 7 = 5.5. 이전 5~10(+높이 간격 ±1.5)은 거의 매번 돌이 화면 위로 나갔다.
+    //   3~4.2 + ±0.6. 돌 그림 윗변은 이 값보다 약 0.55 높다(반지름+원근, 검증 실측) → 가장 높은 돌 윗변 ≈5.35.
+    //   5단 낙하는 시간으로 정해져 있어(Stage5 DoStage5Catch) 받을 시간은 그대로다.
+    [SerializeField] private float stage5MinPeakY = 3f;
+    [SerializeField] private float stage5MaxPeakY = 4.2f;
     [SerializeField] private float stage5FistGrabRadius = 0.8f;  // 한붓그리기 시 개별 돌 캐치 반경
     [SerializeField] private float stage5BounceForce = 5f;
 
@@ -217,6 +221,7 @@ public partial class HandController : MonoBehaviour
                 SetCatchMode(false);
                 handModel?.SetCollidersEnabled(false);
             }
+            TryRecatchBounced(catchSys);
         }
         else if (!isCatchMode && !suppressCursorFollow)
         {
@@ -941,6 +946,33 @@ public partial class HandController : MonoBehaviour
         return BoardCatchVerdict.Miss;
     }
 
+    private bool recatchWasAbove;   // 튕긴 돌이 지난 프레임에 손보다 위에 있었는가 (손 높이 통과 감지)
+
+    /// <summary>2026-11-25 기획 피드백 — 손가락에 튕긴 돌을 손바닥으로 다시 받으면 성공.
+    /// 튕긴 돌은 물리로 날아 콜라이더 접촉은 불안정하다(받기 자세 손가락 콜라이더가 먼저 닿아 돌을 밀어냄 — 검증 실측).
+    /// 그래서 일반 받기와 같은 기준을 쓴다: 떨어지며 **손 높이를 지나는 순간** 보드 가로 거리로 판정(JudgeBoardCatch).
+    /// 튕긴 직후 0.2초·올라가는 동안은 받지 않는다(CatchSystem.CanRecatchBounced) — 2026-11-16 "튕기는 순간 겹쳐 받기" 허점 차단 유지.</summary>
+    private void TryRecatchBounced(CatchSystem cs)
+    {
+        if (cs == null || !cs.IsCatchPhase || IsStage5) { recatchWasAbove = false; return; }
+        var s = cs.ThrownStone;
+        if (s == null || s.CurrentState != Stone.State.Bouncing) { recatchWasAbove = false; return; }
+
+        float stoneY = s.transform.position.y;
+        bool crossed = recatchWasAbove && IsAtCatchMoment(stoneY);
+        recatchWasAbove = stoneY > transform.position.y;
+        if (!crossed || !cs.CanRecatchBounced(s)) return;
+
+        // 튕긴 돌은 화면에서 날아다니므로 던질 때 정한 받기 깊이(catchDepthBoard)에서 보드 x로 해석한다
+        float groundY = BoardSpace.ToScreen(catchDepthBoard, 0f).y;
+        Vector2 stoneBoard = BoardSpace.ToBoard(new Vector2(s.transform.position.x, groundY));
+        if (JudgeBoardCatch(stoneBoard) == BoardCatchVerdict.Palm)
+        {
+            Debug.Log($"[Hand] Re-catch bounced stone {s.StoneIndex} on palm");
+            cs.OnPalmCatch(s);
+        }
+    }
+
     /// <summary>받기 판정을 시작할 시점인가 — 떨어지는 돌이 손의 화면 높이를 지나는 순간.
     /// 손이 하늘에 있으므로 "돌이 h=0.6까지 내려왔을 때"가 아니라 "손 높이를 통과할 때"가
     /// 시각적으로 맞는 순간이다.</summary>
@@ -996,6 +1028,16 @@ public partial class HandController : MonoBehaviour
     public void DebugPress()   => OnClickStarted(default);
     public void DebugRelease() => OnClickCanceled(default);
     public void DebugClick()   => OnClick(default);
+
+    /// <summary>2026-11-25 검증 전용 — 5단 게이지 대기 중이면 지정 게이지로 확정(손을 뗀 것과 같다).</summary>
+    public bool DebugStage5Release(float gauge)
+    {
+        if (!stage5GaugeWaiting) return false;
+        stage5GaugeValue = Mathf.Clamp01(gauge);
+        stage5GaugeActive = false;
+        stage5GaugePending = true;
+        return true;
+    }
 
     /// <summary>M2-S3 검증 전용 — 내려오는 중인 던진 돌을 손가락에 튕긴다. DoThrow의 Finger 분기와 같은 순서
     /// (던지기 코루틴 종료 → CatchSystem.OnFingerBounce). 받기 페이즈가 아니면 false.</summary>
@@ -1124,9 +1166,9 @@ public partial class HandController : MonoBehaviour
 
         if (zone == HandHitbox.HitZone.Palm)
         {
-            // 2026-11-16: 1~4단에서 손가락에 튕긴 돌은 손바닥에 닿아도 받지 않는다 → 떨어져 실패("손가락 = 튕김").
-            //   튕기는 순간 물리가 켜지며 이미 겹쳐 있던 손바닥 콜라이더에 즉시 닿아 받기 성공이 됐다
-            //   (직접 검증: 손가락 튕김 7번 중 4번이 같은 순간 Palm catch). 1~4단 받기는 보드 거리 판정(JudgeBoardCatch)이 유일한 기준.
+            // 2026-11-16: 튕기는 순간 물리가 켜지며 이미 겹쳐 있던 손바닥 콜라이더에 즉시 닿아 받기 성공이 됐다
+            //   (직접 검증: 손가락 튕김 7번 중 4번이 같은 순간 Palm catch) → 1~4단 튕긴 돌은 콜라이더 접촉으로 받지 않는다.
+            // 2026-11-25: 튕긴 돌을 다시 받는 건 거리 판정(TryRecatchBounced)이 맡고, 튕긴 돌의 콜라이더는 꺼진다(CatchSystem.OnFingerBounce).
             if (!IsStage5 && stone.CurrentState == Stone.State.Bouncing) return;
             // 손바닥 안착
             catchSystem.OnPalmCatch(stone);

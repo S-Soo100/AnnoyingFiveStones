@@ -26,7 +26,14 @@ public class CatchSystem : MonoBehaviour
     // v6-1: 보드 표면 Y (런타임 계산)
     private float boardSurfaceY = -2.45f; // fallback
 
+    // 2026-11-25 기획 피드백 "손가락 끝에서 튕겨도 손바닥으로 다시 잡으면 성공":
+    //   튕긴 뒤 이만큼 지나고 **내려오는 중**인 돌만 손바닥 재포획을 허용한다.
+    //   튕기는 순간엔 손바닥과 이미 겹쳐 있어 저절로 받기가 됐다(2026-11-16 허점) — 그 구간은 계속 막는다.
+    private const float RecatchMinDelay = 0.2f;
+    private float lastBounceTime = -1f;
+
     public bool IsCatchPhase => isCatchPhase;
+    public Stone ThrownStone => thrownStone;
     public float BoardSurfaceY => boardSurfaceY;
 
     // v19(0825 피드백): 받기 허용을 보드 앞변(아랫쪽 끝)까지 확장 —
@@ -110,6 +117,7 @@ public class CatchSystem : MonoBehaviour
     {
         thrownStone = thrown;
         isCatchPhase = true;
+        lastBounceTime = -1f;
         bouncingStones.Clear();
         inAirStones.Clear();
 
@@ -146,11 +154,28 @@ public class CatchSystem : MonoBehaviour
 
         stone.SetState(Stone.State.Bouncing);
         stone.Rb.linearVelocity = reflectDir * bounceSpeed;
+        lastBounceTime = Time.time;
+        // 2026-11-25: 1~4단 튕긴 돌은 손과 물리로 부딪히지 않는다 — 중력으로만 떨어진다.
+        //   받기 자세의 손 콜라이더가 손 루트 위로 1 이상 덮어, 튕긴 돌 밑으로 손을 옮기기만 해도 돌이 손 안에 들어가
+        //   물리 밀어냄으로 초속 70~300으로 날아갔다(검증 궤적 실측). 다시 받기는 HandController.TryRecatchBounced(거리 판정).
+        //   1~4단에서 손 콜라이더와 만나는 건 튕긴 돌뿐이다(던진 돌은 코루틴·거리 판정, 보드 돌은 다른 레이어).
+        if (handController != null && !handController.IsStage5)
+        {
+            var col = stone.GetComponent<Collider>();
+            if (col != null) col.enabled = false;
+        }
 
         if (!bouncingStones.Contains(stone))
             bouncingStones.Add(stone);
 
         Debug.Log($"[CatchSystem] Finger bounce: stone {stone.StoneIndex}, dir={reflectDir}");
+    }
+
+    /// <summary>튕긴 돌을 손바닥으로 다시 받을 수 있는가 — 튕긴 지 RecatchMinDelay초가 지났고 내려오는 중.</summary>
+    public bool CanRecatchBounced(Stone stone)
+    {
+        if (stone == null || stone.CurrentState != Stone.State.Bouncing || lastBounceTime < 0f) return false;
+        return Time.time - lastBounceTime >= RecatchMinDelay && stone.Rb.linearVelocity.y < 0f;
     }
 
     /// <summary>Bouncing 돌이 바닥에 도달: 탈락 처리</summary>
